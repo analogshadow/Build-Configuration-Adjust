@@ -1,0 +1,244 @@
+#!/bin/sh
+
+# This is the ./configure wrapper script for Build Configuration Adjust (bca)
+# see http://bca.stoverenterprises.com for more informaiton.
+#
+# Customization to this script is usually done by adding a file ./configure-extra. 
+# The documentation for this wrapper script specifically, is this wrapper script. It should
+# be self explainitory, but if not let me know. - C. Thomas Stover
+# 
+#
+#
+# GPLv3
+#
+#    Build Configuration Adjust, a source configuration and Makefile
+#    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+#    (an Alabama Limited Liability Corporation), All rights reserved.
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+if [ "$1" = "--clean" ]
+then
+	echo "configure: cleaning any build and configuration state..."
+
+	#remove directories
+	if [ -f "./bca" ]
+	then
+		HOST_IDENTIFIERS=`./bca --listbuildhosts`
+		for HOST_IDENTIFIER in $HOST_IDENTIFIERS
+		do
+			echo "configure: removing directores for build host $HOST_IDENTIFIER..."
+			BUILD_PREFIX=`./bca --host $HOST_IDENTIFIER --showvalue BUILD_PREFIX`
+			if [ $BUILD_PREFIX = "." ]
+			then
+				rm -rf ./obj
+			else
+				rm -rf $BUILD_PREFIX
+			fi
+		done
+	fi
+
+	if [ -f "./Makefile.bca" ]
+	then
+		echo "configure: removing Makefile.bca..."
+		rm -f Makefile.bca
+	fi
+
+	if [ -f "./buildconfiguration/buildconfiguration" ]
+	then
+		echo "configure: removing ./buildconfiguration/buildconfiguration..."
+		rm -f ./buildconfiguration/buildconfiguration
+	fi
+
+	if [ -f "./bca" ]
+	then
+		echo "configure: removing local bca"
+		rm -f bca
+	fi
+
+	which autoconf > /dev/null
+	if [ $? = 0 ]
+	then
+
+		if [ -f "./configure.ac" ]
+		then
+			if [ -f "./configure-autoconf" ]
+			then
+				echo "configure: removing configure-autoconf..."
+				rm -f configure-autoconf
+			fi
+		fi
+	fi
+
+	echo "configure: done."
+	exit 0
+fi
+
+#First obtain a bca binary to use
+if [ "$BUILD_CC" = "" ]
+then
+	BUILD_CC="gcc -g"
+fi
+
+if [ "$BCA" = "" ]
+then
+	if [ -f ./bca ]
+	then
+	   echo "configure: using existing ./bca."
+	else
+		PATHBCA=`which bca`
+		if [ "$PATHBCA" = "" ]
+		then
+			echo "configure: ./bca is not present, specified by environment variable BCA, or in our PATH."
+			echo "configure: Attempting to build bca from local source using $BUILD_CC."
+			rm -f ./bca
+			$BUILD_CC ./buildconfiguration/buildconfigurationadjust.c -o ./bca
+			if [ $? != 0 ]
+			then
+				echo "configure: Building local bca failed. To change compilers set BUILD_CC."
+				echo "configure: If $BUILD_CC actually works on this system, consider reporting this."
+				echo "configure: http://bca.stoverenterprises.com"
+				exit 1
+			fi
+		else
+#this needs to error out if the link is to bca-canadate or bca-sfdb because those get kill by make clean
+			echo "configure: soft linking ./bca to $PATHBCA"
+			ln -s $PATHBCA ./bca 
+		fi
+	fi
+else
+	if [ -f "$BCA" ]
+	then
+		echo "configure: soft linking to environment specified BCA, $BCA"
+		ln -sf $BCA ./bca
+	else
+		echo "configure: $BCA (from environment variable BCA) does not exist."
+		exit 1
+	fi
+fi
+
+#attempt configuration
+echo "configure: running ./bca --configure"
+./bca --configure $*
+
+if [ $? != 0 ]
+then
+	exit 1
+fi
+
+#tweak configured host(s)
+if [ -f "./configure-extra" ]
+then
+	./configure-extra $*
+	if [ $? != 0 ]
+	then
+		echo "configure: ./configure-extra failed"
+		exit 1
+	fi
+fi
+
+#hybrid Autoconf support
+if [ ! -f "./configure-autoconf" ]
+then
+	if [ -f "./configure.ac" ]
+	then
+		echo "configure: Since ./configure-autoconf was NOT found, and since ./configure.ac"
+		echo "configure: was, running autoconf will be attempted..."
+		autoconf configure.ac > configure-autoconf
+		if [ $? != 0 ]
+		then
+			echo "configure: failure."
+			exit 1
+
+		fi
+		echo "configure: success."
+		chmod +x configure-autoconf
+	fi
+fi
+
+
+if [ -f "./configure-autoconf" ]
+then
+	echo "configure: Hybrid BCA / Autoconf project detected."
+
+	HOST_IDENTIFIERS=`./bca --listbuildhosts`
+	for HOST_IDENTIFIER in $HOST_IDENTIFIERS
+	do
+		export HOST_IDENTIFIER
+		CC=`./bca --host $HOST_IDENTIFIER --showvalue CC`
+		export CC
+		CFLAGS=`./bca --host $HOST_IDENTIFIER --showvalue CFLAGS`
+		export CFLAGS
+		LDFLAGS=`./bca --host $HOST_IDENTIFIER --showvalue LDFLAGS`
+		export LDFLAGS
+
+		echo "configure: Calling external ./configure-autoconf for host identifier $HOST_IDENTIFIER..."
+		echo "==========================================================="
+
+		if [ $HOST_IDENTIFIER != "NATIVE" ]
+		then
+			./configure-autoconf --host=$HOST_IDENTIFIER
+		else
+			./configure-autoconf
+		fi
+
+		if [ $? != 0 ]
+		then
+			echo "configure: ./configure-autoconf failed"
+			exit 1
+
+		fi
+
+		echo "==========================================================="
+		echo "configure: Finished with external ./configure-autoconf for host identifier $HOST_IDENTIFIER."
+
+	done
+
+fi
+
+#create directories
+
+HOST_IDENTIFIERS=`./bca --listbuildhosts`
+for HOST_IDENTIFIER in $HOST_IDENTIFIERS
+do
+	echo "configure: creating directores for build host $HOST_IDENTIFIER..."
+	BUILD_PREFIX=`./bca --host $HOST_IDENTIFIER --showvalue BUILD_PREFIX`
+	if [ -d "$BUILD_PREFIX" ]
+	then
+		echo "configure: directory $BUILD_PREFIX already exists."
+	else
+		echo "configure: creating directory $BUILD_PREFIX"
+		mkdir $BUILD_PREFIX
+	fi
+	if [ -d "$BUILD_PREFIX/obj" ]
+	then
+		echo "configure: directory $BUILD_PREFIX/obj already exists."
+	else
+		echo "configure: creating directory $BUILD_PREFIX/obj"
+		mkdir $BUILD_PREFIX/obj
+	fi
+done
+
+#attempt makefile generation
+echo "configure: generating Makefile.bca"
+./bca --generate-gmakefile
+if [ $? != 0 ]
+then
+	echo "configure: One possible reason makefile generation failed is the need for further, "
+        echo "possibly manual configurion of the build configuration. Read the install file. "
+	echo "To try to generate the makefile again without running configure use ./bca --generate-gmakefile"
+	exit 1
+fi
+echo 'configure: Next use GNU Make to process Makefile.bca, ie "make -f Makefile.bca" or "gmake -f Makefile.bca".'
+
