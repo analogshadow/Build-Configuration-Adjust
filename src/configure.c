@@ -23,17 +23,21 @@
 #include "prototypes.h"
 #endif
 
-int check_target_platform(struct bca_context *ctx, char *host_root, char **platform)
+char temp[1024];
+int temp_length;
+
+int detect_platform(struct bca_context *ctx, char *host_root, 
+                    char **platform)
 {
  FILE *test;
- char temp[1024];
 
  if(host_root == NULL)
  {
   if(strcmp(ctx->principle, "NATIVE") != 0)
   {
    fprintf(stderr, 
-           "BCA: check_target_platform() - warning: HOST_ROOT is NULL, and this looks like cross compile.\n");
+           "BCA: detect_platform() - warning: HOST_ROOT is NULL, "
+           "and this looks like cross compile.\n");
    return 0;
   }
   host_root = "";
@@ -64,18 +68,23 @@ int check_target_platform(struct bca_context *ctx, char *host_root, char **platf
  return 0;
 }
 
-int is_c_compiler_needed(struct bca_context *ctx, 
-                         struct component_details *cd)
+int is_file_of_type_used(struct bca_context *ctx, 
+                         struct component_details *cd,
+                         char *type_extension)
 {
  int i, j, skip, pre_loaded, yes = 0;
  char *extension;
 
- if(ctx->verbose)
+ if(ctx->verbose > 1)
  {
-  printf("BCA: Looking for a C source files to see C compiler is needed.\n"); 
+  printf("BCA: Looking for a project file for an enabled component with extension '%s'.\n",
+         type_extension); 
   fflush(stdout);
  }
 
+//this needs to be commented. has some mysteries. needs to considered disables
+
+ /* first consider the FILES of a component */
  for(i=0; i < cd->n_components; i++)
  {
   skip = 0;
@@ -100,11 +109,23 @@ int is_c_compiler_needed(struct bca_context *ctx,
     pre_loaded = 0;
    }
 
-   for(j=0; j < cd->n_file_names; j++)
+   j=0;
+   while(j < cd->n_file_names)
    {
-    if(strcmp(cd->file_extensions[j], "c") == 0)
-    yes = 1;     
-    
+    if(strcmp(cd->file_extensions[j], type_extension) == 0)
+    {
+     yes = 1;     
+     break;
+    }
+ 
+    j++;
+   }
+
+   if(yes)
+   {
+    if(ctx->verbose)
+     fprintf(stderr, "BCA: File %s satisfies condition to find a *.%s file.\n",
+             cd->file_names[j], type_extension);
    }
 
    if(pre_loaded == 0)
@@ -120,9 +141,11 @@ int is_c_compiler_needed(struct bca_context *ctx,
 
    if(yes)
     return 1;
+
   }
  }
 
+ /* now consider the INPUT */
  for(i=0; i < cd->n_components; i++)
  {
   skip = 0;
@@ -152,7 +175,7 @@ int is_c_compiler_needed(struct bca_context *ctx,
      return 1;
     }
    
-    if(strcmp(extension, "c") == 0)
+    if(strcmp(extension, type_extension) == 0)
      yes = 1;
 
     free(extension);
@@ -173,6 +196,42 @@ int is_c_compiler_needed(struct bca_context *ctx,
  }
 
  return 0;
+}
+
+int is_c_compiler_needed(struct bca_context *ctx, 
+                         struct component_details *cd)
+{
+ if(ctx->verbose)
+ {
+  printf("BCA: Looking for a C source files to see if C compiler is needed.\n"); 
+  fflush(stdout);
+ }
+
+ return is_file_of_type_used(ctx, cd, "c");
+}
+
+int is_cxx_compiler_needed(struct bca_context *ctx, 
+                           struct component_details *cd)
+{
+ if(ctx->verbose)
+ {
+  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed.\n"); 
+  fflush(stdout);
+ }
+
+ return is_file_of_type_used(ctx, cd, "cpp");
+}
+
+int is_erlang_compiler_needed(struct bca_context *ctx, 
+                              struct component_details *cd)
+{
+ if(ctx->verbose)
+ {
+  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed.\n"); 
+  fflush(stdout);
+ }
+
+ return is_file_of_type_used(ctx, cd, "erl");
 }
 
 int is_pkg_config_needed(struct bca_context *ctx, 
@@ -260,7 +319,8 @@ int is_fpic_needed(struct bca_context *ctx,
   fclose(f);
 
   snprintf(command, 1024, 
-           "%s %s -fpic configuretestfile.c %s configuretestfile.o 1> configuretestoutput 2> configuretestoutput", 
+           "%s %s -fpic configuretestfile.c %s configuretestfile.o 1> configuretestoutput "
+           "2> configuretestoutput", 
            tc->cc, tc->cc_compile_bin_obj_flag, tc->cc_output_flag);
 
   if(ctx->verbose)
@@ -335,42 +395,53 @@ int test_package_exist(struct bca_context *ctx,
   fprintf(stderr, 
           "BCA: Could not find package '%s' for host '%s' using\n"
           "BCA: command line '%s'.\n"
-          "BCA: Tweak with PKG_CONFIG_PATH, PKG_CONFIG_LIBDIR, and PKGCONFIG envrionment variables.\n",
+          "BCA: Tweak with PKG_CONFIG_PATH, PKG_CONFIG_LIBDIR, and "
+          "PKGCONFIG envrionment variables.\n",
           package, ctx->principle, command);
 
   fprintf(stderr,
-          "BCA: It could be that %s, or its development files are not installed on this system.\n",
+          "BCA: It could be that %s, or its development files are not installed "
+          "on this system.\n",
           package);
 
   fprintf(stderr,
-          "BCA: It is also possible that %s itself does not use package config, but something some\n"
+          "BCA: It is also possible that %s itself does not use package config, "
+          "but something some\n"
           "BCA: distributions may include for convience and others do not.\n", package);
 
   fprintf(stderr, 
-          "BCA: Similarly, the author(s) of \"%s\" might intend for a package config wrapper to be\n"
-          "BCA: crafted for this purpose by those performing a build. Read the project's install file as\n"
+          "BCA: Similarly, the author(s) of \"%s\" might intend for a package config wrapper "
+          "to be\n"
+          "BCA: crafted for this purpose by those performing a build. Read the project's "
+          "install file as\n"
           "BCA: one may already be included with the source files for your platform.\n",
            ctx->project_name);
 
   if(optional == 1)
    fprintf(stderr, 
-           "BCA: Since this is only needed an optional package we will continue. You can disable this\n"
+           "BCA: Since this is only needed an optional package we will continue. "
+           "You can disable this\n"
            "BCA: message with --without-%s .\n", package);
 
   if(optional == 2)
    fprintf(stderr, 
-           "BCA: Since package \"%s\" is an optional dependency for some componets of this project\n"
-           "BCA: --without-%s can be used to disable the dependency for such component(s). Although in this\n"
-           "BCA: project it is still required for one or more other componets.\n", package, package);
+           "BCA: Since package \"%s\" is an optional dependency for some componets of "
+           "this project\n"
+           "BCA: --without-%s can be used to disable the dependency for such component(s). "
+           "Although in this\n"
+           "BCA: project it is still required for one or more other componets.\n",
+           package, package);
 
  } else {
   if(optional == 1)
   {
    fprintf(stderr, 
-           "BCA: Could not find optional package '%s' for host '%s'.\n", package, ctx->principle);
+           "BCA: Could not find optional package '%s' for host '%s'.\n",
+           package, ctx->principle);
   } else {
    fprintf(stderr, 
-           "BCA: Could not find package '%s' for host '%s'.\n", package, ctx->principle);
+           "BCA: Could not find package '%s' for host '%s'.\n", 
+           package, ctx->principle);
   }
  }
 
@@ -424,258 +495,119 @@ int *expand_int_array(int *ptr, int *allocated_size, int needed_size)
  return array;
 }
 
-char temp[1024];
-int temp_length;
-
-int configure(struct bca_context *ctx)
+int host_cc_configuration(struct bca_context *ctx, 
+                          struct host_configuration *tc,
+                          struct component_details *cd)
 {
- char *s, **test_package_list, **list, **depends = NULL, *value, **project_disables;
- char host_prefix[512], install_prefix[512];
- int i, j, code, n_test_packages, n_elements, n_project_disables,
-     n_depends = 0, x, yes;
- int n_modify_records = 0;
- int *test_package_optional_flags, test_package_optional_flags_size = 0, handled;
- char **mod_principles = NULL, **mod_components = NULL, **mod_keys = NULL, **mod_values = NULL;
- struct component_details cd;
- struct host_configuration *tc;
- char *platform = "", *host_root;
+ char *s;
+ char host_prefix[512];
 
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: configure()\n");
-
- if(ctx->verbose == 0)
-  fprintf(stdout, "BCA: configure() use -v to increase verbosity\n");
-
- memset(&cd, 0, sizeof(struct component_details));
-
- cd.host = ctx->principle;
-
- if((ctx->build_configuration_contents = 
-     read_file("./buildconfiguration/buildconfiguration", 
-               &(ctx->build_configuration_length), 1)) != NULL)
+ /* host prefix */
+ if(ctx->host_prefix == NULL)
  {
-  if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
-  {
-   fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
-   return 1;
-  }
-  /* all the below reasignments of non-NULL tc members are memory leaks */
+  host_prefix[0] = 0;
  } else {
-  if((tc = (struct host_configuration *)
-           malloc(sizeof(struct host_configuration))) == NULL)
-  {
-   fprintf(stderr, "BCA: malloc() failed\n");
-   return 1;
-  }
-  memset(tc, 0, sizeof(struct host_configuration));
-
-  if((tc->build_tc = (struct host_configuration *)
-                      malloc(sizeof(struct host_configuration))) == NULL)
-  {
-   fprintf(stderr, "BCA: malloc() failed\n");
-   return 1;
-  }
-  memset(tc->build_tc, 0, sizeof(struct host_configuration));
- }
- 
- if((ctx->project_configuration_contents = 
-     read_file("./buildconfiguration/projectconfiguration", 
-               &(ctx->project_configuration_length), 0)) == NULL)
- {
-  fprintf(stderr, "BCA: can't open project configuration file\n");
-  return 1;
+  snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
  }
 
- if(resolve_project_name(ctx))
+ /* C compiler */
+ if((s = getenv("CC")) != NULL)
  {
-  fprintf(stderr, "BCA: can't resolve project name.\n"
-                  "BCA: Make sure project file has a NONE.NONE.PROJECT_NAME record\n");
-  return 1;
- } 
-
- if(list_project_components(ctx, &cd))
- {
-  fprintf(stderr, "BCA: list_project_components() failed.\n");
-  return 1;
- }
-
- if(ctx->verbose)
- {
-  printf("BCA: found (%d) project components: ", cd.n_components);
-  for(i=0; i < cd.n_components; i++)
+  /* here we want to overwrite regardless */
+  snprintf(temp, 512, "%s%s", host_prefix, s); 
+ } else {
+  /* here we guess only if we have to */
+  if(tc->cc != NULL)
   {
-   printf("%s ", cd.project_components[i]);
-  }
-  printf("\n");
- }
-
- host_root = getenv("HOST_ROOT");
- if(ctx->verbose)
-  if(host_root)
-   fprintf(stderr, "BCA: HOST_ROOT set via environment variable\n");
-
-
- /* project defined disables processing */
- if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                      ctx->project_configuration_length, 
-                      "NONE", "NONE", "DISABLES")) != NULL)
- {
-  if(ctx->verbose)
-   fprintf(stderr,
-           "BCA: project file has specified some components disable by default: %s\n", value);
-
-  if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
-  {
-   fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
-   return 1;
-  }
-
-  /* catch the user's error first */
-  for(j=0; j<ctx->n_enables; j++)
-  {
-   yes = 1;
-   for(i=0; i<n_project_disables; i++)
-   {
-    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
-    {
-      yes = 0;
-      break;
-    }
-   }
-
-   if(yes)
-   {
-    fprintf(stderr, 
-            "BCA: I do not have a component disabled by default to enable with --enable-%s\n",
-             ctx->enabled_components[j - 1]);
-    return 1;
-   }
-  }
- 
-  for(i=0; i<n_project_disables; i++)
-  {
-   yes = 1;
-   for(j=0; j<ctx->n_enables; j++)
-   {
-    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
-    {
-     yes = 0;
-     break;
-    }
-   }
-
-   if(yes)
-   {
-    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
-                           project_disables[i], -1, 1))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed. Are you using --disable on a component "
-             "that is disable by default by the project?\n");
-     return 1;
-    }
-    ctx->n_disables++;
-   }
-  }
-
-  free(value);
- }
-
- code = is_c_compiler_needed(ctx, &cd);
- if(code == -1)
-  return 1;
-
- if(code == 1)
- {
-
-  /* BUILD_CC
-   in autotools "build" is the system doing the compiling, "host" is the sytem which it will run, 
-   and "target" is the system for which it might generate code for.
-
-   in bca ALL.ALL.BUILD_CC is the same as autoconf's build_CC
-
-   ALL.component.BUILD_CC can still be set manually if need be, as that resolution patter is still 
-   followed.
-
-   There might be ways to use cpp definitions availble here to know what compiler built BCA in
-   stage 0, and just use that.
-
-  */
-
-  /* BUILDCC */
-  if((s = getenv("BUILDCC")) == NULL)
-  {
-   if((s = tc->build_tc->cc) == NULL)
-    if((s = getenv("CC")) == NULL)
-     s = "gcc";
-  }
-
-  if(test_runnable(ctx, s))
-  {
-   fprintf(stderr, 
-           "BCA: Specify alternative build C compiler with the BUILDCC environment variable.\n");
-   return 1;
-  }
-  
-  if(ctx->verbose)
-   printf("BCA: Build C Compiler = %s\n", s);
-
-  if(tc->build_tc->cc != s)
-   tc->build_tc->cc = strdup(s);
-
-  if(tc->build_tc->cc_output_flag == NULL)
-   tc->build_tc->cc_output_flag = strdup("-o");
-
-  if(tc->build_tc->cc_compile_bin_obj_flag == NULL)
-   tc->build_tc->cc_compile_bin_obj_flag = strdup("-c");
-
-  if(tc->build_tc->binary_suffix == NULL)
-   tc->build_tc->binary_suffix = strdup("");
-
-  if(tc->build_tc->obj_suffix == NULL)
-   tc->build_tc->obj_suffix = strdup(".o");
-
-  /* host prefix */
-  if(ctx->host_prefix == NULL)
-  {
-   host_prefix[0] = 0;
+   snprintf(temp, 512, "%s", tc->cc); 
   } else {
-   snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
+   snprintf(temp, 512, "%sgcc", host_prefix); 
   }
+ }
 
-  /* target platform */
-  if(check_target_platform(ctx, host_root, &platform))
-  {
-   fprintf(stderr, "BCA: check_target_platform() hard failed\n");
-   return 1;
-  }
-
-  /* C compiler */
-  if((s = getenv("CC")) != NULL)
-  {
-   /* here we want to overwrite regardless */
-   snprintf(temp, 512, "%s%s", host_prefix, s); 
-  } else {
-   /* here we guess only if we have to */
-   if(tc->cc != NULL)
-   {
-    snprintf(temp, 512, "%s", tc->cc); 
-   } else {
-    snprintf(temp, 512, "%sgcc", host_prefix); 
-   }
-  }
-
-  if(test_runnable(ctx, temp))
-  {
-   fprintf(stderr, 
-           "BCA: Specify alternative with C compiler with the CC environment variable.\n");
-   return 1;
-  }
+ if(test_runnable(ctx, temp))
+ {
+  fprintf(stderr, 
+          "BCA: Specify alternative with C compiler with the CC environment variable.\n");
+  return 1;
+ }
   
-  if(ctx->verbose)
-   printf("BCA: Host C Compiler = %s\n", temp);
+ if(ctx->verbose)
+  printf("BCA: Host %s C Compiler = %s\n", ctx->principle, temp);
 
-  tc->cc = strdup(temp);
+ tc->cc = strdup(temp);
 
+ return 0;
+}
+
+int host_cxx_configuration(struct bca_context *ctx, 
+                           struct host_configuration *tc,
+                           struct component_details *cd)
+{
+ char *s;
+ char host_prefix[512];
+
+ /* host prefix */
+ if(ctx->host_prefix == NULL)
+ {
+  host_prefix[0] = 0;
+ } else {
+  snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
+ }
+
+ /* C++ compiler */
+ if((s = getenv("CXX")) != NULL)
+ {
+  /* here we want to overwrite regardless */
+  snprintf(temp, 512, "%s%s", host_prefix, s); 
+ } else {
+  /* here we guess only if we have to */
+  if(tc->cc != NULL)
+  {
+   snprintf(temp, 512, "%s", tc->cxx); 
+  } else {
+   snprintf(temp, 512, "%sg++", host_prefix); 
+  }
+ }
+
+ if(test_runnable(ctx, temp))
+ {
+  fprintf(stderr, 
+          "BCA: Specify alternative with C++ compiler with the CXX environment variable.\n");
+  return 1;
+ }
+  
+ if(ctx->verbose)
+  printf("BCA: Host %s C++ Compiler = %s\n", ctx->principle, temp);
+
+ tc->cxx = strdup(temp);
+
+ return 0;
+}
+
+int c_family_configuration(struct bca_context *ctx, 
+                           struct host_configuration *tc,
+                           struct component_details *cd)
+{
+ int code, need_cc, need_cxx; 
+ char *s;
+
+ if((need_cxx = is_cxx_compiler_needed(ctx, cd)) == -1)
+  return 1;
+
+ if((need_cc = is_c_compiler_needed(ctx, cd)) == -1)
+  return 1;
+
+ if(need_cc)
+  if(host_cc_configuration(ctx, tc, cd))
+   return 1;
+
+ if(need_cxx)
+  if(host_cxx_configuration(ctx, tc, cd))
+   return 1;
+
+ if(need_cxx || need_cc )
+ {
   /* C compiler output flag */
   if(tc->cc_output_flag == NULL)
    tc->cc_output_flag = "-o";
@@ -714,37 +646,24 @@ int configure(struct bca_context *ctx)
    /* here we want to overide regardless */
    tc->cflags = strdup(s);
   } 
-
  }
 
- /* Build prefix is where the output for this build host goes */
- if(tc->build_prefix == NULL)
- {
-  if(ctx->host_prefix == NULL)
-  {
-   if(strcmp(ctx->principle, "NATIVE") == 0)
-   {
-    snprintf(temp, 512, "./native");
-   } else {
-    snprintf(temp, 512, ".");
-   }
-  } else {
-   s = build_prefix_from_host_prefix(ctx);
-   snprintf(temp, 512, "%s", s);
-   free(s);
-  }
-  tc->build_prefix = strdup(temp);
- }
+ return 0;
+}
 
+int pkg_config_tests(struct bca_context *ctx, 
+                     struct host_configuration *tc,
+                     struct component_details *cd)
+{
+ char *s;
+ int code;
 
- /* Package Config */
- code = is_pkg_config_needed(ctx, &cd);
- if(code == -1)
+ if((code = is_pkg_config_needed(ctx, cd)) == -1)
   return 1;
 
  if(code == 1)
  {
-  if((s = getenv("PKGCONFIG")) == NULL)
+  if((s = getenv("PKG_CONFIG")) == NULL)
   {
    if((s = tc->pkg_config) == NULL)
     s = "pkg-config";
@@ -753,7 +672,8 @@ int configure(struct bca_context *ctx)
   if(test_runnable(ctx, s))
   {
    fprintf(stderr, 
-           "BCA: Specify alternative with pkg-config with the PKGCONFIG environment variable.\n");
+           "BCA: Specify alternative with pkg-config with the PKG_CONFIG "
+           "environment variable.\n");
    return 1;
   }
 
@@ -796,73 +716,310 @@ int configure(struct bca_context *ctx)
   }
  }
 
- /* this prefix  & suffix stuff should be moved to functions for readability */
+ return 0;
+}
 
- /* Suffix for binaries; ie .exe */
- if(tc->binary_suffix == NULL)
+int process_dependencies(struct bca_context *ctx, 
+                         struct host_configuration *tc,
+                         struct component_details *cd,
+                         char ***mod_principles,
+                         char ***mod_components,
+                         char ***mod_keys, 
+                         char ***mod_values,
+                         int *n_modify_records)
+{
+ /* Given the lists of external, and optional external filtered with --withouts, created 
+    a unique test list and test. Then given the --withouts, the tested list, and the
+    internal deps list create the DEPENDS key for each component in this build.
+ */
+ int n_test_packages = 0, test_package_optional_flags_size = 0, 
+     n_elements, n_depends, x, i, j, yes, code, handled, 
+     *test_package_optional_flags = NULL;
+ char **test_package_list = NULL, **depends = NULL, **list = NULL;
+
+ /* optional dependencies */
+ for(i=0; i < cd->n_components; i++)
  {
-  yes = 0;
-  if(contains_string(host_prefix, -1, "mingw", 5))
-   yes = 1;
-
-  if(strcmp(platform, "cygwin") == 0)
-   yes = 1;
-
-  if(yes)
-  { 
-   tc->binary_suffix = ".exe";
-  } else {
-   tc->binary_suffix = "";
-  }
- }
-
- /* Suffix for shared libraries; ie .dll */
- if(tc->shared_library_suffix == NULL)
- {
-  yes = 0;
-
-  if(contains_string(host_prefix, -1, "mingw", 5))
-   yes = 1;
-
-  if(strcmp(platform, "cygwin") == 0)
-   yes = 1;
-
-  if(yes)
+  yes = 1;
+  for(j=0; j < ctx->n_disables; j++)
   {
-   tc->shared_library_suffix = ".dll";
-  } else if (strcmp(platform, "osx") == 0) {
-   tc->shared_library_suffix = ".dylib"; 
-  } else {
-   tc->shared_library_suffix = ".so";
-  }
- }
-
- /* Prefix for shared libaries */
- if(tc->shared_library_prefix == NULL)
- {
-  if(contains_string(host_prefix, -1, "mingw", 5))
-  {
-   tc->shared_library_prefix = "";
-  } else {
-   if(strcmp(platform, "cygwin") == 0)
+   if(strcmp(cd->project_components[i], ctx->disabled_components[j]) == 0)
    {
-    tc->shared_library_prefix = "cyg";
-   } else {
-    tc->shared_library_prefix = "lib";
+    yes = 0;
+    break;
    }
   }
+
+  /* if the component is not disabled, pull a list of its optional dependencies */
+  if(yes)
+  {
+   cd->project_component = cd->project_components[i];
+   cd->project_component_type = cd->project_component_types[i];
+
+   if(list_component_opt_external_dependencies(ctx, cd, &list, &n_elements))
+    return 1;
+
+   for(j=0; j < n_elements; j++)
+   {
+    x = 0;
+    yes = 1;
+    while(x < ctx->n_withouts)
+    {
+     if(strcmp(ctx->without_strings[x], list[j]) == 0)
+     {
+      yes = 0;
+      break;
+     }
+     x++;
+    }
+
+    /* if the optional dependency was not turned off with --without, add it to the
+       list of packages to test for */
+    if(yes)
+    {
+     if((code = add_to_string_array(&test_package_list, n_test_packages, list[j], -1, 1)) < 0)
+     {
+      return 1;
+     }
+
+     if(code == 0)
+     {
+      n_test_packages++;
+
+      /* we keep an array along side the list of packages to test for that 
+         holds if the package was an optional dependency. This way we don't
+         test for the same package twice if it is in both catagories. The
+         optional flag then deturmins if we can proceed if the package was
+         not found. */
+      test_package_optional_flags = expand_int_array(test_package_optional_flags, 
+                                                     &test_package_optional_flags_size, 
+                                                     n_test_packages);
+
+      test_package_optional_flags[n_test_packages - 1] = 1;
+     }
+    }
+   }
+  }
+
+  free_string_array(list, n_elements);
  }
 
- /* Suffix for object files */
- if(tc->obj_suffix == NULL)
-  tc->obj_suffix = ".o";
-
- /* LDFLAGS */
- if((s = getenv("LDFLAGS")) != NULL)
+ /* non-optional externals */
+ for(i=0; i < cd->n_components; i++)
  {
-  /* here we want to overwrite regardless */
-  tc->ldflags = strdup(s);
+  yes = 1;
+  for(j=0; j < ctx->n_disables; j++)
+  {
+   if(strcmp(cd->project_components[i], ctx->disabled_components[j]) == 0)
+   {
+    yes = 0;
+    break;
+   }
+  }
+
+  /* if the component is not disabled, pull a list of its required dependencies */
+  if(yes)
+  {
+   cd->project_component = cd->project_components[i];
+   cd->project_component_type = cd->project_component_types[i];
+
+   if(list_component_external_dependencies(ctx, cd, &list, &n_elements))
+    return 1;
+
+   for(j=0; j < n_elements; j++)
+   {
+    if((code = add_to_string_array(&test_package_list, n_test_packages, list[j], -1, 1)) < 0)
+    {
+     return 1;
+    }
+
+    if(code == 0)
+    {
+     n_test_packages++;
+
+     test_package_optional_flags = expand_int_array(test_package_optional_flags, 
+                                                    &test_package_optional_flags_size, 
+                                                    n_test_packages);
+
+     test_package_optional_flags[n_test_packages - 1] = 0;
+    } else {
+
+     handled = 0;
+     for(x=0; x < n_test_packages; x++)
+     {
+      if(strcmp(test_package_list[x], list[j]) == 0)
+      {
+       /* Here we change the testing of a package from optional to non-optional which effects
+          the error behavior. A --without-package will still give the ability to turn it off
+          for optional cases which caused this case in the first place.
+        */
+       test_package_optional_flags[x] = 2;
+       handled = 1;
+       break;
+      }
+     }
+     if(handled == 0)
+     {
+      fprintf(stderr, "BCA: element that should have been found in string array was not\n");
+      exit(1);
+     }
+    }
+   }
+   free_string_array(list, n_elements);
+  }
  }
+
+ /* package config exist tests */
+ for(i=0; i < n_test_packages; i++)
+ {
+  code = test_package_exist(ctx, cd, tc, test_package_list[i], test_package_optional_flags[i]);
+  if(code != 0)
+  {
+   if(test_package_optional_flags[i] != 1)
+   {
+    return 1;
+   } else {
+    if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts, 
+                           test_package_list[i], -1, 1))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed while trying to add to the without list "
+                     "following a failed test for the presence of an optional package\n");
+     exit(1);
+    }
+    ctx->n_withouts++;
+   }
+  }
+  test_package_optional_flags[i] = code;
+ }
+ 
+ /* the last step is to generate a list for the build configuration file's 
+    host.component.depends record. This is how the set of dependencies
+    persists from the configure phase to the makefile generation phase. */
+ for(i=0; i < cd->n_components; i++)
+ {
+  /* start with the internal deps */
+  cd->project_component = cd->project_components[i];
+  cd->project_component_type = cd->project_component_types[i];
+
+  if(list_component_internal_dependencies(ctx, cd, &list, &n_elements))
+   return 1;
+
+  n_depends = 0;
+  depends = NULL;
+  for(j=0; j<n_elements; j++)
+  {
+   if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
+   {
+    return 1;
+   }
+   if(code == 0)
+    n_depends++;  
+
+  }
+  free_string_array(list, n_elements);
+
+  /* everything in the external deps list should have been found or we would have errored before 
+     this point */
+  if(list_component_external_dependencies(ctx, cd, &list, &n_elements))
+   return 1;
+
+  for(j=0; j<n_elements; j++)
+  {
+   if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
+   {
+    return 1;
+   }
+   if(code == 0)
+    n_depends++;  
+  }
+  free_string_array(list, n_elements);
+
+  /* the optional deps list still has to check with the without strings since again a package
+     being both optional and non-optionl for different componets of the same project is valid */
+  if(list_component_opt_external_dependencies(ctx, cd, &list, &n_elements))
+   return 1;
+
+  for(j=0; j < n_elements; j++)
+  {
+   x = 0;
+   yes = 1;
+   while(x < ctx->n_withouts)
+   {
+    if(strcmp(ctx->without_strings[x], list[j]) == 0)
+    {
+     yes = 0;
+     break;
+    }
+    x++;
+   }
+
+   if(yes)
+   {
+    x = 0;
+    while(x < n_test_packages)
+    {
+     if(strcmp(test_package_list[x], list[j]) == 0)
+     {
+      if(test_package_optional_flags[x] != 0) 
+       yes = 0;
+      break;
+     }
+     x++;
+    }
+   }
+     
+   if(yes)
+   {
+    if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
+    {
+     return 1;
+    }
+    if(code == 0)
+     n_depends++;  
+   }
+  }
+  free_string_array(list, n_elements);
+
+  /* we now need a single string for this record's value */
+  temp_length = 0;
+  for(j=0; j < n_depends; j++)
+  {
+   temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s", depends[j]);
+   if( (n_depends > 1) && (j < n_depends - 1) )
+    temp_length += snprintf(temp + temp_length, 1024 - temp_length, " ");
+  }
+  free_string_array(depends, n_depends);
+
+  /* the actual modifying of the buildconfiguration file is deffered 
+     until the last step (for several reasons) with the 4 string arrays
+     of p.c.k = v "to modify" strings.   
+   */ 
+  if(add_to_string_array(mod_principles, *n_modify_records, ctx->principle, -1, 0))
+   return 1;
+
+  if(add_to_string_array(mod_components, *n_modify_records, cd->project_component, -1, 0))
+   return 1;
+
+  if(add_to_string_array(mod_keys, *n_modify_records, "DEPENDS", 7, 0))
+   return 1;
+
+  if(add_to_string_array(mod_values, *n_modify_records, temp, temp_length, 0))
+   return 1;
+
+  (*n_modify_records)++;
+ }
+
+ free_string_array(test_package_list, n_test_packages);
+
+ return 0;
+}
+
+int derive_install_paths(struct bca_context *ctx, 
+                         struct host_configuration *tc,
+                         struct component_details *cd,
+                         char *platform)
+{
+ char install_prefix[512];
 
  if(ctx->install_prefix == NULL)
  {
@@ -935,286 +1092,6 @@ int configure(struct bca_context *ctx)
   tc->install_locale_data_dir = strdup(temp);
  }
 
- /* DEPENDS processing. 
-    Given the lists external, and optional external filtered with --withouts, created 
-    a unique test list and test. 
-    Then given the --withouts, the tested list, and the internal deps list create the DEPENDS key
-    for each component in this build.
- */
-  n_test_packages = 0;
-  test_package_list = NULL;
-  test_package_optional_flags = NULL;
-
-
-  /* optional dependencies */
-  for(i=0; i < cd.n_components; i++)
-  {
-   yes = 1;
-   for(j=0; j < ctx->n_disables; j++)
-   {
-    if(strcmp(cd.project_components[i], ctx->disabled_components[j]) == 0)
-    {
-     yes = 0;
-     break;
-    }
-   }
-
-   if(yes)
-   {
-    cd.project_component = cd.project_components[i];
-    cd.project_component_type = cd.project_component_types[i];
-
-    if(list_component_opt_external_dependencies(ctx, &cd, &list, &n_elements))
-     return 1;
-
-    for(j=0; j < n_elements; j++)
-    {
-     x = 0;
-     yes = 1;
-     while(x < ctx->n_withouts)
-     {
-      if(strcmp(ctx->without_strings[x], list[j]) == 0)
-      {
-       yes = 0;
-       break;
-      }
-      x++;
-     }
-
-     if(yes)
-     {
-      if((code = add_to_string_array(&test_package_list, n_test_packages, list[j], -1, 1)) < 0)
-      {
-       return 1;
-      }
-
-      if(code == 0)
-      {
-       n_test_packages++;
-
-       test_package_optional_flags = expand_int_array(test_package_optional_flags, 
-                                                      &test_package_optional_flags_size, 
-                                                      n_test_packages);
-
-       test_package_optional_flags[n_test_packages - 1] = 1;
-      }
-     }
-    }
-   }
-   free_string_array(list, n_elements);
-  }
-
-  /* non-optional externals */
-  for(i=0; i < cd.n_components; i++)
-  {
-   yes = 1;
-   for(j=0; j < ctx->n_disables; j++)
-   {
-    if(strcmp(cd.project_components[i], ctx->disabled_components[j]) == 0)
-    {
-     yes = 0;
-     break;
-    }
-   }
-
-   if(yes)
-   {
-    cd.project_component = cd.project_components[i];
-    cd.project_component_type = cd.project_component_types[i];
-
-    if(list_component_external_dependencies(ctx, &cd, &list, &n_elements))
-     return 1;
-
-    for(j=0; j < n_elements; j++)
-    {
-     if((code = add_to_string_array(&test_package_list, n_test_packages, list[j], -1, 1)) < 0)
-     {
-      return 1;
-     }
-
-     if(code == 0)
-     {
-      n_test_packages++;
-
-      test_package_optional_flags = expand_int_array(test_package_optional_flags, 
-                                                     &test_package_optional_flags_size, 
-                                                     n_test_packages);
-
-      test_package_optional_flags[n_test_packages - 1] = 0;
-     } else {
-
-      handled = 0;
-      for(x=0; x < n_test_packages; x++)
-      {
-       if(strcmp(test_package_list[x], list[j]) == 0)
-       {
-        /* Here we change the testing of a package from optional to non-optional which effects
-           the error behavior. A --without-package will still give the ability to turn it off
-           for optional cases which caused this case in the first place.
-        */
-        test_package_optional_flags[x] = 2;
-        handled = 1;
-        break;
-       }
-      }
-      if(handled == 0)
-      {
-       fprintf(stderr, "BCA: element that should have been found in string array was not\n");
-       exit(1);
-      }
-     }
-    }
-    free_string_array(list, n_elements);
-   }
-  }
-
-  /* package config exist tests */
-  for(i=0; i < n_test_packages; i++)
-  {
-   code = test_package_exist(ctx, &cd, tc, test_package_list[i], test_package_optional_flags[i]);
-   if(code != 0)
-   {
-    if(test_package_optional_flags[i] != 1)
-    {
-     return 1;
-    } else {
-     if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts, 
-                            test_package_list[i], -1, 1))
-     {
-      fprintf(stderr, "BCA: add_to_string_array() failed while trying to add to the without list "
-                      "following a failed test for the presence of an optional package\n");
-      exit(1);
-     }
-     ctx->n_withouts++;
-    }
-   }
-   test_package_optional_flags[i] = code;
-  }
- 
-  /* the last step is to generate a list for the build configuration file's 
-     host.component.depends record */
-  for(i=0; i < cd.n_components; i++)
-  {
-   /* start with the internal deps */
-   cd.project_component = cd.project_components[i];
-   cd.project_component_type = cd.project_component_types[i];
-
-   if(list_component_internal_dependencies(ctx, &cd, &list, &n_elements))
-    return 1;
-
-   n_depends = 0;
-   depends = NULL;
-   for(j=0; j<n_elements; j++)
-   {
-    if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
-    {
-     return 1;
-    }
-    if(code == 0)
-     n_depends++;  
-
-   }
-   free_string_array(list, n_elements);
-
-   /* everything in the external deps list should have been found or we would have errored before 
-      this point */
-   if(list_component_external_dependencies(ctx, &cd, &list, &n_elements))
-    return 1;
-
-   for(j=0; j<n_elements; j++)
-   {
-    if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
-    {
-     return 1;
-    }
-    if(code == 0)
-     n_depends++;  
-   }
-   free_string_array(list, n_elements);
-
-   /* the optional deps list still has to check with the without strings since again a package
-      being both optional and non-optionl for different componets of the same project is valid */
-   if(list_component_opt_external_dependencies(ctx, &cd, &list, &n_elements))
-    return 1;
-
-   for(j=0; j < n_elements; j++)
-   {
-    x = 0;
-    yes = 1;
-    while(x < ctx->n_withouts)
-    {
-     if(strcmp(ctx->without_strings[x], list[j]) == 0)
-     {
-      yes = 0;
-      break;
-     }
-     x++;
-    }
-
-    if(yes)
-    {
-     x = 0;
-     while(x < n_test_packages)
-     {
-      if(strcmp(test_package_list[x], list[j]) == 0)
-      {
-       if(test_package_optional_flags[x] != 0) 
-        yes = 0;
-
-       break;
-      }
-      x++;
-     }
-    }
-     
-    if(yes)
-    {
-     if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
-     {
-      return 1;
-     }
-     if(code == 0)
-      n_depends++;  
-    }
-   }
-   free_string_array(list, n_elements);
-
-
-   /* we now need a single string for this record's value */
-   temp_length = 0;
-   for(j=0; j < n_depends; j++)
-   {
-    temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s", depends[j]);
-    if( (n_depends > 1) && (j < n_depends - 1) )
-     temp_length += snprintf(temp + temp_length, 1024 - temp_length, " ");
-   }
-   free_string_array(depends, n_depends);
-
-   if(add_to_string_array(&mod_values, n_modify_records, temp, temp_length, 0))
-    return 1;
-
-   if(add_to_string_array(&mod_principles, n_modify_records, ctx->principle, -1, 0))
-    return 1;
-
-   if(add_to_string_array(&mod_components, n_modify_records, cd.project_component, -1, 0))
-    return 1;
-
-   if(add_to_string_array(&mod_keys, n_modify_records, "DEPENDS", 7, 0))
-    return 1;
-
-  n_modify_records++;
- }
-
- free_string_array(test_package_list, n_test_packages);
- 
-
- if(append_host_configuration(ctx, tc, &cd, n_modify_records, 
-                              mod_principles, mod_components,
-                              mod_keys, mod_values))
- {
-  return 1;
- }
-
  return 0;
 }
 
@@ -1266,119 +1143,6 @@ int append_host_configuration(struct bca_context *ctx,
  /* avoid the repitition */
  p_length = strlen(ctx->principle);
  q_length = strlen(ctx->qualifier);
-
- if(tc->build_tc)
- {
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 2, -1,
-                                      "BUILD", "ALL", "CC", 
-                                      tc->build_tc->cc))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 22, -1,
-                                      "BUILD", "ALL", 
-                                      "CC_SPECIFY_OUTPUT_FLAG", 
-                                      tc->build_tc->cc_output_flag))
-   return 1;
-
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, q_length, 23, -1,
-                                      "BUILD", "ALL", 
-                                      "CC_COMPILE_BIN_OBJ_FLAG", 
-                                      tc->build_tc->cc_compile_bin_obj_flag))
-   return 1;
-
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, q_length, 19, -1,
-                                      "BUILD", "ALL",
-                                      "CC_INCLUDE_DIR_FLAG", 
-                                      tc->build_tc->cc_include_dir_flag))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, q_length, 20, -1,
-                                      "BUILD", "ALL", 
-                                      "CC_DEFINE_MACRO_FLAG", 
-                                      tc->build_tc->cc_define_macro_flag))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, q_length, 6, -1,
-                                      "BUILD", "ALL",
-                                      "CFLAGS", 
-                                      tc->build_tc->cflags))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 10, -1,
-                                      "BUILD", "ALL", 
-                                      "PKG_CONFIG", 
-                                      tc->build_tc->pkg_config))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 15, -1,
-                                      "BUILD", "ALL", 
-                                      "PKG_CONFIG_PATH", 
-                                      tc->build_tc->pkg_config_path))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 17, -1,
-                                      "BUILD", "ALL", 
-                                      "PKG_CONFIG_LIBDIR", 
-                                      tc->build_tc->pkg_config_libdir))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 13, -1,
-                                      "BUILD", "ALL", 
-                                      "BINARY_SUFFIX", 
-                                      tc->build_tc->binary_suffix ))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 10, -1,
-                                      "BUILD", "ALL", 
-                                      "OBJ_SUFFIX", 
-                                      tc->build_tc->obj_suffix ))
-   return 1;
-
-  if(append_host_configuration_helper(&n_modify_records,
-                                      &mod_principles, &mod_components,
-                                      &mod_keys, &mod_values,
-                                      5, 3, 7, -1,
-                                      "BUILD", "ALL", 
-                                      "LDFLAGS", 
-                                      tc->build_tc->ldflags ))
-   return 1;
- }
-
 
  if(append_host_configuration_helper(&n_modify_records,
                                      &mod_principles, &mod_components,
@@ -1591,7 +1355,8 @@ int append_host_configuration(struct bca_context *ctx,
     {
      if(strcmp(ctx->without_strings[z], opt_dep_list[j]) == 0)
      {
-      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ", ctx->without_strings[z]);
+      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ", 
+                              ctx->without_strings[z]);
      }
     }
    }
@@ -1619,7 +1384,7 @@ int append_host_configuration(struct bca_context *ctx,
 
     Remember that the --enable-* logic is only to say "regarding components that are set
     to disabled by the project configuration itself, specifically turn this one on".
-    This logic, plus the --disable-* switches is were the disable_components[] come from.
+    This logic, plus the --disable-* switches is where the disable_components[] come from.
 
     Also remember that all of this is only to effect the build configuration (including the
     test that are performed). Generating  makefiles, build plots etc, use an existing build
@@ -1672,6 +1437,272 @@ int append_host_configuration(struct bca_context *ctx,
  }
 
  fclose(output);
+ return 0;
+}
+
+int configure(struct bca_context *ctx)
+{
+ char *s, *value, **project_disables;
+ char host_prefix[512];
+ int i, j, n_project_disables, yes;
+ int n_modify_records = 0;
+ char **mod_principles = NULL, **mod_components = NULL, **mod_keys = NULL, **mod_values = NULL;
+ struct component_details cd;
+ struct host_configuration *tc;
+ char *platform = "", *host_root;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: configure()\n");
+
+ if(ctx->verbose == 0)
+  fprintf(stdout, "BCA: configure() use -v to increase verbosity\n");
+
+ memset(&cd, 0, sizeof(struct component_details));
+
+ cd.host = ctx->principle;
+
+ if((ctx->build_configuration_contents = 
+     read_file("./buildconfiguration/buildconfiguration", 
+               &(ctx->build_configuration_length), 1)) != NULL)
+ {
+  if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
+  {
+   fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
+   return 1;
+  }
+  /* all the below reasignments of non-NULL tc members are memory leaks */
+ } else {
+  if((tc = (struct host_configuration *)
+           malloc(sizeof(struct host_configuration))) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc() failed\n");
+   return 1;
+  }
+  memset(tc, 0, sizeof(struct host_configuration));
+ }
+ 
+ if(ctx->project_configuration_contents == NULL)
+ {
+  if((ctx->project_configuration_contents = 
+      read_file("./buildconfiguration/projectconfiguration", 
+                &(ctx->project_configuration_length), 0)) == NULL)
+  {
+   fprintf(stderr, "BCA: can't open project configuration file\n");
+   return 1;
+  }
+ }
+
+ if(resolve_project_name(ctx))
+ {
+  fprintf(stderr, "BCA: can't resolve project name.\n"
+                  "BCA: Make sure project file has a NONE.NONE.PROJECT_NAME record\n");
+  return 1;
+ } 
+
+ if(list_project_components(ctx, &cd))
+ {
+  fprintf(stderr, "BCA: list_project_components() failed.\n");
+  return 1;
+ }
+
+ if(ctx->verbose)
+ {
+  printf("BCA: found (%d) project components: ", cd.n_components);
+  for(i=0; i < cd.n_components; i++)
+  {
+   printf("%s ", cd.project_components[i]);
+  }
+  printf("\n");
+ }
+
+ host_root = getenv("HOST_ROOT");
+ if(ctx->verbose)
+  if(host_root)
+   fprintf(stderr, "BCA: HOST_ROOT set via environment variable\n");
+
+
+ /* project defined disables processing */
+ if((value = lookup_key(ctx, ctx->project_configuration_contents,
+                        ctx->project_configuration_length, 
+                        "NONE", "NONE", "DISABLES")) != NULL)
+ {
+  if(ctx->verbose)
+   fprintf(stderr,
+           "BCA: project file has specified some components disable by default: %s\n", value);
+
+  if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
+  {
+   fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
+   return 1;
+  }
+
+  /* catch the user's error first */
+  for(j=0; j<ctx->n_enables; j++)
+  {
+   yes = 1;
+   for(i=0; i<n_project_disables; i++)
+   {
+    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
+    {
+      yes = 0;
+      break;
+    }
+   }
+
+   if(yes)
+   {
+    fprintf(stderr, 
+            "BCA: I do not have a component disabled by default to enable with --enable-%s\n",
+             ctx->enabled_components[j - 1]);
+    return 1;
+   }
+  }
+ 
+  for(i=0; i<n_project_disables; i++)
+  {
+   yes = 1;
+   for(j=0; j<ctx->n_enables; j++)
+   {
+    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
+    {
+     yes = 0;
+     break;
+    }
+   }
+
+   if(yes)
+   {
+    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
+                           project_disables[i], -1, 1))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed. Are you using --disable on a component "
+             "that is disable by default by the project?\n");
+     return 1;
+    }
+    ctx->n_disables++;
+   }
+  }
+
+  free(value);
+ }
+
+ if(c_family_configuration(ctx, tc, &cd))
+  return 1;
+
+ /* target platform */
+ if(detect_platform(ctx, host_root, &platform))
+ {
+  fprintf(stderr, "BCA: detect_platform() hard failed\n");
+  return 1;
+ }
+
+ /* Build prefix is where the output for this build host goes */
+ if(tc->build_prefix == NULL)
+ {
+  if(ctx->host_prefix == NULL)
+  {
+   if(strcmp(ctx->principle, "NATIVE") == 0)
+   {
+    snprintf(temp, 512, "./native");
+   } else {
+    snprintf(temp, 512, ".");
+   }
+  } else {
+   s = build_prefix_from_host_prefix(ctx);
+   snprintf(temp, 512, "%s", s);
+   free(s);
+  }
+  tc->build_prefix = strdup(temp);
+ }
+
+ if(pkg_config_tests(ctx, tc, &cd))
+  return 1;
+
+ /* Suffix for binaries; ie .exe */
+ if(tc->binary_suffix == NULL)
+ {
+  yes = 0;
+  if(contains_string(host_prefix, -1, "mingw", 5))
+   yes = 1;
+
+  if(strcmp(platform, "cygwin") == 0)
+   yes = 1;
+
+  if(yes)
+  { 
+   tc->binary_suffix = ".exe";
+  } else {
+   tc->binary_suffix = "";
+  }
+ }
+
+ /* Suffix for shared libraries; ie .dll */
+ if(tc->shared_library_suffix == NULL)
+ {
+  yes = 0;
+
+  if(contains_string(host_prefix, -1, "mingw", 5))
+   yes = 1;
+
+  if(strcmp(platform, "cygwin") == 0)
+   yes = 1;
+
+  if(yes)
+  {
+   tc->shared_library_suffix = ".dll";
+  } else if (strcmp(platform, "osx") == 0) {
+   tc->shared_library_suffix = ".dylib"; 
+  } else {
+   tc->shared_library_suffix = ".so";
+  }
+ }
+
+ /* Prefix for shared libaries */
+ if(tc->shared_library_prefix == NULL)
+ {
+  if(contains_string(host_prefix, -1, "mingw", 5))
+  {
+   tc->shared_library_prefix = "";
+  } else {
+   if(strcmp(platform, "cygwin") == 0)
+   {
+    tc->shared_library_prefix = "cyg";
+   } else {
+    tc->shared_library_prefix = "lib";
+   }
+  }
+ }
+
+ /* Suffix for object files */
+ if(tc->obj_suffix == NULL)
+  tc->obj_suffix = ".o";
+
+ /* LDFLAGS */
+ if((s = getenv("LDFLAGS")) != NULL)
+ {
+  /* here we want to overwrite regardless */
+  tc->ldflags = strdup(s);
+ }
+
+ if(derive_install_paths(ctx, tc, &cd, platform))
+  return 1;
+
+ if(process_dependencies(ctx, tc, &cd,
+                         &mod_principles,
+                         &mod_components,
+                         &mod_keys, 
+                         &mod_values,
+                         &n_modify_records))
+ return 1;
+ 
+
+ if(append_host_configuration(ctx, tc, &cd, n_modify_records, 
+                              mod_principles, mod_components,
+                              mod_keys, mod_values))
+ {
+  return 1;
+ }
+
  return 0;
 }
 

@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2011-2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -135,24 +135,26 @@ struct component_details
 
 struct host_configuration
 {
- struct host_configuration *build_tc; /* alternatives for creating tools on the build host
-                                         durring cross compilation. this scheme is to change */
-
  /* tools */
- char *cc;
- char *python;
- char *pkg_config;
- char *xgettext, *msgmerge, *msgfmt; /* gnu gettext */
+ char *cc;                           /* C compiler */
+ char *cxx;                          /* C++ compiler */
+ char *python;                       /* python */
+ char *erlc;                         /* erlang compiler */
+ char *pkg_config;                   /* pkg-config */
+ char *xgettext, *msgmerge, *msgfmt; /* gettext */
 
  /* flags for tools */
- char *cflags;
- char *ldflags;
- char *cc_output_flag;
- char *cc_compile_bin_obj_flag;
- char *cc_compile_shared_library_obj_flag;
- char *cc_include_dir_flag;
- char *cc_define_macro_flag;
- char *cc_specify_output_flag;
+ char *cppflags;                           /* C & C++ preprocessor flags */
+ char *cflags;                             /* C compiler flags */
+ char *cxxflags;                           /* C++ compiler flags */
+ char *ldflags;                            /* C & C++ linker flags */
+ char *cc_output_flag;                     /* C & C++ specify output filename flag (ie -o) */
+ char *cc_compile_bin_obj_flag;            /* C & C++ compile object flag (ie -c) */
+ char *cc_compile_shared_library_obj_flag; /* C & C++ compile shared object flag (ie -c -fpic) */
+ char *cc_include_dir_flag;                /* C & C++ add include dir flag (ie -I) */
+ char *cc_define_macro_flag;               /* C & C++ define preprocessor macro (ie -D) */
+ char *erlc_flags;                         /* erlang compiler flags */
+ char *python_flags;                       /* python flags */
 
  /* output file characteristics */
  char *binary_suffix;

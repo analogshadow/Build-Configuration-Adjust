@@ -83,7 +83,8 @@ void help(void)
         " Some of the autoconf compatibility environment variables are:\n"
         " CC, and PKG_CONFIG_PATH\n"
 
-        "\n Copyright 2012 Stover Enterprises. All rights reserved. Licensed under the terms of GNU GPLv3.\n"
+        "\n Copyright 2012,2013,2014 Stover Enterprises. All rights reserved. "
+        "Licensed under the terms of GNU GPLv3.\n"
         "\tSee http://bca.stoverenterprises.com for more information.\n\n");
 
 }
@@ -92,8 +93,8 @@ int main(int argc, char **argv)
 {
  struct bca_context *ctx;
  char *value, *contents, *file, **list = NULL;
- int length, offset, n_items = 0, i;
- char principle[256], qualifier[256], key[256], code;
+ int length, n_items = 0, i;
+ char code;
  struct component_details cd;
  FILE *output;
 
@@ -545,7 +546,8 @@ int shutdown(struct bca_context *ctx)
 struct bca_context *setup(int argc, char **argv)
 {
  struct bca_context *ctx;
- int allocation_size, current_arg = 1, handled;
+ struct component_details cd;
+ int allocation_size, current_arg = 1, handled, i;
 
  allocation_size = sizeof(struct bca_context);
  if((ctx = (struct bca_context *) malloc(allocation_size)) == NULL)
@@ -556,6 +558,8 @@ struct bca_context *setup(int argc, char **argv)
 
  memset(ctx, 0, allocation_size);
  ctx->manipulation_type = MANIPULATE_BUILD_CONFIGURATION;
+
+ memset(&cd, 0, sizeof(struct component_details));
 
 #ifdef HAVE_CWD
  ctx->cwd = getcwd(NULL, 0);
@@ -939,6 +943,35 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
    ctx->n_withouts++;
+  }
+
+  if(strcmp(argv[current_arg], "--disableall") == 0)
+  {
+   handled = 1;
+
+   if((ctx->project_configuration_contents = 
+       read_file("./buildconfiguration/projectconfiguration", 
+                 &(ctx->project_configuration_length), 0)) == NULL)
+   {
+    fprintf(stderr, "BCA: can't open project configuration file\n");
+    return 1;
+   }
+
+   if(list_project_components(ctx, &cd))
+   {
+    return NULL;
+   }
+
+   for(i=0; i<cd.n_components; i++)
+   {
+    if(add_to_string_array(&(ctx->disabled_components),
+                           ctx->n_disables, 
+                           cd.project_components[i], -1, 1))
+    {
+     return NULL;
+    }
+    ctx->n_disables++;
+   }
   }
 
   if(strncmp(argv[current_arg], "--disable-", 10) == 0)

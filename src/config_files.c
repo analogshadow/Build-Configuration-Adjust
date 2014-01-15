@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2012,2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -77,7 +77,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
     {
      if( (start != index - 1) && (file[index-1] == '\\') )
      {
-      /* escape out " marks in values with \" */
+      /* escape out double quotation marks in values with backslash */
       index++;
       continue;
      }
@@ -143,7 +143,8 @@ int output_modifications(struct bca_context *ctx, FILE *output,
 
  if((handled = (int *) malloc(sizeof(int) * (n_records + 1))) == NULL)
  {
-  fprintf(stderr, "BCA: malloc(%d) failed\n", (sizeof(int) * (n_records + 1)));
+  fprintf(stderr, "BCA: malloc(%u) failed\n",
+          (unsigned int) (sizeof(int) * (n_records + 1)));
   return 1;
  }
 
@@ -396,7 +397,8 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     if(no)
     {
      file[end] = 0; 
-     fprintf(stderr, "BCA: left of '=' not in the format TARGET.COMPONENT.KEY on the line \"%s\"\n",
+     fprintf(stderr, 
+             "BCA: left of '=' not in the format TARGET.COMPONENT.KEY on the line \"%s\"\n",
              file + start);
      exit(1);
     }
@@ -596,8 +598,16 @@ int engage_build_configuration_disables_for_host(struct bca_context *ctx, char *
 
 int check_project_component_types(struct bca_context *ctx)
 {
- int handled, offset = -1;
- char *string, type[256], component[256], key[256];
+ int handled, offset = -1, i;
+ char type[256], component[256], key[256];
+
+ char *component_types[9] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
+                              "MACROEXPAND", "PYTHONMODULE", "CUSTOM" };
+
+ char *component_keys[] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
+                            "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS", 
+                            "FILE_DEPENDS", "INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
+                            "LIB_HEADERS", "DISABLES" };
 
  while(iterate_key_primitives(ctx, ctx->project_configuration_contents,
                               ctx->project_configuration_length, &offset,
@@ -606,94 +616,28 @@ int check_project_component_types(struct bca_context *ctx)
  {
   handled = 0;
 
-  if(strcmp(type, "NONE") == 0)
-   handled = 1;
-
-  if(strcmp(type, "BINARY") == 0)
-   handled = 1;
-
-  if(strcmp(type, "BUILDBINARY") == 0)
-   handled = 1;
-
-  if(strcmp(type, "SHAREDLIBRARY") == 0)
-   handled = 1;
-
-  if(strcmp(type, "STATICLIBRARY") == 0)
-   handled = 1;
-
-  if(strcmp(type, "CAT") == 0)
-   handled = 1;
-
-  if(strcmp(type, "MACROEXPAND") == 0)
-   handled = 1;
-
-  if(strcmp(type, "PYTHONMODULE") == 0)
-   handled = 1;
-
-  if(strcmp(type, "CUSTOM") == 0)
-   handled = 1;
-
-  if(handled == 0)
+  for(i=0; i<8; i++)
   {
-   fprintf(stderr, "BCA: WARNING - Are you sure about a project component type of \"%s\"?\n", type);
+   if(strcmp(type, component_types[i]) == 0)
+    handled = 1;
+
+   if(handled == 0)
+    fprintf(stderr, 
+            "BCA: WARNING - Are you sure about a project component type of \"%s\"?\n",
+            type); 
   }
 
   handled = 0;
 
-  if(strcmp(key, "PROJECT_NAME") == 0)
-   handled = 1;
-
-  if(strcmp(key, "NAME") == 0)
-   handled = 1;
-
-  if(strcmp(key, "MAJOR") == 0)
-   handled = 1;
-
-  if(strcmp(key, "MINOR") == 0)
-   handled = 1;
-
-  if(strcmp(key, "AUTHOR") == 0)
-   handled = 1;
-
-  if(strcmp(key, "EMAIL") == 0)
-   handled = 1;
-
-  if(strcmp(key, "URL") == 0)
-   handled = 1;
-
-  if(strcmp(key, "FILES") == 0)
-   handled = 1;
-
-  if(strcmp(key, "INPUT") == 0)
-   handled = 1;
-
-  if(strcmp(key, "DRIVER") == 0)
-   handled = 1;
-
-  if(strcmp(key, "INCLUDE_DIRS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "FILE_DEPENDS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "INT_DEPENDS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "EXT_DEPENDS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "OPT_EXT_DEPENDS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "LIB_HEADERS") == 0)
-   handled = 1;
-
-  if(strcmp(key, "DISABLES") == 0)
-   handled = 1;
-
-  if(handled == 0)
+  for(i=0; i<17; i++)
   {
-   fprintf(stderr, "BCA: WARNING - Are you sure about a project component key of \"%s\"?\n", key);
+   if(strcmp(type, component_keys[i]) == 0)
+    handled = 1;
+
+   if(handled == 0)
+    fprintf(stderr, 
+            "BCA: WARNING - Are you sure about a project component key of \"%s\"?\n",
+            key); 
   }
 
  } 
@@ -704,7 +648,7 @@ int check_project_component_types(struct bca_context *ctx)
 int list_project_components(struct bca_context *ctx, 
                             struct component_details *cd)
 {
- int pass = 0, allocation_size, string_length, offset, i, disabled;
+ int pass = 0, allocation_size, string_length, offset, i, disabled, ok;
  char *string, type[256], component[256], key[256];
 
  if(ctx->verbose > 2)
@@ -735,7 +679,25 @@ int list_project_components(struct bca_context *ctx,
    {
     /* validate and count */
     if(disabled == 0)
+    {
+     ok = 1;
+
+     if(strcmp(component, "ALL") == 0)
+      ok = 0;
+
+     if(strcmp(component, "NONE") == 0)
+      ok = 0;
+
+     if(ok == 0)
+     {
+      fprintf(stderr, 
+              "BCA: component name is a reserved word, %s.%s.%s\n",
+              type, component, key);
+      return 1;
+     } 
+
      cd->n_components++;
+    }
    }
 
    if( (pass == 1) && (disabled == 0) )
@@ -847,9 +809,6 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
   if(strcmp(principle, "NONE") == 0)
    matched = 1;
 
-  if(strcmp(principle, "BUILD") == 0)
-   matched = 1;
-
   if(matched == 0)
   {
    while(x < *n_principles)
@@ -934,76 +893,6 @@ char *resolve_build_host_variable(struct bca_context *ctx,
 }
 
 struct host_configuration *
-resolve_host_build_configuration(struct bca_context *ctx, struct component_details *cd)
-{
- int allocation_size;
- struct host_configuration *tc;
-
- if(ctx->verbose > 2)
- {
-  fprintf(stderr, "BCA: resolve_host_build_configuration()\n");
-  fflush(stderr);
- }
-
- allocation_size = sizeof(struct host_configuration);
- if((tc = (struct host_configuration *) malloc(allocation_size)) == NULL)
- {
-  fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
-  return NULL;
- }
- memset(tc, 0, allocation_size);
-
- tc->cc = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component, "CC", NULL);
-
- tc->cc_output_flag = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "CC_SPECIFY_OUTPUT_FLAG", NULL);
-
- tc->cc_compile_bin_obj_flag = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "CC_COMPILE_BIN_OBJ_FLAG", NULL);
-
- tc->cc_include_dir_flag = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "CC_INCLUDE_DIR_FLAG", NULL);
-
- tc->cc_define_macro_flag = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "CC_DEFINE_MACRO_FLAG", NULL);
-
- tc->cflags = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "CFLAGS", NULL);
-
- tc->pkg_config = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "PKG_CONFIG", NULL);
-
- tc->pkg_config_path = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "PKG_CONFIG_PATH", NULL);
-
- tc->pkg_config_libdir = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "PKG_CONFIG_LIBDIR", NULL);
-
- tc->binary_suffix = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "BINARY_SUFFIX", NULL);
-
- tc->obj_suffix = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "OBJ_SUFFIX", NULL);
-
- tc->ldflags = 
-  resolve_build_host_variable(ctx, "BUILD", cd->project_component,
-                              "LDFLAGS", NULL);
-
- return tc;
-}
-
-struct host_configuration *
 resolve_host_configuration(struct bca_context *ctx, struct component_details *cd)
 {
  int allocation_size;
@@ -1026,8 +915,6 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  tc->build_prefix = 
   resolve_build_host_variable(ctx, cd->host, cd->project_component,
                               "BUILD_PREFIX", NULL);
-
- tc->build_tc = resolve_host_build_configuration(ctx, cd);
 
  tc->cc = 
   resolve_build_host_variable(ctx, cd->host, cd->project_component,
@@ -1173,9 +1060,6 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
  if(tc != NULL) 
  {
-  if(tc->build_tc != NULL)
-   free_host_configuration(ctx, tc->build_tc);
-
   if(tc->cc != NULL)
    free(tc->cc);
 
@@ -1215,9 +1099,6 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
   if(tc->cc_define_macro_flag != NULL)
    free(tc->cc_define_macro_flag);
 
-  if(tc->cc_specify_output_flag != NULL)
-   free(tc->cc_specify_output_flag);
- 
   if(tc->pkg_config != NULL)
    free(tc->pkg_config);
 
@@ -1269,7 +1150,8 @@ int resolve_component_dependencies(struct bca_context *ctx,
  {
   if(ctx->verbose)
    fprintf(stderr,
-           "BCA: No DEPENDS key found for component \"%s\" on host \"%s\", implying dependencies.\n", 
+           "BCA: No DEPENDS key found for component \"%s\" "
+           "on host \"%s\", implying dependencies.\n", 
             cd->project_component, cd->host);
   
   cd->dependencies = NULL;
@@ -1434,7 +1316,8 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
   if(i == component_index)
   {
    fprintf(stderr, 
-           "BCA: resolve_component_input_dependencies(): project component %s apears to list itself as an INPUT element\n",
+           "BCA: resolve_component_input_dependencies(): project "
+           "component %s apears to list itself as an INPUT element\n",
            cd->project_components[component_index]);
 
    free_string_array(list, n_elements);
@@ -1445,7 +1328,8 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
   {
    fprintf(stderr,
            "BCA: resolve_component_input_dependencies(): project component %s list INPUT element"
-           " %s that is not itself a project component. Perhapes the element belongs in a FILES record?\n",
+           " %s that is not itself a project component. Perhapes the element belongs in "
+           "a FILES record?\n",
            cd->project_components[component_index], list[z]);
    free_string_array(list, n_elements);
    return 1;

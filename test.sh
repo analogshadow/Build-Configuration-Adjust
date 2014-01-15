@@ -1,5 +1,5 @@
 #    Build Configuration Adjust, a source configuration and Makefile
-#    generation tool. Copyright © 2013 Stover Enterprises, LLC
+#    generation tool. Copyright © 2013,2014 Stover Enterprises, LLC
 #    (an Alabama Limited Liability Corporation), All rights reserved.
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -837,13 +837,13 @@ suites=(configurewrapper autoconfsupport configuration examples)
 MAKE=make
 NATIVEBINSUFFIX=""
 
-if [ $1 == "--help" ]
+if [ "$1" == "--help" ]
 then
  usage
  exit 0
 fi
 
-if [ $1 == "--list" ]
+if [ "$1" == "--list" ]
 then
  for suite in "${suites[@]}"
  do

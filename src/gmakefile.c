@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2012-2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -567,7 +567,6 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
  fprintf(output, "\n\n");
 
-
  for(i=0; i<cd->n_file_names; i++)
  {
   handled = 0;
@@ -580,10 +579,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
            "%s : %s $(%s-FILE_DEPENDENCIES)\n",
            temp, cd->file_names[i], names[0]);
 
-   if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-    fprintf(output, "\t%s ", tc->build_tc->cc);   
-   else
-    fprintf(output, "\t%s ", tc->cc);
+   fprintf(output, "\t%s ", tc->cc);
 
    if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
     return 1;
@@ -593,19 +589,13 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
    {
     fprintf(output, "`");
 
-    if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-    {
-     fprintf(output, "fix me");
-    } else {
+    if(tc->pkg_config_path != NULL)
+     fprintf(output, "PKG_CONFIG_PATH=%s ", tc->pkg_config_path);
 
-     if(tc->pkg_config_path != NULL)
-      fprintf(output, "PKG_CONFIG_PATH=%s ", tc->pkg_config_path);
+    if(tc->pkg_config_libdir != NULL)
+     fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
 
-     if(tc->pkg_config_libdir != NULL)
-      fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
-
-     fprintf(output, "%s --cflags ", tc->pkg_config);
-    }
+    fprintf(output, "%s --cflags ", tc->pkg_config);
 
     for(y=0; y < cd->n_dependencies; y++)
     {
@@ -637,9 +627,6 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
     fprintf(output, "%s %s ", tc->cc_include_dir_flag, cd->include_dirs[y]);
    }
 
-   if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-    fprintf(output, "%s ", tc->build_tc->cc_compile_bin_obj_flag);   
-
    if(strcmp(cd->project_component_type, "BINARY") == 0)
     fprintf(output, "%s ", tc->cc_compile_bin_obj_flag);
 
@@ -648,10 +635,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
    fprintf(output, "%s ", cd->file_names[i]);
 
-   if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-    fprintf(output, "%s ", tc->build_tc->cc_output_flag);
-   else
-    fprintf(output, "%s ", tc->cc_output_flag);
+   fprintf(output, "%s ", tc->cc_output_flag);
 
    fprintf(output, "%s\n\n", temp);
 
@@ -675,11 +659,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   fprintf(output, "%s/obj/%s-%s", 
           tc->build_prefix, cd->project_component, cd->file_base_names[i]);
 
-  if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-   fprintf(output, "%s ", tc->build_tc->obj_suffix);
-  else
-   fprintf(output, "%s ", tc->obj_suffix);
-
+  fprintf(output, "%s ", tc->obj_suffix);
  }
  fprintf(output, "\n\n");
 
@@ -710,10 +690,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   }
  }
 
- if(strcmp(cd->project_component_type, "BUILDBINARY") == 0)
-  fprintf(output, "\n\t%s", tc->build_tc->cc);
- else
-  fprintf(output, "\n\t%s", tc->cc);
+ fprintf(output, "\n\t%s", tc->cc);
 
  if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                          cd->project_component_output_name), ".dylib") == 0)

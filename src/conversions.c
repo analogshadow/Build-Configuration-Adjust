@@ -62,17 +62,6 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
  if(strcmp(project_component_type, "PYTHONMODULE") == 0)
   return ".py";
 
- if(strcmp(project_component_type, "BUILDBINARY") == 0)
- {
-  if(tc->build_tc == NULL)
-  {
-   fprintf(stderr, "BCA: tc->build_tc == NULL\n");
-   return NULL;
-  }
-
-  return tc->build_tc->binary_suffix;
- }
-
  fprintf(stderr, "BCA: unknown component type \"%s\"\n",
          project_component_type);
 
@@ -511,7 +500,7 @@ int render_project_component_output_name(struct bca_context *ctx,
         return -1;
        n_names++;
 
-       snprintf(temp, 1024, ""); 
+       temp[0] = 0; 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
 
