@@ -954,7 +954,7 @@ struct bca_context *setup(int argc, char **argv)
                  &(ctx->project_configuration_length), 0)) == NULL)
    {
     fprintf(stderr, "BCA: can't open project configuration file\n");
-    return 1;
+    return NULL;
    }
 
    if(list_project_components(ctx, &cd))

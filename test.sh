@@ -16,6 +16,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 prepare_environment() {
+ ERROR=""
  rm -rf testing_environment
  mkdir testing_environment
  cp configure testing_environment/
@@ -24,55 +25,107 @@ prepare_environment() {
     ./testing_environment/buildconfiguration/buildconfigurationadjust.c
 }
 
-graphviz_sanity_check() {
- if [ "${GVTESTS:-YES}" == "NO" ]
- then
-  return 0
- fi
-
- mkdir -p ../gvplottests
- echo -n "test: gvsane$1: " >> ../test.sh-results 
- ./bca --generate-graphviz &> out
+try_configure() {
+ ERROR=""
+ ./configure "$@" >> out 2>> out
  if [ $? != 0 ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test gvsane$1:" >&2
+  ERROR="failed: configure"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
   cat out >&2
- elif [ ! -f "./bcaproject.dot" ]
- then
-  echo "failed: no bcaproject.dot file created" >> ../test.sh-results
- else 
-  dot -Tpng -o bcaproject.png bcaproject.dot
-  if [ $? != 0 ]
-  then 
-   echo "failed: dot returned non-zero" >> ../test.sh-results
-  elif [ ! -f "./bcaproject.png" ]
-  then
-   echo "failed: no bcaproject.png file created" >> ../test.sh-results
-  else
-   echo "passed" >> ../test.sh-results
-   mv ./bcaproject.png ../gvplottests/$1.png
-  fi
  fi
 }
 
+try_make() {
+ ERROR=""
+ $MAKE -f Makefile.bca >> out 2>> out
+ if [ $? != 0 ]
+ then
+  ERROR="failed: make"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+ fi
+}
+
+graphviz_sanity_check() {
+ ERROR=""
+ if [ "${GVTESTS:-YES}" == "NO" ]
+ then
+  return
+ fi
+
+ mkdir -p ../gvplottests
+ echo -n "test: gvsane$test: " >> ../test.sh-results 
+
+ ./bca --generate-graphviz &> out
+ if [ $? != 0 ]
+ then
+  ERROR="failed graphviz sanity check"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ if [ ! -f "./bcaproject.dot" ]
+ then
+  ERROR="failed: no bcaproject.dot file created"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ dot -Tpng -o bcaproject.png bcaproject.dot
+ if [ $? != 0 ]
+ then 
+  ERROR="failed: dot returned non-zero"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ if [ ! -f "./bcaproject.png" ]
+ then
+  ERROR="failed: no bcaproject.png file created"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ mv ./bcaproject.png ../gvplottests/${suite}_${test}.png
+}
+
 output_check() {
+ ERROR=""
  grep "BCA: WARNING" out > /dev/null
  if [ $? == 0 ]
  then
-  ERROR="warning(s) from BCA"
+  ERROR="failed: warning(s) from BCA"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
   return
  fi
 
  grep "make: Circular" out > /dev/null
  if [ $? == 0 ]
  then
-  ERROR="circular dependency in Makefile"
+  ERROR="failed: circular dependency in Makefile"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
   return
  fi
 }
 
 created_files_check() {
+ ERROR=""
  COMPONENTS=`./bca --listprojectcomponents`
  for COMPONENT in $COMPONENTS
  do
@@ -82,6 +135,9 @@ created_files_check() {
    if [ ! -f $FILE ]
    then
     ERROR="failed: component $COMPONENT file $FILE not created"
+    echo $ERROR >> ../test.sh-results
+    echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+    cat out >&2
     return
    fi
   done
@@ -89,6 +145,7 @@ created_files_check() {
 }
 
 makeclean_check() {
+ ERROR=""
  echo -n "test: makeclean$1: " >> ../test.sh-results
  $MAKE -f Makefile.bca clean &> out
 
@@ -100,10 +157,11 @@ makeclean_check() {
   do
    if [ -f $FILE ]
    then
-    echo "failed: $FILE not removed by clean" >> ../test.sh-results
-    echo "test.sh: failed test makeclean$1:" >&2
+    ERROR="failed: $FILE not removed by clean"
+    echo $ERROR >> ../test.sh-results
+    echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
     cat out >&2
-    return 1
+    return
    fi
   done
  done
@@ -112,17 +170,17 @@ makeclean_check() {
 
 
 configurewrapper_buildsinglefiledist() {
- echo -n "test: buildsinglefiledist: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "test" &> out
- ./configure &> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test buildsinglefiledist:" >&2
-  cat out >&2
- elif [ ! -f "./bca" ]
+  return
+ fi
+ 
+ if [ ! -f "./bca" ]
  then
   echo "failed: bca not created" >> ../test.sh-results
  else
@@ -132,39 +190,39 @@ configurewrapper_buildsinglefiledist() {
 }
 
 configurewrapper_useexistingbca() {
- echo -n "test: useexistingbca: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "test" &> out
  ln -s ../native/bca-canadate ./bca
  rm ./buildconfiguration/buildconfigurationadjust.c
- ./configure &> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test useexistingbca:" >&2
-  cat out >&2
- else
-  echo "passed" >> ../test.sh-results
- fi
+  return
+ fi 
+
+ echo "passed" >> ../test.sh-results
+
  cd ..
 }
 
 configurewrapper_userbcafrompath() {
- echo -n "test: usebcafrompath: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "test" &> out
  rm ./buildconfiguration/buildconfigurationadjust.c
  mkdir bin
  cp ../native/bca-canadate ./bin/bca
- PATH=./bin:$PATH ./configure &> out
- if [ $? != 0 ]
+ PATH=./bin:$PATH
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test usebcafrompath:" >&2
-  cat out >&2
- elif [ ! -f "./bca" ]
+  return
+ fi 
+
+ if [ ! -f "./bca" ]
  then
   echo "failed: bca link not created" >> ../test.sh-results
  else
@@ -174,18 +232,19 @@ configurewrapper_userbcafrompath() {
 }
 
 configurewrapper_userbcafromenv() {
- echo -n "test: usebcafromenv: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "test" &> out
  rm ./buildconfiguration/buildconfigurationadjust.c
- BCA=../native/bca-canadate ./configure &> out
- if [ $? != 0 ]
+ BCA=../native/bca-canadate
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test usebcafromenv:" >&2
-  cat out >&2
- elif [ ! -f "./bca" ]
+  return
+ fi 
+
+ if [ ! -f "./bca" ]
  then
   echo "failed: bca link not created" >> ../test.sh-results
  else
@@ -197,7 +256,6 @@ configurewrapper_userbcafromenv() {
 configurewrapper=(buildsinglefiledist useexistingbca userbcafrompath userbcafromenv)
 
 examples_helloworld() {
- echo -n "test: helloworld: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Hello World" &> out
@@ -205,37 +263,39 @@ examples_helloworld() {
  ../native/bca-canadate --type BINARY --newvalue FILES hello.c >> out 2>> out
  echo -e "#include <stdio.h>\n\nint main(void)\n{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test helloworld:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   ./native/hello$NATIVEBINSUFFIX >> out 2>> out
-   if [ $? != 0 ] 
-   then
-    echo "failed: hello binary return code wrong" >> ../test.sh-results
-   else 
-    echo "passed" >> ../test.sh-results
-    graphviz_sanity_check helloworld
-    makeclean_check helloworld 
-   fi
-  fi
+  return
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+ 
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ ./native/hello$NATIVEBINSUFFIX >> out 2>> out
+ if [ $? != 0 ] 
+ then
+  echo "failed: hello binary return code wrong" >> ../test.sh-results
+ else 
+  echo "passed" >> ../test.sh-results
+  graphviz_sanity_check helloworld
+  makeclean_check helloworld 
+ fi
+
  cd ..
 }
 
 examples_multifilebin() {
- echo -n "test: mutilfilebin: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Multi File Binary" &> out
@@ -248,37 +308,39 @@ examples_multifilebin() {
          "int print_hello(void);\n#endif\n" > hello.h
  echo -e "#include \"hello.h\"\nint main(void)\n{\n print_hello();\n return 0;\n}\n" > main.c
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test helloworld:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   ./native/hello$NATIVEBINSUFFIX >> out 2>> out
-   if [ $? != 0 ] 
-   then
-    echo "failed: hello binary return code wrong" >> ../test.sh-results
-   else 
-    echo "passed" >> ../test.sh-results
-    graphviz_sanity_check multifilebin
-    makeclean_check multifilebin 
-   fi
-  fi
+  return
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ ./native/hello$NATIVEBINSUFFIX >> out 2>> out
+ if [ $? != 0 ] 
+ then
+  echo "failed: hello binary return code wrong" >> ../test.sh-results
+ else 
+  echo "passed" >> ../test.sh-results
+  graphviz_sanity_check multifilebin
+  makeclean_check multifilebin 
+ fi
+
  cd ..
 }
 
 examples_sharedlib() {
- echo -n "test: sharedlib: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Shared Library" &> out
@@ -291,36 +353,35 @@ examples_sharedlib() {
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
          "int print_hello(void);\n#endif\n" > hello.h
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
- filename="./native/${NATIVELIBPREFIX}greetings${NATIVELIBSUFFIX}.0.0"
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test sharedlib:" >&2
-  cat out >&2
- else 
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   ERROR=""
-   output_check
-   if [ "$ERROR" != "" ]
-   then
-    echo "failed: $ERROR" >> ../test.sh-results
-    echo "test.sh: $ERROR:" >&2
-    cat out >&2
-   else 
-    echo "passed" >> ../test.sh-results
-    graphviz_sanity_check sharedlib
-    makeclean_check sharedlib 
-   fi
-  fi
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check sharedlib
+ makeclean_check sharedlib 
+
  cd ..
 }
 
@@ -342,51 +403,53 @@ examples_extdepends() {
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > main.c
  ln -sf ../native/bca-canadate ./bca
- PKG_CONFIG_PATH=../testing_environment/native ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
- if [ $? != 0 ]
+
+ PKG_CONFIG_PATH=../testing_environment/native 
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test extdepends:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   export LD_LIBRARY_PATH=../testing_environment/native 
-   export DYLD_LIBRARY_PATH=../testing_environment/native
-   ./native/main$NATIVEBINSUFFIX >> out 2>> out
-   unset LD_LIBRARY_PATH
-   unset DYLD_LIBRARY_PATH
-   if [ $? != 0 ] 
-   then
-    echo "failed: binary, main, return code wrong" >> ../test.sh-results
-   else 
-    ERROR=""
-    output_check
-    if [ "$ERROR" != "" ]
-    then
-     echo "failed: $ERROR" >> ../test.sh-results
-     echo "test.sh: $ERROR:" >&2
-     cat out >&2
-    else 
-     echo "passed" >> ../test.sh-results
-     graphviz_sanity_check extdepends
-     makeclean_check extdepends
-    fi
-   fi
-  fi
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ export LD_LIBRARY_PATH=../testing_environment/native 
+ export DYLD_LIBRARY_PATH=../testing_environment/native
+ ./native/main$NATIVEBINSUFFIX >> out 2>> out
+ unset LD_LIBRARY_PATH
+ unset DYLD_LIBRARY_PATH
+ unset PKG_CONFIG_PATH
+ if [ $? != 0 ] 
+ then
+  echo "failed: binary, main, return code wrong" >> ../test.sh-results
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check extdepends
+ makeclean_check extdepends
+
  cd ..
  cd testing_environment
 }
 
 examples_sharedlibandbin() {
- echo -n "test: sharedlibandbin: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Shared Library and Binary" &> out
@@ -404,74 +467,49 @@ examples_sharedlibandbin() {
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > main.c
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
- filename="./native/${NATIVELIBPREFIX}greetings${NATIVELIBSUFFIX}.0.0"
- if [ $? != 0 ]
- then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test sharedlibandbin:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   export LD_LIBRARY_PATH=./native 
-   export DYLD_LIBRARY_PATH=./native
-   ./native/main$NATIVEBINSUFFIX >> out 2>> out
-   unset LD_LIBRARY_PATH
-   unset DYLD_LIBRARY_PATH
-   if [ $? != 0 ] 
-   then
-    echo "failed: binary, main, return code wrong" >> ../test.sh-results
-   else 
-    ERROR=""
-    output_check
-    if [ "$ERROR" != "" ]
-    then
-     echo "failed: $ERROR" >> ../test.sh-results
-     echo "test.sh: $ERROR:" >&2
-     cat out >&2
-    else 
-     echo "passed" >> ../test.sh-results
-     graphviz_sanity_check sharedlibandbin
-     makeclean_check sharedlibandbin 
 
-     #basic check on the disable mechanism for multi-component projects
-     rm out
-     echo -n "test: sharedlibandbindisable: " >> ../test.sh-results
-     ./configure --disable-MAIN >> out 2>> out
-     $MAKE -f Makefile.bca >> out 2>> out
-     if [ $? != 0 ]
-     then
-      echo "failed" >> ../test.sh-results
-      echo "test.sh: failed test sharedlibandbindisable:" >&2
-     else
-      ERROR=""
-      output_check
-      if [ "$ERROR" != "" ]
-      then
-       echo "failed: $ERROR" >> ../test.sh-results
-       echo "test.sh: $ERROR:" >&2
-       cat out >&2
-      else
-       echo "passed" >> ../test.sh-results
-       examples_extdepends
-      fi
-     fi
-    fi
-   fi
-  fi
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ export LD_LIBRARY_PATH=./native 
+ export DYLD_LIBRARY_PATH=./native
+ ./native/main$NATIVEBINSUFFIX >> out 2>> out
+ unset LD_LIBRARY_PATH
+ unset DYLD_LIBRARY_PATH
+ if [ $? != 0 ] 
+ then
+  echo "failed: binary, main, return code wrong" >> ../test.sh-results
+  return
+ fi 
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check sharedlibandbin
+ makeclean_check sharedlibandbin 
  cd ..
 }
 
 examples_concat() {
- echo -n "test: concat: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Concatenate" &> out
@@ -481,48 +519,48 @@ examples_concat() {
  echo -n "beta " > two
  echo -n "gama " > three
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
+
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ grep "alpha  beta  gama" ./native/textfile > /dev/null
  if [ $? != 0 ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test concat:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   grep "alpha  beta  gama" ./native/textfile > /dev/null
-   if [ $? != 0 ]
-   then
-    echo "failed: unexpected textfile contents" >> ../test.sh-results
-    echo "test.sh: unexpected textfile contents" >&2
-    cat ./native/textfile >&2
-   else
-    ERROR=""
-    output_check
-    if [ "$ERROR" != "" ]
-    then
-     echo "failed: $ERROR" >> ../test.sh-results
-     echo "test.sh: $ERROR:" >&2
-     cat out >&2
-    else
-     echo "passed" >> ../test.sh-results
-     graphviz_sanity_check concat
-     makeclean_check concat 
-    fi
-   fi
-  fi
+  echo "failed: unexpected textfile contents" >> ../test.sh-results
+  echo "test.sh: unexpected textfile contents" >&2
+  cat ./native/textfile >&2
+  return
  fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+
  cd ..
 }
 
 examples_macroexpand() {
- echo -n "test: macroexpand: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Macro Expansion" &> out
@@ -535,48 +573,48 @@ examples_macroexpand() {
          "#define VER_MINOR \"@BCA.PROJECT.MACROEXPAND.textfile.MINOR@\"\n"\
          "#endif" > configure.h.in
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
+
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ grep "VER_MINOR" ./native/configure.h > /dev/null
  if [ $? != 0 ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test macroexpand:" >&2
-  cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   grep "VER_MINOR" ./native/configure.h > /dev/null
-   if [ $? != 0 ]
-   then
-    echo "failed: unexpected configure.h contents" >> ../test.sh-results
-    echo "test.sh: unexpected configure.h contents" >&2
-    cat ./native/textfile >&2
-   else
-    ERROR=""
-    output_check
-    if [ "$ERROR" != "" ]
-    then
-     echo "failed: $ERROR" >> ../test.sh-results
-     echo "test.sh: $ERROR:" >&2
-     cat out >&2
-    else
-     echo "passed" >> ../test.sh-results
-     graphviz_sanity_check macroexpand
-     makeclean_check macroexpand 
-    fi
-   fi
-  fi
+  echo "failed: unexpected configure.h contents" >> ../test.sh-results
+  echo "test.sh: unexpected configure.h contents" >&2
+  cat ./native/textfile >&2
+  return
  fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check macroexpand
+ makeclean_check macroexpand 
+
  cd ..
 }
 
 examples_generateddeps() {
- echo -n "test: generateddeps: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Generated Dependencies" &> out
@@ -596,54 +634,56 @@ examples_generateddeps() {
  echo -e "\nint main(void)\n{\n printf(\"version %s.%s\\\n\", VER_MAJOR, VER_MINOR);" > two
  echo -e "\n return 0;\n}\n" > three
  ln -sf ../native/bca-canadate ./bca
- ./configure >> out 2>> out
- $MAKE -f Makefile.bca >> out 2>> out
+
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ ./native/hello$NATIVEBINSUFFIX >> out 2>> out
+ if [ $? != 0 ] 
+ then
+  echo "failed: hello binary return code wrong" >> ../test.sh-results
+  echo "test.sh: unexpected binary output" >&2
+  cat out >&2
+  return
+ fi
+
+ grep "version 1.1" ./out > /dev/null
  if [ $? != 0 ]
  then
-  echo "failed" >> ../test.sh-results
-  echo "test.sh: failed test generateddeps:" >&2
+  echo "failed: unexpected binary output" >> ../test.sh-results
+  echo "test.sh: unexpected binary output" >&2
   cat out >&2
- else
-  ERROR=""
-  created_files_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2   
-  else
-   ./native/hello$NATIVEBINSUFFIX >> out 2>> out
-   if [ $? != 0 ] 
-   then
-    echo "failed: hello binary return code wrong" >> ../test.sh-results
-   else
-    grep "version 1.1" ./out > /dev/null
-    if [ $? != 0 ]
-    then
-     echo "failed: unexpected binary output" >> ../test.sh-results
-     echo "test.sh: unexpected binary output" >&2
-     cat out >&2
-    else
-     ERROR=""
-     output_check
-     if [ "$ERROR" != "" ]
-     then
-      echo "failed: $ERROR" >> ../test.sh-results
-      echo "test.sh: $ERROR:" >&2
-      cat out >&2
-     else
-      echo "passed" >> ../test.sh-results
-      graphviz_sanity_check generateddeps
-      makeclean_check generateddeps 
-     fi
-    fi
-   fi
-  fi
  fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check generateddeps
+ makeclean_check generateddeps 
+
  cd ..
 }
 
 examples_customcommand() {
- echo -n "test: customcommand: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Custom Command" &> out
@@ -660,59 +700,53 @@ examples_customcommand() {
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
  ln -sf ../native/bca-canadate ./bca
- ./configure &>> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed: configure failed" >> ../test.sh-results
-  echo "test.sh: failed test customcommand:" >&2
+  return 1
+ fi 
+
+ $MAKE -f Makefile.bca >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: make should have errored out"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
   cat out >&2
- else
-  $MAKE -f Makefile.bca &>> out
-  if [ $? == 0 ]
-  then
-   echo "failed: make should have errored out" >> ../test.sh-results
-   echo "test.sh: failed test customcommand:" >&2
-   cat out >&2
-  else 
-   echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
+ fi
+
+ echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
            " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation. \n"\
            "   This time there are no spelling errors.</p>\n"\
            " </body>\n</html>\n" > documentation.html
-   $MAKE -f Makefile.bca &>> out
-   if [ $? != 0 ]
-   then
-    echo "failed: make failed" >> ../test.sh-results
-    echo "test.sh: failed test customcommand:" >&2
-    cat out >&2
-   else
-    ERROR=""
-    created_files_check
-    if [ "$ERROR" != "" ]
-    then
-     echo "failed: $ERROR" >> ../test.sh-results
-     echo "test.sh: $ERROR:" >&2   
-    else
-     ERROR=""
-     output_check
-     if [ "$ERROR" != "" ]
-     then
-      echo "failed: $ERROR" >> ../test.sh-results
-      echo "test.sh: $ERROR:" >&2
-      cat out >&2
-     else
-      echo "passed" >> ../test.sh-results
-      graphviz_sanity_check customcommand
-      makeclean_check customcommand
-     fi
-    fi
-   fi
-  fi
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check customcommand
+ makeclean_check customcommand
+
  cd ..
 }
 
 examples_inputtocustom() {
- echo -n "test: inputtocustom: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Input to Custom" &> out
@@ -739,47 +773,50 @@ examples_inputtocustom() {
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
  ln -sf ../native/bca-canadate ./bca
- ./configure &>> out
- $MAKE -f Makefile.bca &>> out
- if [ $? != 0 ]
+
+ try_configure
+ if [ "$ERROR" != "" ]
  then
-  echo "failed: make failed" >> ../test.sh-results
-  echo "test.sh: failed test inputtocustom:" >&2
-  cat out >&2
- else
-  ERROR=""
-  output_check
-  if [ "$ERROR" != "" ]
-  then
-   echo "failed: $ERROR" >> ../test.sh-results
-   echo "test.sh: $ERROR:" >&2
-   cat out >&2
-  else
-   ERROR=""
-   created_files_check
-   if [ "$ERROR" != "" ]
-   then
-    echo "failed: $ERROR" >> ../test.sh-results
-    echo "test.sh: $ERROR:" >&2   
-   else
-    echo "passed" >> ../test.sh-results
-    graphviz_sanity_check inputtocustom
-    makeclean_check inputtocustom 
-   fi
-  fi
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
  fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check inputtocustom
+ makeclean_check inputtocustom 
+
  cd ..
 }
 
 examples_effectivepaths() {
- echo -n "test: effectivepaths: " >> ./test.sh-results
  prepare_environment
  cd testing_environment
  ../native/bca-canadate --newproject "Hello World" &> out
  ../native/bca-canadate --type BINARY --newvalue NAME hello >> out 2>> out
  ../native/bca-canadate --type BINARY --newvalue FILES hello.c >> out 2>> out
  ln -sf ../native/bca-canadate ./bca
- ./configure --prefix=/customdir >> out 2>> out
+ try_configure --prefix=/customdir
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
  rm out
  ../native/bca-canadate --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
  grep "./native/" out > /dev/null
@@ -830,10 +867,233 @@ usage() {
 examples=(helloworld multifilebin sharedlib sharedlibandbin concat macroexpand generateddeps \
           customcommand inputtocustom effectivepaths)
 
+enablelogic_disableall() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component alt --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component alt --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component alt --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+ try_configure --disableall
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS=`./bca --listprojectcomponents`
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ -f $FILE ]
+   then
+    echo "failed: $FILE should not have been build; component $COMPONENT should have been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.disableall:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+ cd ..
+}
+
+enablelogic_disableone() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+
+ try_configure --disable-ALT
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS="ALT"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ -f $FILE ]
+   then
+    echo "failed: $FILE should not have been build; component $COMPONENT should have been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.disableone:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ COMPONENTS="MAIN greetings"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    echo "failed: $FILE should have been build; component $COMPONENT should have not been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.disableone:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+ cd ..
+}
+
+enablelogic_enableone() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+
+ try_configure --disableall --enable-greetings
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS="ALT MAIN"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ -f $FILE ]
+   then
+    echo "failed: $FILE should not have been build; component $COMPONENT should have been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.enableone:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ COMPONENTS="greetings"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    echo "failed: $FILE should have been build; component $COMPONENT should have not been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.enableone:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+ cd ..
+}
+
+#enable 1 that was disabled by default
+#disable an internal dependency (should fail)
+
+enablelogic=(disableall disableone enableone)
 
 #script starts here------------------------------------------------
-suites=(configurewrapper autoconfsupport configuration examples)
+suites=(configurewrapper autoconfsupport configuration examples enablelogic)
 
+BASEDIR=`pwd`
 MAKE=make
 NATIVEBINSUFFIX=""
 
@@ -869,6 +1129,9 @@ fi
 if [ $# == 2 ] 
 then
  echo "suite: ${1}" >> ./test.sh-results
+ suite=${1}
+ test=${2}
+ echo -n "test: $test: " >> ./test.sh-results
  ${1}_${2}
  exit 0
 fi
@@ -876,10 +1139,18 @@ fi
 if [ $# == 1 ]
 then
  echo "suite: ${1}" >> ./test.sh-results
+ suite=${1}
  array="${1}[@]"
  for test in "${!array}"
  do
+  echo -n "test: $test: " >> ./test.sh-results
   ${1}_${test}
+
+  if [ "$ERROR" != "" ]
+  then
+   cd $BASEDIR
+  fi
+
  done
  exit 0
 fi
@@ -898,7 +1169,14 @@ do
  array="${suite}[@]"
  for test in "${!array}"
  do
+  echo -n "test: $test: " >> ./test.sh-results
   ${suite}_${test}
+
+  if [ "$ERROR" != "" ]
+  then
+   cd $BASEDIR
+  fi
+
  done
 done
 exit 0

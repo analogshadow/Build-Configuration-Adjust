@@ -1095,6 +1095,174 @@ int derive_install_paths(struct bca_context *ctx,
  return 0;
 }
 
+int disables_and_enables(struct bca_context *ctx, 
+                         struct host_configuration *tc,
+                         struct component_details *cd)
+{
+ char *value, **project_disables;
+ int i, j, n_project_disables, yes;
+
+ /* hack warning: 
+    list_project_components() takes the disabled list into account,
+    here want the list of all components period */
+ n_project_disables = ctx->n_disables;
+ project_disables = ctx->disabled_components;
+ ctx->n_disables = 0;
+ ctx->disabled_components = NULL;
+ if(list_project_components(ctx, cd))
+ {
+  fprintf(stderr, "BCA: list_project_components() failed.\n");
+  return 1;
+ }
+ ctx->n_disables = n_project_disables;
+ ctx->disabled_components = project_disables;
+ n_project_disables = 0;
+ project_disables = NULL;
+
+ if(ctx->verbose)
+ {
+  printf("BCA: found (%d) project components: ", cd->n_components);
+  for(i=0; i < cd->n_components; i++)
+  {
+   printf("%s ", cd->project_components[i]);
+  }
+  printf("\n");
+ }
+
+ /* 1) Start with disable by default components - the NONE.NONE.DISABLES. */
+ if((value = lookup_key(ctx, ctx->project_configuration_contents,
+                        ctx->project_configuration_length, 
+                        "NONE", "NONE", "DISABLES")) != NULL)
+ {
+  if(ctx->verbose)
+   fprintf(stderr,
+           "BCA: project file has specified some components disable by default: %s\n", value);
+
+  if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
+  {
+   fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
+   return 1;
+  }
+ }
+
+ /* 2) If there are any disables on the command line, add those to our
+       working list (project_disables) while verifying that those are
+       actually project components (catch user errors). */
+ for(i=0; i<ctx->n_disables; i++)
+ {
+  yes = 0;
+  j = 0;
+  while(j < cd->n_components)
+  {
+   if(strcmp(ctx->disabled_components[i], cd->project_components[j]) == 0)
+   {
+    yes = 1;
+    break;
+   }
+   j++;
+  }
+  
+  if(yes == 0)
+  {
+   fprintf(stderr,
+           "BCA: disabled component '%s' is not a component of this project\n",
+           ctx->disabled_components[i]);
+   return 1;
+  }
+
+  if(add_to_string_array(&project_disables, n_project_disables, 
+                         ctx->disabled_components[i], -1, 1) == -1)
+  {
+   /* this could safely return 1 for the duplicates */
+   fprintf(stderr, "BCA: add_to_string_array() failed. This should not have happend!\n");
+   return 1;
+  }  
+  n_project_disables++;
+ }
+
+ if(ctx->n_enables == 0)
+ {
+  if(n_project_disables > 0)
+  {
+   /* 3) if there are no enables, then we can swap out our working set
+         for the set that will be use */
+   free_string_array(ctx->disabled_components, ctx->n_disables);
+   ctx->disabled_components = project_disables;
+   ctx->n_disables = n_project_disables;
+  }
+  /* 4) if there are no enables, and no default disables, then then the
+     only disables will be what ever (if any) specified on the command 
+     line and already in use */
+ } else {
+
+  /* 5) we must consider the list of enables. enables just get taken
+        away from the set of disables */
+  free_string_array(ctx->disabled_components, ctx->n_disables);
+  ctx->disabled_components = NULL;
+  ctx->n_disables = 0; 
+
+  /* user error check on the enable list */
+  for(i=0; i < ctx->n_enables; i++)
+  {
+   yes = 0;
+   j=0;
+   while(j < n_project_disables)
+   {
+    if(strcmp(ctx->enabled_components[i], project_disables[j]) == 0)
+    {
+     yes = 1;
+     break;
+    }
+    j++;
+   }
+
+   if(yes == 0)
+   {
+    fprintf(stderr, 
+            "BCA: I do not have a disabled component named %s to enable.\n",
+            ctx->enabled_components[i]);
+     return 1;
+   }
+  }
+
+  for(i=0; i < n_project_disables; i++)
+  {
+   yes = 1;
+
+   j=0;
+   while(j < ctx->n_enables)
+   {
+    if(strcmp(ctx->enabled_components[j], project_disables[i]) == 0)
+    {
+     yes = 0;
+     break;
+    }
+    j++;
+   }
+
+   /* those disables not in the enable list will get placed in the new
+      effective set */
+   if(yes == 1)
+   {
+    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
+                           project_disables[i], -1, 1) != 0)
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed. This should not have happend!\n");
+      return 1;
+    }
+    ctx->n_disables++;
+   }
+  }
+
+  /* working set no longer needed */
+  free_string_array(project_disables, n_project_disables);
+  project_disables = NULL;
+  n_project_disables = 0;
+ }
+ 
+ return 0;
+}
+
 int append_host_configuration_helper(int *n_modify_records,
                                      char ***mod_principles,
                                      char ***mod_components,
@@ -1382,10 +1550,6 @@ int append_host_configuration(struct bca_context *ctx,
     configuration values such as CFLAGS that start with the old value (if any), modify 
     with flags etc, then save the revised state.
 
-    Remember that the --enable-* logic is only to say "regarding components that are set
-    to disabled by the project configuration itself, specifically turn this one on".
-    This logic, plus the --disable-* switches is where the disable_components[] come from.
-
     Also remember that all of this is only to effect the build configuration (including the
     test that are performed). Generating  makefiles, build plots etc, use an existing build
     configuration. 
@@ -1442,10 +1606,9 @@ int append_host_configuration(struct bca_context *ctx,
 
 int configure(struct bca_context *ctx)
 {
- char *s, *value, **project_disables;
+ char *s, *value;
  char host_prefix[512];
- int i, j, n_project_disables, yes;
- int n_modify_records = 0;
+ int yes, n_modify_records = 0;
  char **mod_principles = NULL, **mod_components = NULL, **mod_keys = NULL, **mod_values = NULL;
  struct component_details cd;
  struct host_configuration *tc;
@@ -1499,92 +1662,14 @@ int configure(struct bca_context *ctx)
   return 1;
  } 
 
- if(list_project_components(ctx, &cd))
- {
-  fprintf(stderr, "BCA: list_project_components() failed.\n");
-  return 1;
- }
-
- if(ctx->verbose)
- {
-  printf("BCA: found (%d) project components: ", cd.n_components);
-  for(i=0; i < cd.n_components; i++)
-  {
-   printf("%s ", cd.project_components[i]);
-  }
-  printf("\n");
- }
-
  host_root = getenv("HOST_ROOT");
  if(ctx->verbose)
   if(host_root)
    fprintf(stderr, "BCA: HOST_ROOT set via environment variable\n");
 
 
- /* project defined disables processing */
- if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                        ctx->project_configuration_length, 
-                        "NONE", "NONE", "DISABLES")) != NULL)
- {
-  if(ctx->verbose)
-   fprintf(stderr,
-           "BCA: project file has specified some components disable by default: %s\n", value);
-
-  if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
-  {
-   fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
-   return 1;
-  }
-
-  /* catch the user's error first */
-  for(j=0; j<ctx->n_enables; j++)
-  {
-   yes = 1;
-   for(i=0; i<n_project_disables; i++)
-   {
-    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
-    {
-      yes = 0;
-      break;
-    }
-   }
-
-   if(yes)
-   {
-    fprintf(stderr, 
-            "BCA: I do not have a component disabled by default to enable with --enable-%s\n",
-             ctx->enabled_components[j - 1]);
-    return 1;
-   }
-  }
- 
-  for(i=0; i<n_project_disables; i++)
-  {
-   yes = 1;
-   for(j=0; j<ctx->n_enables; j++)
-   {
-    if(strcmp(project_disables[i], ctx->enabled_components[j]) == 0)
-    {
-     yes = 0;
-     break;
-    }
-   }
-
-   if(yes)
-   {
-    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
-                           project_disables[i], -1, 1))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed. Are you using --disable on a component "
-             "that is disable by default by the project?\n");
-     return 1;
-    }
-    ctx->n_disables++;
-   }
-  }
-
-  free(value);
- }
+ if(disables_and_enables(ctx, tc, &cd))
+  return 1;
 
  if(c_family_configuration(ctx, tc, &cd))
   return 1;

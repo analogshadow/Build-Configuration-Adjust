@@ -604,7 +604,7 @@ int check_project_component_types(struct bca_context *ctx)
  char *component_types[9] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
                               "MACROEXPAND", "PYTHONMODULE", "CUSTOM" };
 
- char *component_keys[] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
+ char *component_keys[18] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
                             "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS", 
                             "FILE_DEPENDS", "INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
                             "LIB_HEADERS", "DISABLES" };
@@ -616,29 +616,37 @@ int check_project_component_types(struct bca_context *ctx)
  {
   handled = 0;
 
-  for(i=0; i<8; i++)
+  i=0;
+  while(i<8)
   {
    if(strcmp(type, component_types[i]) == 0)
+   {
     handled = 1;
-
-   if(handled == 0)
-    fprintf(stderr, 
-            "BCA: WARNING - Are you sure about a project component type of \"%s\"?\n",
-            type); 
+    break;
+   }
+   i++;
   }
 
-  handled = 0;
+  if(handled == 0)
+   fprintf(stderr, 
+           "BCA: WARNING - Are you sure about a project component type of \"%s\"?\n",
+           type); 
 
-  for(i=0; i<17; i++)
+  i=0;
+  while(i<17)
   {
    if(strcmp(type, component_keys[i]) == 0)
+   {
     handled = 1;
-
-   if(handled == 0)
-    fprintf(stderr, 
-            "BCA: WARNING - Are you sure about a project component key of \"%s\"?\n",
-            key); 
+    break;
+   }
+   i++;
   }
+
+  if(handled == 0)
+   fprintf(stderr, 
+           "BCA: WARNING - Are you sure about a project component key of \"%s\"?\n",
+           key); 
 
  } 
 
