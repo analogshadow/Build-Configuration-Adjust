@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2012-2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -113,9 +113,6 @@ int graphviz_node_edge_from_component_type(struct bca_context *ctx, FILE *output
 
  if(strcmp(type, "BINARY") == 0)
   fprintf(output, "color = red");
-  
- if(strcmp(type, "BUILDBINARY") == 0)
-  fprintf(output, "color = deeppink2");
 
  if(strcmp(type, "SHAREDLIBRARY") == 0)
   fprintf(output, "color = red");
@@ -133,7 +130,8 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
                    char **hosts, int n_build_hosts,
                    struct component_details *cd)
 {
- int x, y, z, i, yes, code, n_sources = 0, n_file_deps, n_ext_depends = 0, n_items; 
+ int x, y, z, i, yes, code, n_sources = 0, n_file_deps, n_ext_depends = 0, n_items, 
+     disabled; 
  struct host_configuration *tc;
  char in[512], out[512], *extension, **sources = NULL, **extensions = NULL, 
       **ext_depends = NULL, **file_deps, *value, **list = NULL;
@@ -152,69 +150,87 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
     return 1;
 
-   if((n_items = render_project_component_output_name(ctx, cd->host, cd->project_component, 2,
-                                                      &list, &extensions)) < 0)
-   {
-    fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
+   if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
     return 1;
-   }
-
-   for(i=0; i<n_items; i++)
-   {
-    if(list[i][0] != 0)
-    {
-     if(graphviz_string_clean(ctx, list[i], -1, out, 512))
-      return 1;
-
-     fprintf(output, " %s [label = \"%s\" shape = component ", out, list[i]);
-
-     if(graphviz_node_color_from_file_extension(ctx, output, extensions[i]))
-      return 1;
-
-     fprintf(output, "]\n");
-    }
-   }
-
-   free_string_array(extensions, n_items);
-   free_string_array(list, n_items);
-   n_items = 0;
-   list = NULL;
-   extensions = NULL;
-
-   /* build unique list of external dependencies */
-   if(resolve_component_dependencies(ctx, cd))
-    return 1;
-
-   for(z = 0; z < cd->n_dependencies; z++)
-   {
-    i = 0;
-    yes = 1;
-    while(i < cd->n_components)
-    {
-     if(strcmp(cd->dependencies[z], cd->project_components[i]) == 0)
-     {
-      yes = 0;
-      break;
-     }
-     i++;
-    }
-
-    if(yes)
-    {
-     code = add_to_string_array(&ext_depends, n_ext_depends, cd->dependencies[z], -1, 1);
-
-     if(code == -1)
-      return 1;
  
-     if(code == 0)
-      n_ext_depends++;
+   disabled = 0;
+   i=0; 
+   while(i<ctx->n_disables)
+   {
+    if(strcmp(cd->project_components[y], ctx->disabled_components[i]) == 0)
+    {
+     disabled = 1;
+     break;
     }
+
+    i++;
    }
 
-   free_string_array(cd->dependencies, cd->n_dependencies);
-   cd->dependencies = NULL;
-   cd->n_dependencies = 0;
+   if(disabled == 0)
+   {
+    if((n_items = render_project_component_output_name(ctx, cd->host, cd->project_component, 2,
+                                                       &list, &extensions)) < 0)
+    {
+     fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
+     return 1;
+    }
 
+    for(i=0; i<n_items; i++)
+    {
+     if(list[i][0] != 0)
+     {
+      if(graphviz_string_clean(ctx, list[i], -1, out, 512))
+       return 1;
+
+      fprintf(output, " %s [label = \"%s\" shape = component ", out, list[i]);
+
+      if(graphviz_node_color_from_file_extension(ctx, output, extensions[i]))
+       return 1;
+
+      fprintf(output, "]\n");
+     }
+    }
+ 
+    free_string_array(extensions, n_items);
+    free_string_array(list, n_items);
+    n_items = 0;
+    list = NULL;
+    extensions = NULL;
+
+    /* build unique list of external dependencies */
+    if(resolve_component_dependencies(ctx, cd))
+     return 1;
+
+    for(z = 0; z < cd->n_dependencies; z++)
+    {
+     i = 0;
+     yes = 1;
+     while(i < cd->n_components)
+     {
+      if(strcmp(cd->dependencies[z], cd->project_components[i]) == 0)
+      {
+       yes = 0;
+       break;
+      }
+      i++;
+     }
+
+     if(yes)
+     {
+      code = add_to_string_array(&ext_depends, n_ext_depends, cd->dependencies[z], -1, 1);
+
+      if(code == -1)
+       return 1;
+ 
+      if(code == 0)
+       n_ext_depends++;
+     }
+    }
+
+    free_string_array(cd->dependencies, cd->n_dependencies);
+    cd->dependencies = NULL;
+    cd->n_dependencies = 0;
+   }
 
    free_host_configuration(ctx, tc);
   }
@@ -243,83 +259,99 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
  /* build unique lists of sources */
  for(y=0; y < cd->n_components; y++)
  {
-  cd->project_component_type = cd->project_component_types[y];
-  cd->project_component = cd->project_components[y];
-
-  if(resolve_component_file_dependencies(ctx, cd, y))
-   return 1;
-
-  for(x=0; x < cd->n_file_names; x++)
+  disabled = 0;
+  i=0; 
+  while(i<ctx->n_disables)
   {
-
-   code = add_to_string_array(&sources, n_sources, cd->file_names[x], -1, 1);
-
-   if(code == -1)
-    return 1;
- 
-   if(code == 0)
+   if(strcmp(cd->project_components[y], ctx->disabled_components[i]) == 0)
    {
-    if(add_to_string_array(&extensions, n_sources, cd->file_extensions[x], -1, 0) != 0)
-     return 1;
-    n_sources++;
+    disabled = 1;
+    break;
    }
 
+   i++;
   }
 
-  if(cd->n_file_names > 0)
+  if(disabled == 0)
   {
-   free_string_array(cd->file_names, cd->n_file_names);
-   free_string_array(cd->file_base_names, cd->n_file_names);
-   free_string_array(cd->file_extensions, cd->n_file_names);
-  }
+   cd->project_component_type = cd->project_component_types[y];
+   cd->project_component = cd->project_components[y];
 
-  cd->n_file_names = 0;
-  cd->file_names = NULL;
-  cd->file_base_names = NULL;
-  cd->file_extensions = NULL;
-
-  file_deps = NULL;
-  n_file_deps = 0;
-  if((value = lookup_key(ctx, ctx->project_configuration_contents, 
-                         ctx->project_configuration_length, 
-                         cd->project_component_types[y], 
-                         cd->project_components[y], "FILE_DEPENDS")) != NULL)
-  {
-
-   if(split_strings(ctx, value, -1, &n_file_deps, &file_deps))
-   {
-    fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
-    fclose(output);
+   if(resolve_component_file_dependencies(ctx, cd, y))
     return 1;
-   }
 
-   for(x=0; x < n_file_deps; x++)
+   for(x=0; x < cd->n_file_names; x++)
    {
-    code = add_to_string_array(&sources, n_sources, file_deps[x], -1, 1);
+
+    code = add_to_string_array(&sources, n_sources, cd->file_names[x], -1, 1);
 
     if(code == -1)
      return 1;
  
     if(code == 0)
     {
-     if(path_extract(file_deps[x], NULL, &extension))
-     {
-      fprintf(stderr, "BCA: path_extract(%s) failed\n", file_deps[x]);
-      return 1;
-     }
-
-     if(add_to_string_array(&extensions, n_sources, extension, -1, 0) != 0)
+     if(add_to_string_array(&extensions, n_sources, cd->file_extensions[x], -1, 0) != 0)
       return 1;
      n_sources++;
-
-     free(extension);
     }
+
    }
 
-   free(value);
-  }
+   if(cd->n_file_names > 0)
+   {
+    free_string_array(cd->file_names, cd->n_file_names);
+    free_string_array(cd->file_base_names, cd->n_file_names);
+    free_string_array(cd->file_extensions, cd->n_file_names);
+   }
 
-  free_string_array(file_deps, n_file_deps);
+   cd->n_file_names = 0;
+   cd->file_names = NULL;
+   cd->file_base_names = NULL;
+   cd->file_extensions = NULL;
+
+   file_deps = NULL;
+   n_file_deps = 0;
+   if((value = lookup_key(ctx, ctx->project_configuration_contents, 
+                          ctx->project_configuration_length, 
+                          cd->project_component_types[y], 
+                          cd->project_components[y], "FILE_DEPENDS")) != NULL)
+   {
+
+    if(split_strings(ctx, value, -1, &n_file_deps, &file_deps))
+    {
+     fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+     fclose(output);
+     return 1;
+    }
+
+    for(x=0; x < n_file_deps; x++)
+    {
+     code = add_to_string_array(&sources, n_sources, file_deps[x], -1, 1);
+
+     if(code == -1)
+      return 1;
+ 
+     if(code == 0)
+     {
+      if(path_extract(file_deps[x], NULL, &extension))
+      {
+       fprintf(stderr, "BCA: path_extract(%s) failed\n", file_deps[x]);
+       return 1;
+      }
+
+      if(add_to_string_array(&extensions, n_sources, extension, -1, 0) != 0)
+       return 1;
+      n_sources++;
+
+      free(extension);
+     }
+    }
+
+    free(value);
+   }
+
+   free_string_array(file_deps, n_file_deps);
+  }
  }
 
  for(x=0; x < n_sources; x++)
@@ -361,6 +393,22 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
   return 1;
  }
 
+ if(engage_build_configuration_disables_for_host(ctx, cd->host))
+ {
+  return 1;
+ }
+
+ i=0; 
+ while(i<ctx->n_disables)
+ {
+  if(strcmp(cd->project_component, ctx->disabled_components[i]) == 0)
+  {
+   return 0;
+  }
+
+  i++;
+ }
+
  if(strcmp(cd->project_component_type, "CUSTOM") == 0)
  {
   if((value = lookup_key(ctx, ctx->project_configuration_contents, 
@@ -387,7 +435,8 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
   }
   if(yes == 0)
   {
-   fprintf(stderr, "BCA: CUSTOM.%s.DRIVER = %s does not seem to be a MACROEXPAND project component\n", 
+   fprintf(stderr, 
+           "BCA: CUSTOM.%s.DRIVER = %s does not seem to be a MACROEXPAND project component\n", 
            cd->project_component, value);
    return 1;
   }
@@ -516,31 +565,34 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
   return 1;
  }
 
- for(i=0; i < cd->n_file_deps; i++)
+ if( (n_items > 0) || (driver_component_index > -1) )
  {
-  if(graphviz_string_clean(ctx, cd->file_deps[i], -1, out, 512))
-   return 1;
-
-  fprintf(output, " %s -> ", out);
-
-  if(driver_component_index > -1)
+  for(i=0; i < cd->n_file_deps; i++)
   {
-   snprintf(temp, 1024, "%s/%s\n", tc->build_prefix,
-            cd->project_output_names[driver_component_index]);
-   if(graphviz_string_clean(ctx, temp, -1, out, 512))
+   if(graphviz_string_clean(ctx, cd->file_deps[i], -1, out, 512))
     return 1;
-  } else {
-   if(graphviz_string_clean(ctx, list[0], -1, out, 512))
+
+   fprintf(output, " %s -> ", out);
+
+   if(driver_component_index > -1)
+   {
+    snprintf(temp, 1024, "%s/%s\n", tc->build_prefix,
+             cd->project_output_names[driver_component_index]);
+    if(graphviz_string_clean(ctx, temp, -1, out, 512))
+     return 1;
+   } else {
+    if(graphviz_string_clean(ctx, list[0], -1, out, 512))
+     return 1;
+   }
+
+   fprintf(output, "%s [", out);
+
+   if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, 
+                                             cd->file_deps[i]))
     return 1;
+
+   fprintf(output, "]\n");
   }
-
-  fprintf(output, "%s [", out);
-
-  if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, 
-                                            cd->file_deps[i]))
-   return 1;
-
-  fprintf(output, "]\n");
  }
 
  /* lines from dependencies' .pc files to component output files
@@ -558,11 +610,18 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
     yes = 0;
     handled = 0;
 
-    if((n_items_d = render_project_component_output_name(ctx, cd->host, cd->project_components[x], 2,
+    if((n_items_d = render_project_component_output_name(ctx, cd->host, 
+                                                         cd->project_components[x], 2,
                                                          &list_d, NULL)) < 0)
     {
      fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
      return 1;
+    }
+
+    if(n_items_d == 0)
+    {
+     x++;
+     continue;
     }
 
     if(n_items_d > 2)
@@ -617,38 +676,40 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
  fprintf(output, "\n");
 
  /* these are the lines from the source files to the component output file */
- for(i=0; i<cd->n_file_names; i++)
+ if( (n_items > 0) || (driver_component_index > -1) )
  {
-  if(graphviz_string_clean(ctx, cd->file_names[i], -1, out, 512))
-   return 1;
-
-  fprintf(output, " %s -> ", out);
-
-  if(driver_component_index > -1)
+  for(i=0; i<cd->n_file_names; i++)
   {
-   snprintf(temp, 1024, "%s/%s", tc->build_prefix,
-            cd->project_output_names[driver_component_index]);
-   if(graphviz_string_clean(ctx, temp, -1, out, 512))
+   if(graphviz_string_clean(ctx, cd->file_names[i], -1, out, 512))
     return 1;
-  } else {
-   if(graphviz_string_clean(ctx, list[0], -1, out, 512))
-    return 1;
+
+   fprintf(output, " %s -> ", out);
+
+   if(driver_component_index > -1)
+   {
+    snprintf(temp, 1024, "%s/%s", tc->build_prefix,
+             cd->project_output_names[driver_component_index]);
+    if(graphviz_string_clean(ctx, temp, -1, out, 512))
+     return 1;
+   } else {
+    if(graphviz_string_clean(ctx, list[0], -1, out, 512))
+     return 1;
+   }
+
+   fprintf(output, "%s [", out);
+
+   if(driver_component_index > -1)
+   {
+    fprintf(output, " color=green ");
+   } else {
+    if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, 
+                                              cd->file_names[i]))
+     return 1;
+   }
+
+   fprintf(output, "]\n");
   }
-
-  fprintf(output, "%s [", out);
-
-  if(driver_component_index > -1)
-  {
-   fprintf(output, " color=green ");
-  } else {
-   if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, 
-                                            cd->file_names[i]))
-    return 1;
-  }
-
-  fprintf(output, "]\n");
  }
-
 
  fprintf(output, "\n");
 
@@ -667,7 +728,8 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
 
    fprintf(output, "%s [", out);
 
-   if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, extensions[x]))
+   if(graphviz_node_edge_from_component_type(ctx, output, cd->project_component_type, 
+                                             extensions[x]))
     return 1;
 
    fprintf(output, "]\n");
@@ -676,17 +738,20 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
 
  if(strcmp(cd->project_component_type, "CUSTOM") == 0)
  {
-  snprintf(temp, 1024, "%s/%s", tc->build_prefix,
-           cd->project_output_names[driver_component_index]);
-  if(graphviz_string_clean(ctx, temp, -1, out, 512))
-   return 1;
+  if(n_items_d > 0)
+  {
+   snprintf(temp, 1024, "%s/%s", tc->build_prefix,
+            cd->project_output_names[driver_component_index]);
+   if(graphviz_string_clean(ctx, temp, -1, out, 512))
+    return 1;
 
-  fprintf(output, " %s -> ", out);
+   fprintf(output, " %s -> ", out);
 
-  if(graphviz_string_clean(ctx, list[0], -1, out, 512))
-   return 1;
+   if(graphviz_string_clean(ctx, list[0], -1, out, 512))
+    return 1;
 
-  fprintf(output, "%s [ color=green ]\n", out);
+   fprintf(output, "%s [ color=green ]\n", out);
+  }
  }
 
 

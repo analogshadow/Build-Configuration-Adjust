@@ -957,12 +957,26 @@ int fresh_config_depends_check(struct bca_context *ctx, struct component_details
    if(clear == 0)
    {
     fprintf(stderr, 
-            "BCA: WARNING - In the project configuration, component \"%s\" has an internal dependency "
-            "on project component \"%s\", but this is not reflected in the build configuration. Are "
-            "you using a fresh configure?\n",
+            "BCA: WARNING - In the project configuration, component \"%s\" has an internal "
+            "dependency on project component \"%s\", but this is not reflected in the build "
+            "configuration. Are you using a fresh configure?\n",
             cd->project_component, list[i]);
    }
+
+   for(x = 0; x < ctx->n_disables; x++)
+   {
+    if(strcmp(list[i], ctx->disabled_components[x]) == 0)
+    {
+     fprintf(stderr, 
+             "BCA: can not generate makefile because component \"%s\" has an internal "
+             "dependency on component \"%s\", which as been disabled.\n",
+             cd->project_component, list[i]);
+
+     return 1;
+    }
+   }
   }
+
   free_string_array(list, n_elements);
   list = NULL;
   n_elements = 0;
@@ -991,9 +1005,9 @@ int fresh_config_depends_check(struct bca_context *ctx, struct component_details
    if(clear == 0)
    {
     fprintf(stderr, 
-            "BCA: WARNING - In the project configuration, component \"%s\" has non-optional external dependency "
-            "on package \"%s\", but this is not reflected in the build configuration. Are "
-            "you using a fresh configure?\n",
+            "BCA: WARNING - In the project configuration, component \"%s\" has non-optional "
+            "external dependency on package \"%s\", but this is not reflected in the build "
+            "configuration. Are you using a fresh configure?\n",
             cd->project_component, list[i]);
    }
   }

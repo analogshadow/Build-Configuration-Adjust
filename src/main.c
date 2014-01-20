@@ -32,7 +32,7 @@
 void help(void)
 {
  printf("\n                         Build Configuration Adjust\n"
-        "This is part of the build system, and not part of the software it builds.\n"
+        "This is part of the build system, and not part of the project it builds.\n"
         "\nusage:\n"
         " --showvalue key\n"
         " --setvalue key newvalue\n"

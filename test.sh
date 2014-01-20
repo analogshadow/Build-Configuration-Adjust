@@ -27,7 +27,7 @@ prepare_environment() {
 
 try_configure() {
  ERROR=""
- ./configure "$@" >> out 2>> out
+ BCA=$BCA PKG_CONFIG_PATH=$PKG_CONFIG_PATH ./configure "$@" >> out 2>> out
  if [ $? != 0 ]
  then
   ERROR="failed: configure"
@@ -658,7 +658,7 @@ examples_generateddeps() {
  then
   echo "failed: hello binary return code wrong" >> ../test.sh-results
   echo "test.sh: unexpected binary output" >&2
-  cat out >&2
+  cat out >&2t
   return
  fi
 
@@ -1085,10 +1085,189 @@ enablelogic_enableone() {
  cd ..
 }
 
-#enable 1 that was disabled by default
-#disable an internal dependency (should fail)
+enablelogic_defaultdisabled() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+../native/bca-canadate --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
 
-enablelogic=(disableall disableone enableone)
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS="MAIN"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ -f $FILE ]
+   then
+    echo "failed: $FILE should not have been build; component $COMPONENT should have been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.defaultdisabled:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ COMPONENTS="ALT greetings"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    echo "failed: $FILE should have been build; component $COMPONENT should have not been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.defaultdisabled:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+ cd ..
+}
+
+enablelogic_enabledefaultdisabled() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+../native/bca-canadate --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
+
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+
+ try_configure --enable-MAIN
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi 
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS="MAIN ALT greetings"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    echo "failed: $FILE should have been build; component $COMPONENT should have not been disabled" >> ../test.sh-results
+    echo "test.sh: failed test enablelogic.$test:" >&2
+    cat out >&2
+    return 1
+   fi
+  done
+ done
+ echo "passed" >> ../test.sh-results
+ graphviz_sanity_check concat
+ makeclean_check concat 
+ cd ..
+}
+
+enablelogic_disableinternaldep() {
+ prepare_environment
+ cd testing_environment
+ ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+ ln -sf ../native/bca-canadate ./bca
+
+ ./configure --disable-greetings >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: configure should have failed on makefile generation"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+ fi
+
+ cd ..
+}
+
+enablelogic=(disableall disableone enableone defaultdisabled enabledefaultdisabled disableinternaldep)
 
 #script starts here------------------------------------------------
 suites=(configurewrapper autoconfsupport configuration examples enablelogic)

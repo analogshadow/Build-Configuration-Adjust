@@ -637,6 +637,7 @@ int render_project_component_output_name(struct bca_context *ctx,
   fprintf(stderr, 
           "BCA: render_project_component_output_name(): is there really a component named \"%s\" ?\n",
           component);
+  *array_ptr = &("fail");
  }
 
  *array_ptr = names;
