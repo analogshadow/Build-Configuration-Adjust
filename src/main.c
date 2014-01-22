@@ -1037,7 +1037,8 @@ struct bca_context *setup(int argc, char **argv)
 
   if(handled == 0)
   {
-   fprintf(stderr, "BCA: I don't know what to do with the parameter \"%s\".\n", argv[current_arg]);
+   fprintf(stderr, 
+           "BCA: I don't know what to do with the parameter \"%s\".\n", argv[current_arg]);
    return NULL;
   }
 

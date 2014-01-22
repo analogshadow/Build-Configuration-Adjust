@@ -260,6 +260,8 @@ int smart_pull_value(struct bca_context *ctx);
 
 int engage_build_configuration_disables_for_host(struct bca_context *ctx, char *host);
 
+int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *host);
+
 int check_project_component_types(struct bca_context *ctx);
 
 int list_project_components(struct bca_context *ctx, 

@@ -1276,6 +1276,16 @@ int swap_checks(struct bca_context *ctx)
 
  for(x=0; x<ctx->n_swaps; x++)
  {
+
+  if(strcmp(ctx->swapped_component_hosts[x],
+            ctx->principle) == 0)
+  {
+   fprintf(stderr, 
+           "BCA: swap for component %s can not point to the same host\n",
+           ctx->swapped_components[x]);
+   return ;
+  }
+
   for(y=0; y<ctx->n_disables; y++)
   {
    if(strcmp(ctx->swapped_components[x], ctx->disabled_components[y]) == 0)

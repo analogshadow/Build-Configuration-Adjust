@@ -596,6 +596,121 @@ int engage_build_configuration_disables_for_host(struct bca_context *ctx, char *
  return 0;
 }
 
+int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *host)
+{
+ char *value, **hosts = NULL, *disables;
+ char principle[256], component[256], key[256];
+ int host_length, n_hosts = 0, i, ok, end = -1;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: engage_build_configuration_swaps_for_host(%s)\n", host);
+
+ if(ctx->swapped_components != NULL)
+ {
+  free_string_array(ctx->swapped_components, ctx->n_swaps);
+  free_string_array(ctx->swapped_component_hosts, ctx->n_swaps);
+  ctx->n_swaps = 0;
+  ctx->swapped_components = NULL;
+  ctx->swapped_component_hosts = NULL;
+ }
+
+ if(list_unique_principles(ctx, NULL, 
+                           ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
+                           &hosts, &n_hosts))
+ {
+  fprintf(stderr, "BCA: list_unique_principles() failed.\n");
+ }
+
+ host_length = strlen(host);
+                          
+ while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
+                              ctx->build_configuration_length, &end,
+                              host, NULL, "SWAP", 
+                              principle, component, key, NULL))
+ {
+  value = lookup_key(ctx, ctx->build_configuration_contents,
+                     ctx->build_configuration_length,
+                     principle, component, key);
+
+  if(strcmp(value, host) == 0)
+  {
+   fprintf(stderr, 
+           "BCA: Component %s on host %s swaps back to the same host.\n",
+           component, host);
+   free(value);
+   free_string_array(hosts, n_hosts);
+   return 1;
+  }
+
+  ok = 0;
+  i = 0;
+  while(i<n_hosts)
+  {
+   if(strcmp(value, hosts[i]) == 0)
+   {
+    if(strcmp(hosts[i], host) != 0)
+    {
+printf("its here %s\n", hosts[i]);
+     ok = 1;
+     break;
+    }
+   }
+   i++;
+  }
+  if(ok == 0)
+  {
+   fprintf(stderr, 
+           "BCA: Component \"%s\" on host \"%s\" swaps to unconfigured host \"%s\".\n",
+           component, host, value);
+   free(value);
+   free_string_array(hosts, n_hosts);
+   return 1;
+  }
+
+  if((disables = lookup_key(ctx, 
+                            ctx->build_configuration_contents,
+                            ctx->build_configuration_length, 
+                            hosts[i], component, "DISABLES")) == NULL)
+  {
+   if(contains_string(disables, -1, component, -1))
+   {
+    fprintf(stderr, 
+            "BCA: Component \"%s\" on host \"%s\" swaps to host \"%s\", on which it is disabled.\n",
+            component, host, hosts[i]);
+    free(disables);
+    free(value);
+    free_string_array(hosts, n_hosts);
+    return 1;
+   }
+
+   free(disables);
+  }
+
+  if(add_to_string_array(&(ctx->swapped_components), 
+                         ctx->n_swaps, 
+                         component, -1, 1))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  if(add_to_string_array(&(ctx->swapped_component_hosts), 
+                         ctx->n_swaps, 
+                         key, -1, 1))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  ctx->n_swaps++;
+  free(value);
+ }
+
+ free_string_array(hosts, n_hosts);
+ return 0;
+}
+
 int check_project_component_types(struct bca_context *ctx)
 {
  int handled, offset = -1, i;

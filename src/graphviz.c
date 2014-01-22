@@ -131,7 +131,7 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
                    struct component_details *cd)
 {
  int x, y, z, i, yes, code, n_sources = 0, n_file_deps, n_ext_depends = 0, n_items, 
-     disabled; 
+     disabled, swapped; 
  struct host_configuration *tc;
  char in[512], out[512], *extension, **sources = NULL, **extensions = NULL, 
       **ext_depends = NULL, **file_deps, *value, **list = NULL;
@@ -153,6 +153,9 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
    if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
     return 1;
  
+   if(engage_build_configuration_swaps_for_host(ctx, hosts[x]))
+    return 1;
+
    disabled = 0;
    i=0; 
    while(i<ctx->n_disables)
@@ -168,11 +171,36 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
 
    if(disabled == 0)
    {
-    if((n_items = render_project_component_output_name(ctx, cd->host, cd->project_component, 2,
-                                                       &list, &extensions)) < 0)
+    swapped = 0;
+    i = 0;
+    while(i < ctx->n_swaps)
     {
-     fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
-     return 1;
+     if(strcmp(cd->project_components[y], ctx->swapped_components[i]) == 0)
+     {
+      swapped = 1;
+      break;
+     }
+     i++;
+    }
+
+    if(swapped)
+    {
+     if((n_items = render_project_component_output_name(ctx, 
+                                                        ctx->swapped_component_hosts[i], 
+                                                        cd->project_component, 2,
+                                                        &list, &extensions)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
+      return 1;
+     }
+    } else {
+     if((n_items = render_project_component_output_name(ctx, cd->host, 
+                                                        cd->project_component, 2,
+                                                        &list, &extensions)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
+      return 1;
+     }
     }
 
     for(i=0; i<n_items; i++)
@@ -409,6 +437,23 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
   i++;
  }
 
+ if(engage_build_configuration_swaps_for_host(ctx, cd->host))
+ {
+  return 1;
+ }
+
+ i=0; 
+ while(i<ctx->n_swaps)
+ {
+  if(strcmp(cd->project_component, ctx->swapped_components[i]) == 0)
+  {
+   return 0;
+  }
+
+  i++;
+ }
+
+
  if(strcmp(cd->project_component_type, "CUSTOM") == 0)
  {
   if((value = lookup_key(ctx, ctx->project_configuration_contents, 
@@ -610,12 +655,34 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
     yes = 0;
     handled = 0;
 
-    if((n_items_d = render_project_component_output_name(ctx, cd->host, 
-                                                         cd->project_components[x], 2,
-                                                         &list_d, NULL)) < 0)
+    i=0; 
+    while(i<ctx->n_swaps)
     {
-     fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
-     return 1;
+     if(strcmp(cd->project_component, ctx->swapped_components[i]) == 0)
+     {
+      break;
+     }   
+     i++;
+    }
+
+    if(i == 0)
+    {
+     if((n_items_d = render_project_component_output_name(ctx, cd->host, 
+                                                          cd->project_components[x], 2,
+                                                          &list_d, NULL)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+      return 1;
+     }
+    } else {
+     if((n_items_d = render_project_component_output_name(ctx,
+                                                          ctx->swapped_component_hosts[i], 
+                                                          cd->project_components[x], 2,
+                                                          &list_d, NULL)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+      return 1;
+     }
     }
 
     if(n_items_d == 0)
@@ -776,7 +843,8 @@ int generate_graphviz_mode(struct bca_context *ctx)
   fprintf(stderr, "BCA: graphviz_output_mode()\n");
 
  if((ctx->build_configuration_contents = 
-     read_file("./buildconfiguration/buildconfiguration", &(ctx->build_configuration_length), 0)) == NULL)
+     read_file("./buildconfiguration/buildconfiguration", 
+               &(ctx->build_configuration_length), 0)) == NULL)
  {
   fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
   return 1;
