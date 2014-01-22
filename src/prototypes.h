@@ -71,17 +71,15 @@
 
 struct bca_context
 {
- int mode, extra_args_start, manipulation_type, verbose, n_withouts, n_disables, n_enables;
+ int mode, extra_args_start, manipulation_type, verbose, 
+     n_withouts, n_disables, n_enables, n_swaps;
  char *search_value_key, *new_value_string;
  char value_key[1024], value_string[1024]; 
  char *principle, *qualifier;
 
  char *install_prefix, *host_prefix;
- char **without_strings, **disabled_components, **enabled_components;
-/* Enabled components are the list of --enable-*s on the command line. 
-   This list is used to modify the value of components project NONE.NONE.DISABLED
-   that get automatically added to the value of disabled components.
-*/
+ char **without_strings, **disabled_components, **enabled_components, 
+      **swapped_components, **swapped_component_hosts;
 
 #ifdef HAVE_CWD
  char *cwd;
@@ -301,7 +299,7 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
 char *resolve_build_host_variable(struct bca_context *ctx, 
                                   char *host, 
                                   char *project_component,
-                                  char *key, char *default_value);
+                                  char *key);
 
 struct host_configuration *
 resolve_host_build_configuration(struct bca_context *ctx, struct component_details *cd);
@@ -335,11 +333,11 @@ int configure(struct bca_context *ctx);
 int append_host_configuration(struct bca_context *ctx,
                               struct host_configuration *tc, 
                               struct component_details *cd,
-                              int n_modification_records,
-                              char **mod_principles,
-                              char **mod_componets,
-                              char **mod_keys,
-                              char **mod_values);
+                              int *n_modify_records,
+                              char ***mod_principles,
+                              char ***mod_components,
+                              char ***mod_keys,
+                              char ***mod_values);
 
 /* gmakefile.c ---------------------------------- */
 int generate_gmakefile_mode(struct bca_context *ctx);

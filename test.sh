@@ -1269,6 +1269,12 @@ enablelogic_disableinternaldep() {
 
 enablelogic=(disableall disableone enableone defaultdisabled enabledefaultdisabled disableinternaldep)
 
+
+#swap suite
+#swap a disabled should fail
+#swap uses a non existant host should fail on make and graph
+#swap component is disabled in host should fail on make and graph
+
 #script starts here------------------------------------------------
 suites=(configurewrapper autoconfsupport configuration examples enablelogic)
 

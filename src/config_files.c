@@ -861,13 +861,12 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
  return 0;
 }
 
-
 char *resolve_build_host_variable(struct bca_context *ctx, 
                                   char *host, 
                                   char *project_component,
-                                  char *key, char *default_value)
+                                  char *key)
 {
- char *value;
+ char *value = NULL;
 
  if(ctx->verbose > 3)
   fprintf(stderr, "BCA: resolve_build_host_variable()\n");
@@ -879,23 +878,10 @@ char *resolve_build_host_variable(struct bca_context *ctx,
                         ctx->build_configuration_length, 
                         host, project_component, key)) == NULL)
  {
-  if((value = 
-      lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length, 
-                 host, "ALL", key)) == NULL)
-  {
-   if(project_component != NULL)
-    if(default_value != NULL)
-     fprintf(stderr, 
-             "BCA: Can not resolve component %s's (or ALL's) %s for host %s. "
-             "Defaulting to \"%s\".\n", 
-             project_component, key, host, default_value);
-
-   if(default_value != NULL)
-    value = strdup(default_value);
-   else
-    value = NULL;
-  }
- } 
+  if((value = lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length, 
+                         host, "ALL", key)) == NULL)
+   value = strdup("");
+ }
 
  return value;
 }
@@ -903,7 +889,7 @@ char *resolve_build_host_variable(struct bca_context *ctx,
 struct host_configuration *
 resolve_host_configuration(struct bca_context *ctx, struct component_details *cd)
 {
- int allocation_size;
+ int allocation_size, i;
  struct host_configuration *tc;
 
  if(ctx->verbose > 2)
@@ -920,142 +906,79 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  }
  memset(tc, 0, allocation_size);
 
- tc->build_prefix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "BUILD_PREFIX", NULL);
+ char **host_resolve_vars[24] =
+ { 
+  &(tc->build_prefix),
+  &(tc->cc),
+  &(tc->cc_output_flag),
+  &(tc->cc_compile_bin_obj_flag),
+  &(tc->cc_compile_shared_library_obj_flag),
+  &(tc->cc_include_dir_flag),
+  &(tc->cc_define_macro_flag), 
+  &(tc->cflags),
+  &(tc->pkg_config),
+  &(tc->pkg_config_path),
+  &(tc->pkg_config_libdir),
+  &(tc->binary_suffix),
+  &(tc->shared_library_suffix),
+  &(tc->shared_library_prefix),
+  &(tc->obj_suffix),
+  &(tc->ldflags),
+  &(tc->install_prefix),
+  &(tc->install_bin_dir),
+  &(tc->install_lib_dir),
+  &(tc->install_include_dir),
+  &(tc->install_pkg_config_dir),
+  &(tc->install_locale_data_dir), 
+  &(tc->python)
+ };
 
- tc->cc = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC", NULL);
+ char *host_resolve_keys[24] =
+ { 
+  "BUILD_PREFIX",
+  "CC",
+  "CC_SPECIFY_OUTPUT_FLAG",
+  "CC_COMPILE_BIN_OBJ_FLAG",
+  "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG", 
+  "CC_INCLUDE_DIR_FLAG", 
+  "CC_DEFINE_MACRO_FLAG", 
+  "CFLAGS",
+  "PKG_CONFIG",
+  "PKG_CONFIG_PATH", 
+  "PKG_CONFIG_LIBDIR",
+  "BINARY_SUFFIX", 
+  "SHARED_LIBRARY_SUFFIX",
+  "SHARED_LIBRARY_PREFIX", 
+  "OBJ_SUFFIX", 
+  "LDFLAGS", 
+  "INSTALL_PREFIX", 
+  "INSTALL_BIN_DIR", 
+  "INSTALL_LIB_DIR", 
+  "INSTALL_INCLUDE_DIR", 
+  "INSTALL_PKG_CONFIG_DIR", 
+  "INSTALL_LOCALE_DATA_DIR", 
+  "PYTHON"
+ };
 
- tc->cc_output_flag = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC_SPECIFY_OUTPUT_FLAG", NULL);
-
- tc->cc_compile_bin_obj_flag = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC_COMPILE_BIN_OBJ_FLAG", NULL);
-
- tc->cc_compile_shared_library_obj_flag = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG", NULL);
-
- tc->cc_include_dir_flag = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC_INCLUDE_DIR_FLAG", NULL);
-
- tc->cc_define_macro_flag = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CC_DEFINE_MACRO_FLAG", NULL);
-
- tc->cflags = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "CFLAGS", NULL);
-
- tc->pkg_config = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "PKG_CONFIG", NULL);
-
- tc->pkg_config_path = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "PKG_CONFIG_PATH", NULL);
-
- tc->pkg_config_libdir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "PKG_CONFIG_LIBDIR", NULL);
-
- tc->binary_suffix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "BINARY_SUFFIX", NULL);
-
- tc->shared_library_suffix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "SHARED_LIBRARY_SUFFIX", NULL);
-
- tc->shared_library_prefix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "SHARED_LIBRARY_PREFIX", NULL);
-
- tc->obj_suffix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "OBJ_SUFFIX", NULL);
-
- tc->ldflags = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "LDFLAGS", NULL);
-
- tc->install_prefix = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_PREFIX", NULL);
-
- tc->install_bin_dir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_BIN_DIR", NULL);
-
- tc->install_lib_dir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_LIB_DIR", NULL);
-
- tc->install_include_dir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_INCLUDE_DIR", NULL);
-
- tc->install_pkg_config_dir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_PKG_CONFIG_DIR", NULL);
-
- tc->install_locale_data_dir = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "INSTALL_LOCALE_DATA_DIR", NULL);
-
- tc->python = 
-  resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                              "PYTHON", NULL);
+ for(i=0; i<23; i++)
+ {
+  if(( *(host_resolve_vars[i]) = 
+       resolve_build_host_variable(ctx, cd->host, cd->project_component,
+                                   host_resolve_keys[i] )) == NULL)
+  {
+   fprintf(stderr, "BCA: resolve_build_host_variable() failed\n");
+   free(tc);
+   return NULL;
+  }
+ }
 
  if(ctx->verbose > 1)
  {
-  printf("BCA: %s.%s.CC resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc);
-  printf("BCA: %s.%s.BUILD_PREFIX resolves to %s\n", 
-         cd->host, cd->project_component, tc->build_prefix);
-  printf("BCA: %s.%s.CC_SPECIFY_OUTPUT_FLAG resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc_output_flag);
-  printf("BCA: %s.%s.CC_COMPILE_BIN_OBJ_FLAG resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc_compile_bin_obj_flag);
-  printf("BCA: %s.%s.CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc_compile_shared_library_obj_flag);
-  printf("BCA: %s.%s.CC_INCLUDE_DIR_FLAG resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc_include_dir_flag);
-  printf("BCA: %s.%s.CC_DEFINE_MACRO_FLAG resolves to %s\n", 
-         cd->host, cd->project_component, tc->cc_define_macro_flag);
-  printf("BCA: %s.%s.BINARY_SUFFIX resolves to %s\n", 
-         cd->host, cd->project_component, tc->binary_suffix);
-  printf("BCA: %s.%s.OBJ_SUFFIX resolves to %s\n", 
-         cd->host, cd->project_component, tc->obj_suffix);
-  printf("BCA: %s.%s.SHARED_LIBRARY_SUFFIX resolves to %s\n", 
-         cd->host, cd->project_component, tc->shared_library_suffix);
-  printf("BCA: %s.%s.SHARED_LIBRARY_PREFIX resolves to %s\n", 
-         cd->host, cd->project_component, tc->shared_library_prefix);
-  printf("BCA: %s.%s.PKG_CONFIG resolves to %s\n", 
-         cd->host, cd->project_component, tc->pkg_config);
-  printf("BCA: %s.%s.PKG_CONFIG_PATH resolves to %s\n", 
-         cd->host, cd->project_component, tc->pkg_config_path);
-  printf("BCA: %s.%s.PKG_CFLAGS to %s\n", 
-         cd->host, cd->project_component, tc->cflags);
-  printf("BCA: %s.%s.PKG_LDFLAGS to %s\n", 
-         cd->host, cd->project_component, tc->ldflags);
-  printf("BCA: %s.%s.INSTALL_BIN_DIR to %s\n", 
-         cd->host, cd->project_component, tc->install_bin_dir);
-  printf("BCA: %s.%s.INSTALL_LIB_DIR to %s\n", 
-         cd->host, cd->project_component, tc->install_lib_dir);
-  printf("BCA: %s.%s.INSTALL_INCLUDE_DIR to %s\n", 
-         cd->host, cd->project_component, tc->install_include_dir);
-  printf("BCA: %s.%s.INSTALL_PKG_CONFIG_DIR to %s\n", 
-         cd->host, cd->project_component, tc->install_pkg_config_dir);
-  printf("BCA: %s.%s.PYTHON to %s\n", 
-         cd->host, cd->project_component, tc->python);
-
-  fflush(stdout);
+  for(i=0; i<23; i++)
+  {
+   printf("BCA: %s.%s.%s resolves to %s\n", 
+          cd->host, cd->project_component,  host_resolve_keys[i], *(host_resolve_vars[i]));
+  }
  }
 
  return tc;

@@ -719,6 +719,32 @@ int pkg_config_tests(struct bca_context *ctx,
  return 0;
 }
 
+int append_host_configuration_helper(int *n_modify_records,
+                                     char ***mod_principles,
+                                     char ***mod_components,
+                                     char ***mod_keys,
+                                     char ***mod_values,
+                                     int p_length, int q_length, int k_length, int v_length,
+                                     char *principle, char *qualifier,
+                                     char *key, char *value)
+{
+ if(add_to_string_array(mod_values, *n_modify_records, value, v_length, 0))
+  return 1;
+
+ if(add_to_string_array(mod_principles, *n_modify_records, principle, p_length, 0))
+  return 1;
+
+ if(add_to_string_array(mod_components, *n_modify_records, qualifier, q_length, 0))
+  return 1;
+
+ if(add_to_string_array(mod_keys, *n_modify_records, key, k_length, 0))
+  return 1;
+
+ (*n_modify_records)++;
+
+ return 0;
+}
+
 int process_dependencies(struct bca_context *ctx, 
                          struct host_configuration *tc,
                          struct component_details *cd,
@@ -733,9 +759,9 @@ int process_dependencies(struct bca_context *ctx,
     internal deps list create the DEPENDS key for each component in this build.
  */
  int n_test_packages = 0, test_package_optional_flags_size = 0, 
-     n_elements, n_depends, x, i, j, yes, code, handled, 
+     n_elements, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length, 
      *test_package_optional_flags = NULL;
- char **test_package_list = NULL, **depends = NULL, **list = NULL;
+ char **test_package_list = NULL, **depends = NULL, **list = NULL, **opt_dep_list = NULL;
 
  /* optional dependencies */
  for(i=0; i < cd->n_components; i++)
@@ -1011,9 +1037,150 @@ int process_dependencies(struct bca_context *ctx,
 
  free_string_array(test_package_list, n_test_packages);
 
+ /* WITHOUTS persistance */
+ p_length = strlen(ctx->principle);
+
+ for(i=0; i < cd->n_components; i++)
+ {
+  cd->project_component = cd->project_components[i];
+  cd->project_component_type = cd->project_component_types[i];
+  opt_dep_list = NULL;
+
+  if(list_component_opt_external_dependencies(ctx, cd, &opt_dep_list, &n_opt_deps))
+  {
+   fprintf(stderr, "BCA: list_component_opt_external_dependencies() failed\n");
+   return 1;
+  }
+
+  n_withouts = 0;
+  for(j=0; j < n_opt_deps; j++)
+  {
+   for(x=0; x < ctx->n_withouts; x++)
+   {
+    if(strcmp(ctx->without_strings[x], opt_dep_list[j]) == 0)
+    {
+     /* first pass just counts how many */
+     n_withouts++;
+    }
+   }
+  }
+
+  if(n_withouts > 0)
+  {
+   temp_length = 0;
+   for(j=0; j < n_opt_deps; j++)
+   {
+    for(x=0; x < ctx->n_withouts; x++)
+    {
+     if(strcmp(ctx->without_strings[x], opt_dep_list[j]) == 0)
+     {
+      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ", 
+                              ctx->without_strings[x]);
+     }
+    }
+   }
+   temp[temp_length -= 1] = 0;   
+
+   free_string_array(opt_dep_list, n_opt_deps);  
+
+   if(append_host_configuration_helper(n_modify_records,
+                                       mod_principles, mod_components,
+                                       mod_keys, mod_values,
+                                       p_length, -1, 8, temp_length,
+                                       ctx->principle, cd->project_component,
+                                       "WITHOUTS", temp))
+    return 1;
+  }
+
+ }
+
  return 0;
 }
 
+int derive_file_suffixes(struct bca_context *ctx, 
+                         struct host_configuration *tc,
+                         struct component_details *cd,
+                         char *platform)
+{
+ char host_prefix[512], *s;
+ int yes;
+ 
+ /* host prefix */
+ if(ctx->host_prefix == NULL)
+ {
+  host_prefix[0] = 0;
+ } else {
+  snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
+ }
+
+ /* Suffix for binaries; ie .exe */
+ if(tc->binary_suffix == NULL)
+ {
+  yes = 0;
+  if(contains_string(host_prefix, -1, "mingw", 5))
+   yes = 1;
+
+  if(strcmp(platform, "cygwin") == 0)
+   yes = 1;
+
+  if(yes)
+  { 
+   tc->binary_suffix = ".exe";
+  } else {
+   tc->binary_suffix = "";
+  }
+ }
+
+ /* Suffix for shared libraries; ie .dll */
+ if(tc->shared_library_suffix == NULL)
+ {
+  yes = 0;
+
+  if(contains_string(host_prefix, -1, "mingw", 5))
+   yes = 1;
+
+  if(strcmp(platform, "cygwin") == 0)
+   yes = 1;
+
+  if(yes)
+  {
+   tc->shared_library_suffix = ".dll";
+  } else if (strcmp(platform, "osx") == 0) {
+   tc->shared_library_suffix = ".dylib"; 
+  } else {
+   tc->shared_library_suffix = ".so";
+  }
+ }
+
+ /* Prefix for shared libaries */
+ if(tc->shared_library_prefix == NULL)
+ {
+  if(contains_string(host_prefix, -1, "mingw", 5))
+  {
+   tc->shared_library_prefix = "";
+  } else {
+   if(strcmp(platform, "cygwin") == 0)
+   {
+    tc->shared_library_prefix = "cyg";
+   } else {
+    tc->shared_library_prefix = "lib";
+   }
+  }
+ }
+
+ /* Suffix for object files */
+ if(tc->obj_suffix == NULL)
+  tc->obj_suffix = ".o";
+
+ /* LDFLAGS */
+ if((s = getenv("LDFLAGS")) != NULL)
+ {
+  /* here we want to overwrite regardless */
+  tc->ldflags = strdup(s);
+ }
+
+ return 0;
+}
 int derive_install_paths(struct bca_context *ctx, 
                          struct host_configuration *tc,
                          struct component_details *cd,
@@ -1095,12 +1262,80 @@ int derive_install_paths(struct bca_context *ctx,
  return 0;
 }
 
+int swap_checks(struct bca_context *ctx)
+{
+ int x, y, disabled_by_default;
+ char *value, **project_disables;
+ int j, n_project_disables;
+
+ /* check that no swaped components are disabled;
+    this will mean that components disabled by default will
+    require --enable-X --swap-X otherhost, but this seems
+    to make sense.
+  */
+
+ for(x=0; x<ctx->n_swaps; x++)
+ {
+  for(y=0; y<ctx->n_disables; y++)
+  {
+   if(strcmp(ctx->swapped_components[x], ctx->disabled_components[y]) == 0)
+   {
+    disabled_by_default = 0;
+
+    if((value = lookup_key(ctx, ctx->project_configuration_contents,
+                           ctx->project_configuration_length, 
+                           "NONE", "NONE", "DISABLES")) != NULL)
+    {
+     if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
+     {
+      fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
+      return 1;
+     }
+    
+     j = 0;
+     while(j < n_project_disables)
+     {
+      if(strcmp(ctx->swapped_components[x], project_disables[j]) == 0)
+      {
+       disabled_by_default = 1;
+       break;
+      }
+      j++;
+     }
+    }
+
+    if(disabled_by_default)
+    {
+     fprintf(stderr,
+             "BCA: Swaped compent \"%s\" is disabled by default. "
+             "This requires both --enable-%s and --swap-%s\n.",
+             ctx->swapped_components[x], ctx->swapped_components[x], 
+             ctx->swapped_components[x]);
+    } else {
+     fprintf(stderr, 
+             "BCA: --disable-%s and --swap-%s are mutally exclusive.\n",
+             ctx->swapped_components[x], ctx->swapped_components[x]);
+    }
+
+    return 1;
+   }
+  }
+ } 
+
+ return 0;
+}
+
 int disables_and_enables(struct bca_context *ctx, 
                          struct host_configuration *tc,
-                         struct component_details *cd)
+                         struct component_details *cd,
+                         int *n_modify_records,
+                         char ***mod_principles,
+                         char ***mod_components,
+                         char ***mod_keys,
+                         char ***mod_values)
 {
  char *value, **project_disables;
- int i, j, n_project_disables, yes;
+ int i, j, n_project_disables, yes, p_length;
 
  /* hack warning: 
     list_project_components() takes the disabled list into account,
@@ -1259,291 +1494,8 @@ int disables_and_enables(struct bca_context *ctx,
   project_disables = NULL;
   n_project_disables = 0;
  }
- 
- return 0;
-}
 
-int append_host_configuration_helper(int *n_modify_records,
-                                     char ***mod_principles,
-                                     char ***mod_components,
-                                     char ***mod_keys,
-                                     char ***mod_values,
-                                     int p_length, int q_length, int k_length, int v_length,
-                                     char *principle, char *qualifier,
-                                     char *key, char *value)
-{
- if(value == NULL)
-  return 0;
-
- if(add_to_string_array(mod_values, *n_modify_records, value, v_length, 0))
-  return 1;
-
- if(add_to_string_array(mod_principles, *n_modify_records, principle, p_length, 0))
-  return 1;
-
- if(add_to_string_array(mod_components, *n_modify_records, qualifier, q_length, 0))
-  return 1;
-
- if(add_to_string_array(mod_keys, *n_modify_records, key, k_length, 0))
-  return 1;
-
- (*n_modify_records)++;
-
- return 0;
-}
-
-int append_host_configuration(struct bca_context *ctx,
-                              struct host_configuration *tc, 
-                              struct component_details *cd,
-                              int n_modify_records,
-                              char **mod_principles,
-                              char **mod_components,
-                              char **mod_keys,
-                              char **mod_values)
-{
- char **opt_dep_list;
- int i, j, z, n_opt_deps, n_withouts, p_length, q_length;
- FILE *output;
-
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: append_host_configuration()\n");
-
- /* avoid the repitition */
- p_length = strlen(ctx->principle);
- q_length = strlen(ctx->qualifier);
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 2, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC", tc->cc))
-  return 1;
- 
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 12, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "BUILD_PREFIX", tc->build_prefix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 22, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC_SPECIFY_OUTPUT_FLAG", tc->cc_output_flag))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 23, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC_COMPILE_BIN_OBJ_FLAG", tc->cc_compile_bin_obj_flag))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 34, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG", 
-                                     tc->cc_compile_shared_library_obj_flag))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 19, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC_INCLUDE_DIR_FLAG", tc->cc_include_dir_flag))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 20, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CC_DEFINE_MACRO_FLAG", tc->cc_define_macro_flag))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 13, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "BINARY_SUFFIX", tc->binary_suffix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 21, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "SHARED_LIBRARY_SUFFIX", tc->shared_library_suffix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 21, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "SHARED_LIBRARY_PREFIX", tc->shared_library_prefix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 10, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "OBJ_SUFFIX", tc->obj_suffix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 10, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "PKG_CONFIG", tc->pkg_config))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 15, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "PKG_CONFIG_PATH", tc->pkg_config_path))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 17, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "PKG_CONFIG_LIBDIR", tc->pkg_config_libdir))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 7, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "CFLAGS", tc->cflags))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 7, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "LDFLAGS", tc->ldflags))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 15, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_PREFIX", tc->install_prefix))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 15, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_BIN_DIR", tc->install_bin_dir))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 15, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_LIB_DIR", tc->install_lib_dir))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 19, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_INCLUDE_DIR", tc->install_include_dir))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 22, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_PKG_CONFIG_DIR", tc->install_pkg_config_dir))
-  return 1;
-
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
-                                     p_length, q_length, 23, -1,
-                                     ctx->principle, ctx->qualifier,
-                                     "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir))
-  return 1;
-
- for(i=0; i < cd->n_components; i++)
- {
-  cd->project_component = cd->project_components[i];
-  cd->project_component_type = cd->project_component_types[i];
-  opt_dep_list = NULL;
-
-  if(list_component_opt_external_dependencies(ctx, cd, &opt_dep_list, &n_opt_deps))
-  {
-   fprintf(stderr, "BCA: list_component_opt_external_dependencies() failed\n");
-   return 1;
-  }
-
-  n_withouts = 0;
-  for(j=0; j < n_opt_deps; j++)
-  {
-   for(z=0; z < ctx->n_withouts; z++)
-   {
-    if(strcmp(ctx->without_strings[z], opt_dep_list[j]) == 0)
-    {
-     /* first pass just counts how many */
-     n_withouts++;
-    }
-   }
-  }
-
-  if(n_withouts > 0)
-  {
-   temp_length = 0;
-   for(j=0; j < n_opt_deps; j++)
-   {
-    for(z=0; z < ctx->n_withouts; z++)
-    {
-     if(strcmp(ctx->without_strings[z], opt_dep_list[j]) == 0)
-     {
-      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ", 
-                              ctx->without_strings[z]);
-     }
-    }
-   }
-   temp[temp_length -= 1] = 0;   
-
-   free_string_array(opt_dep_list, n_opt_deps);  
-
-   if(append_host_configuration_helper(&n_modify_records,
-                                       &mod_principles, &mod_components,
-                                       &mod_keys, &mod_values,
-                                       p_length, -1, 8, temp_length,
-                                       ctx->principle, cd->project_component,
-                                       "WITHOUTS", temp))
-    return 1;
-  }
-
- }
-
- /* disable list persistance */
+ /* DISABLED persistance */
  /* The disable list is not loaded from the build configuration at configure time.
     The way to enable something that was previously disabled is to not disable it on
     the subsequent configure (or edit the file/value). This is in contrast to build 
@@ -1556,31 +1508,191 @@ int append_host_configuration(struct bca_context *ctx,
  */
 
  temp_length = 0;
- for(z=0; z < ctx->n_disables; z++)
+ for(i=0; i < ctx->n_disables; i++)
  {
   temp_length += snprintf(temp + temp_length, 1024 - temp_length, 
-                          "%s", ctx->disabled_components[z]);
-  if( (ctx->n_disables > 1) && (z < ctx->n_disables - 1) )
+                          "%s", ctx->disabled_components[i]);
+  if( (ctx->n_disables > 1) && (i < ctx->n_disables - 1) )
    temp_length += snprintf(temp + temp_length, 1024 - temp_length, " ");
  }
-   
- if(append_host_configuration_helper(&n_modify_records,
-                                     &mod_principles, &mod_components,
-                                     &mod_keys, &mod_values,
+
+ p_length = strlen(ctx->principle);
+
+ if(append_host_configuration_helper(n_modify_records,
+                                     mod_principles, mod_components,
+                                     mod_keys, mod_values,
                                      p_length, 3, 8, temp_length,
                                      ctx->principle, "ALL",
                                      "DISABLES", temp))
   return 1;
 
+ 
+ return 0;
+}
+
+int persist_host_swap_configuration(struct bca_context *ctx,
+                                    struct host_configuration *tc, 
+                                    struct component_details *cd,
+                                    int *n_modify_records,
+                                    char ***mod_principles,
+                                    char ***mod_components,
+                                    char ***mod_keys,
+                                    char ***mod_values)
+{
+ char o_principle[256], o_component[256], o_key[256], *o_value;
+ int *handled, i, allocation_size, end, yes, p_length;
+
+ allocation_size = sizeof(int) * (ctx->n_swaps + 1);
+ if((handled = (int *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
+  return 1;
+ }
+ memset(handled, 0, allocation_size);
+
+ p_length = strlen(ctx->principle);
+ end = -1;
+                          
+ while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
+                              ctx->build_configuration_length, &end,
+                              ctx->principle, NULL, "SWAP", 
+                              o_principle, o_component, o_key, NULL))
+ {
+  o_value = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       o_principle, o_component, o_key);
+
+  yes = 1;
+  i = 0;
+  while(i < ctx->n_swaps)
+  {
+   if(strcmp(o_component, ctx->swapped_components[i]) == 0)
+   {
+    yes = 0;
+    {
+     handled[i] = 1;
+     if(strcmp(o_key, ctx->swapped_component_hosts[i]) == 0)
+     {
+      /* case 1: we are retaining a swap value */
+     } else {
+      /* case 2: update a swap value */
+      if(append_host_configuration_helper(n_modify_records,
+                                          mod_principles,
+                                          mod_components,
+                                          mod_keys,
+                                          mod_values,
+                                          p_length, -1, 4, -1,
+                                          o_principle, o_component, "SWAP",
+                                          ctx->swapped_component_hosts[i]))
+       return 1;
+     }
+     break;
+    }
+   }
+   i++;
+  }
+
+  if(yes)
+  {
+   /* case 3: remove a swap */
+   if(append_host_configuration_helper(n_modify_records,
+                                       mod_principles,
+                                       mod_components,
+                                       mod_keys,
+                                       mod_values,
+                                       p_length, -1, 4, -1,
+                                       o_principle, o_component, "SWAP", NULL))
+   return 1;
+  }
+
+  free(o_value);
+ }
+
+ for(i=0; i < ctx->n_swaps; i++)
+ {
+  if(handled[i] == 0)
+  {
+   /* case 4: add a swap value */
+   if(append_host_configuration_helper(n_modify_records,
+                                       mod_principles,
+                                       mod_components,
+                                       mod_keys,
+                                       mod_values,
+                                       p_length, -1, 4, -1,
+                                       ctx->principle, 
+                                       ctx->swapped_components[i], "SWAP",
+                                       ctx->swapped_component_hosts[i]))
+    return 1;
+  }
+ }
+
+ free(handled);
+ return 0;
+}
+
+int append_host_configuration(struct bca_context *ctx,
+                              struct host_configuration *tc, 
+                              struct component_details *cd,
+                              int *n_modify_records,
+                              char ***mod_principles,
+                              char ***mod_components,
+                              char ***mod_keys,
+                              char ***mod_values)
+{
+ int i, p_length, q_length;
+ FILE *output;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: append_host_configuration()\n");
+
+ char *host_updates[45] = 
+
+ { "CC", tc->cc, 
+   "BUILD_PREFIX", tc->build_prefix,
+   "CC_SPECIFY_OUTPUT_FLAG", tc->cc_output_flag,
+   "CC_COMPILE_BIN_OBJ_FLAG", tc->cc_compile_bin_obj_flag,
+   "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG", tc->cc_compile_shared_library_obj_flag,
+   "CC_INCLUDE_DIR_FLAG", tc->cc_include_dir_flag,
+   "CC_DEFINE_MACRO_FLAG", tc->cc_define_macro_flag,
+   "BINARY_SUFFIX", tc->binary_suffix,
+   "SHARED_LIBRARY_SUFFIX", tc->shared_library_suffix,
+   "SHARED_LIBRARY_PREFIX", tc->shared_library_prefix,
+   "OBJ_SUFFIX", tc->obj_suffix,
+   "PKG_CONFIG", tc->pkg_config,
+   "PKG_CONFIG_PATH", tc->pkg_config_path,
+   "PKG_CONFIG_LIBDIR", tc->pkg_config_libdir,
+   "CFLAGS", tc->cflags,
+   "LDFLAGS", tc->ldflags,
+   "INSTALL_PREFIX", tc->install_prefix,
+   "INSTALL_BIN_DIR", tc->install_bin_dir,
+   "INSTALL_LIB_DIR", tc->install_lib_dir,
+   "INSTALL_INCLUDE_DIR", tc->install_include_dir,
+   "INSTALL_PKG_CONFIG_DIR", tc->install_pkg_config_dir,
+   "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir } ;
+
+
+ p_length = strlen(ctx->principle);
+ q_length = strlen(ctx->qualifier);
+
+ for(i=0; i < 44; i += 2)
+ {
+  if(append_host_configuration_helper(n_modify_records,
+                                      mod_principles, mod_components,
+                                      mod_keys, mod_values,
+                                      p_length, q_length, -1, -1,
+                                      ctx->principle, ctx->qualifier,
+                                      host_updates[i], host_updates[i + 1]))
+  return 1;
+ }
 
  if(ctx->verbose > 0)
  {
   printf("BCA: about to modify the follow %d records in the build configuration:\n", 
-         n_modify_records);
-  for(i=0; i<n_modify_records; i++)
+         *n_modify_records);
+  for(i=0; i<*n_modify_records; i++)
   {
    printf("BCA: %s.%s.%s = %s\n",
-          mod_principles[i], mod_components[i], mod_keys[i], mod_values[i]);
+          (*mod_principles)[i], (*mod_components)[i], (*mod_keys)[i], (*mod_values)[i]);
   }
  }
 
@@ -1593,8 +1705,8 @@ int append_host_configuration(struct bca_context *ctx,
  if(output_modifications(ctx, output, 
                          ctx->build_configuration_contents, 
                          ctx->build_configuration_length, 
-                         n_modify_records, mod_principles, mod_components,
-                         mod_keys, mod_values))
+                         *n_modify_records, *mod_principles, *mod_components,
+                         *mod_keys, *mod_values))
  {
   fprintf(stderr, "BCA: output_modifications() failed\n");
   return 1;
@@ -1606,9 +1718,8 @@ int append_host_configuration(struct bca_context *ctx,
 
 int configure(struct bca_context *ctx)
 {
- char *s, *value;
- char host_prefix[512];
- int yes, n_modify_records = 0;
+ char *s;
+ int n_modify_records = 0;
  char **mod_principles = NULL, **mod_components = NULL, **mod_keys = NULL, **mod_values = NULL;
  struct component_details cd;
  struct host_configuration *tc;
@@ -1667,13 +1778,6 @@ int configure(struct bca_context *ctx)
   if(host_root)
    fprintf(stderr, "BCA: HOST_ROOT set via environment variable\n");
 
-
- if(disables_and_enables(ctx, tc, &cd))
-  return 1;
-
- if(c_family_configuration(ctx, tc, &cd))
-  return 1;
-
  /* target platform */
  if(detect_platform(ctx, host_root, &platform))
  {
@@ -1700,76 +1804,29 @@ int configure(struct bca_context *ctx)
   tc->build_prefix = strdup(temp);
  }
 
- if(pkg_config_tests(ctx, tc, &cd))
+ if(derive_file_suffixes(ctx, tc, &cd, platform))
   return 1;
 
- /* Suffix for binaries; ie .exe */
- if(tc->binary_suffix == NULL)
- {
-  yes = 0;
-  if(contains_string(host_prefix, -1, "mingw", 5))
-   yes = 1;
-
-  if(strcmp(platform, "cygwin") == 0)
-   yes = 1;
-
-  if(yes)
-  { 
-   tc->binary_suffix = ".exe";
-  } else {
-   tc->binary_suffix = "";
-  }
- }
-
- /* Suffix for shared libraries; ie .dll */
- if(tc->shared_library_suffix == NULL)
- {
-  yes = 0;
-
-  if(contains_string(host_prefix, -1, "mingw", 5))
-   yes = 1;
-
-  if(strcmp(platform, "cygwin") == 0)
-   yes = 1;
-
-  if(yes)
-  {
-   tc->shared_library_suffix = ".dll";
-  } else if (strcmp(platform, "osx") == 0) {
-   tc->shared_library_suffix = ".dylib"; 
-  } else {
-   tc->shared_library_suffix = ".so";
-  }
- }
-
- /* Prefix for shared libaries */
- if(tc->shared_library_prefix == NULL)
- {
-  if(contains_string(host_prefix, -1, "mingw", 5))
-  {
-   tc->shared_library_prefix = "";
-  } else {
-   if(strcmp(platform, "cygwin") == 0)
-   {
-    tc->shared_library_prefix = "cyg";
-   } else {
-    tc->shared_library_prefix = "lib";
-   }
-  }
- }
-
- /* Suffix for object files */
- if(tc->obj_suffix == NULL)
-  tc->obj_suffix = ".o";
-
- /* LDFLAGS */
- if((s = getenv("LDFLAGS")) != NULL)
- {
-  /* here we want to overwrite regardless */
-  tc->ldflags = strdup(s);
- }
-
  if(derive_install_paths(ctx, tc, &cd, platform))
+  return 1;
+
+ /* we need to find out what is enabled next so as to be able
+    to skip configure logic for parts not enabled */
+ if(disables_and_enables(ctx, tc, &cd,
+                         &n_modify_records,
+                         &mod_principles,
+                         &mod_components,
+                         &mod_keys,
+                         &mod_values))
+  return 1;
+
+ if(swap_checks(ctx))
+  return 1;
+
+ if(c_family_configuration(ctx, tc, &cd))
+  return 1;
+
+ if(pkg_config_tests(ctx, tc, &cd))
   return 1;
 
  if(process_dependencies(ctx, tc, &cd,
@@ -1780,10 +1837,17 @@ int configure(struct bca_context *ctx)
                          &n_modify_records))
  return 1;
  
+ if(persist_host_swap_configuration(ctx, tc, &cd, 
+                                    &n_modify_records,
+                                    &mod_principles,
+                                    &mod_components,
+                                    &mod_keys,
+                                    &mod_values))
+  return 1;
 
- if(append_host_configuration(ctx, tc, &cd, n_modify_records, 
-                              mod_principles, mod_components,
-                              mod_keys, mod_values))
+ if(append_host_configuration(ctx, tc, &cd, &n_modify_records, 
+                              &mod_principles, &mod_components,
+                              &mod_keys, &mod_values))
  {
   return 1;
  }

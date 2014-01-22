@@ -60,6 +60,7 @@ void help(void)
         " --componentinstallnames\n"
         " --componeneffectivenames\n"
         " --newproject \"project name\"\n"
+        " --swap-* host\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
         " --selftest (help debug buildconfigurationadjust itself)\n"
 #endif
@@ -208,7 +209,8 @@ int main(int argc, char **argv)
          if(code == 0)
          {
           if(ctx->verbose > 1)
-           printf("BCA: SET_VALUE_MODE finished - value unchanged for build configuration - noop\n");
+           fprintf(stderr, "BCA: SET_VALUE_MODE finished - value unchanged for build"
+                   " configuration - noop\n");
           break;
          }
         }
@@ -251,42 +253,6 @@ int main(int argc, char **argv)
         return 1;
        }
 
-/*
-this doesn't make any sense. There does need to be some detection for .NAME conflicts somewhere though.
-
-       offset = -1;
-       while(iterate_key_primitives(ctx, contents, length, &offset,
-                                    NULL, NULL, ctx->search_value_key,
-                                    principle, qualifier, key, NULL))
-       {
-        if((value = lookup_key(ctx, contents, length, principle, qualifier, key)) != NULL)
-        {
-
-         if(strcmp(qualifier, ctx->qualifier) == 0)
-         {
-          fprintf(stderr,
-                  "BCA: Conflict in file %s: %s.%s.%s = %s conflicts. "
-                  "Try another component name\n.",
-                  file, principle, qualifier, key, value);
-
-          free(value);
-          return 1;
-         }
-
-         if(strcmp(value, ctx->new_value_string) == 0)
-         {
-          fprintf(stderr,
-                  "BCA: Conflict in file %s: %s.%s.%s = %s conflicts. "
-                  "Try another output name\n.",
-                  file, principle, qualifier, key, value);
- 
-          free(value);
-          return 1;
-         }
-        }
-        free(value);
-       }
-*/
        if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
                       ctx->search_value_key, ctx->new_value_string))
        {
@@ -749,7 +715,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    if(argc < current_arg + 1)
    {
-    fprintf(stderr, "BCA: you must key string with --host\n");
+    fprintf(stderr, "BCA: you must specify key string with --host\n");
     return NULL;
    }
 
@@ -996,6 +962,33 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
    ctx->n_enables++;
+  }
+
+  if(strncmp(argv[current_arg], "--swap-", 7) == 0)
+  {
+   handled = 1;
+
+   if(argc < current_arg + 1)
+   {
+    fprintf(stderr, "BCA: you must give a host string with --swap-*\n");
+    return NULL;
+   }
+
+   if(add_to_string_array(&(ctx->swapped_components), ctx->n_swaps, 
+                          argv[current_arg] + 7, -1, 1))
+   {
+    fprintf(stderr, "BCA: add_to_string_array() failed\n");
+    return NULL;
+   }
+
+   if(add_to_string_array(&(ctx->swapped_component_hosts), ctx->n_swaps, 
+                          argv[++current_arg], -1, 1))
+   {
+    fprintf(stderr, "BCA: add_to_string_array() failed\n");
+    return NULL;
+   }
+
+   ctx->n_swaps++;
   }
 
   if(strcmp(argv[current_arg], "--componentoutputnames") == 0)

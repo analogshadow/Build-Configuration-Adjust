@@ -58,8 +58,12 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
    cd->project_component = cd->project_components[y];
    cd->project_component_type = cd->project_component_types[y];
    cd->host = hosts[x];
+
    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+   {
+    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
     return 1;
+   }
 
    snprintf(temp, 512, "%s/obj/*", tc->build_prefix);
 
@@ -242,6 +246,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
  if((tc = resolve_host_configuration(ctx, cd)) == NULL)
  {
+  fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
   return 1;
  }
 
@@ -1032,7 +1037,8 @@ int generate_gmakefile_mode(struct bca_context *ctx)
   fprintf(stderr, "BCA: generate_gmakefile_mode()\n");
 
  if((ctx->build_configuration_contents = 
-     read_file("./buildconfiguration/buildconfiguration", &(ctx->build_configuration_length), 0)) == NULL)
+     read_file("./buildconfiguration/buildconfiguration", 
+               &(ctx->build_configuration_length), 0)) == NULL)
  {
   fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
   return 1;
@@ -1166,7 +1172,8 @@ int generate_gmakefile_mode(struct bca_context *ctx)
 
    if(handled == 0)
    {
-    fprintf(stderr, "BCA: I don't know how to generate gmakefile rules for type type of \"%s\"\n", 
+    fprintf(stderr, 
+            "BCA: I don't know how to generate gmakefile rules for type type of \"%s\"\n", 
             cd.project_component_types[component_i]);
     fclose(output);
     return 1;
@@ -1493,7 +1500,10 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
    cd->host = hosts[x];
 
    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+   {
+    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
     return 1;
+   }
 
    if(resolve_component_dependencies(ctx, cd))
    {
@@ -1750,7 +1760,10 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
     continue;
 
    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
-    return 1;
+   {
+    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
+     return 1;
+   }
 
    if((n_build_names = 
        render_project_component_output_name(ctx, hosts[x], 

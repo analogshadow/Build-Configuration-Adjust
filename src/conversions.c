@@ -196,7 +196,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if((extension = component_type_file_extension(ctx, tc, cd.project_component_types[y], 
                                                    cd.project_output_names[y])) == NULL)
      {
-      fprintf(stderr, "BCA: component_type_file_extension() failed\n");
+      fprintf(stderr, "BCA: component_type_file_extension(%s) failed\n",
+              cd.project_component_types[y]);
       return -1;
      }
 
@@ -619,7 +620,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if(handled == 0)
      {
       fprintf(stderr, 
-              "BCA: I don't know how to render an output file name for component type of \"%s\"\n", 
+              "BCA: I don't know how to render an output file name for component "
+              "type of \"%s\"\n", 
               cd.project_component_types[y]);
       return -1;
      }
@@ -635,9 +637,10 @@ int render_project_component_output_name(struct bca_context *ctx,
  if(n_names < 1)
  {
   fprintf(stderr, 
-          "BCA: render_project_component_output_name(): is there really a component named \"%s\" ?\n",
+          "BCA: render_project_component_output_name(): is there really a component "
+          "named \"%s\" ?\n",
           component);
-  *array_ptr = &("fail");
+  *array_ptr = NULL;
  }
 
  *array_ptr = names;
