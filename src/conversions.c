@@ -134,7 +134,8 @@ int render_project_component_output_name(struct bca_context *ctx,
                                          char ***array_ptr, char ***extensions)
 {
  char **hosts, *extension, temp[1024], **names = NULL, *component_install_path;
- int n_hosts, x, y, handled, matched, n_names = 0, code, prefix_length, import, effective_path_mode;
+ int n_hosts, x, y, handled, matched, n_names = 0, code,
+     prefix_length, import, effective_path_mode;
  struct component_details cd;
  struct host_configuration *tc;
 
@@ -142,6 +143,12 @@ int render_project_component_output_name(struct bca_context *ctx,
 
  if(ctx->verbose > 1)
   fprintf(stderr, "BCA: render_project_component_output_name(%s, %s)\n", host, component);
+
+ if(host == NULL)
+ {
+  fprintf(stderr, "BCA: render_project_component_output_name(): host can not be NULL\n");
+  return -1;
+ }
 
  if(ctx->build_configuration_contents == NULL)
  {

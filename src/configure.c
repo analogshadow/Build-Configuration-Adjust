@@ -26,14 +26,16 @@
 char temp[1024];
 int temp_length;
 
-int detect_platform(struct bca_context *ctx, char *host_root, 
+int detect_platform(struct bca_context *ctx, 
+                    char *host_root, 
                     char **platform)
 {
  FILE *test;
 
  if(host_root == NULL)
  {
-  if(strcmp(ctx->principle, "NATIVE") != 0)
+  if( (strcmp(ctx->principle, "NATIVE") != 0) &&
+      (ctx->host_prefix != NULL) )
   {
    fprintf(stderr, 
            "BCA: detect_platform() - warning: HOST_ROOT is NULL, "
@@ -535,8 +537,10 @@ int host_cc_configuration(struct bca_context *ctx,
  if(ctx->verbose)
   printf("BCA: Host %s C Compiler = %s\n", ctx->principle, temp);
 
- tc->cc = strdup(temp);
+ if(tc->cc != NULL)
+  free(tc->cc);
 
+ tc->cc = strdup(temp);
  return 0;
 }
 
@@ -580,8 +584,10 @@ int host_cxx_configuration(struct bca_context *ctx,
  if(ctx->verbose)
   printf("BCA: Host %s C++ Compiler = %s\n", ctx->principle, temp);
 
- tc->cxx = strdup(temp);
+ if(tc->cxx != NULL)
+  free(tc->cxx);
 
+ tc->cxx = strdup(temp);
  return 0;
 }
 
@@ -1283,7 +1289,7 @@ int swap_checks(struct bca_context *ctx)
    fprintf(stderr, 
            "BCA: swap for component %s can not point to the same host\n",
            ctx->swapped_components[x]);
-   return ;
+   return 1;
   }
 
   for(y=0; y<ctx->n_disables; y++)
@@ -1796,22 +1802,30 @@ int configure(struct bca_context *ctx)
  }
 
  /* Build prefix is where the output for this build host goes */
- if(tc->build_prefix == NULL)
+ if(ctx->build_prefix != NULL)
  {
-  if(ctx->host_prefix == NULL)
-  {
-   if(strcmp(ctx->principle, "NATIVE") == 0)
-   {
-    snprintf(temp, 512, "./native");
-   } else {
-    snprintf(temp, 512, ".");
-   }
-  } else {
-   s = build_prefix_from_host_prefix(ctx);
-   snprintf(temp, 512, "%s", s);
-   free(s);
-  }
+  if(tc->build_prefix != NULL)
+   free(tc->build_prefix);
+  snprintf(temp, 512, "./%s", ctx->build_prefix);
   tc->build_prefix = strdup(temp);
+ } else {
+  if(tc->build_prefix == NULL)
+  {
+   if(ctx->host_prefix == NULL)
+   {
+    if(strcmp(ctx->principle, "NATIVE") == 0)
+    {
+     snprintf(temp, 512, "./native");
+    } else {
+     snprintf(temp, 512, "./%s", ctx->principle);
+    }
+   } else {
+    s = build_prefix_from_host_prefix(ctx);
+    snprintf(temp, 512, "%s", s);
+    free(s);
+   }
+   tc->build_prefix = strdup(temp);
+  }
  }
 
  if(derive_file_suffixes(ctx, tc, &cd, platform))

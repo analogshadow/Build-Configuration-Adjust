@@ -651,7 +651,6 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
    {
     if(strcmp(hosts[i], host) != 0)
     {
-printf("its here %s\n", hosts[i]);
      ok = 1;
      break;
     }
@@ -676,7 +675,8 @@ printf("its here %s\n", hosts[i]);
    if(contains_string(disables, -1, component, -1))
    {
     fprintf(stderr, 
-            "BCA: Component \"%s\" on host \"%s\" swaps to host \"%s\", on which it is disabled.\n",
+            "BCA: Component \"%s\" on host \"%s\" swaps to host \"%s\", "
+            "on which it is disabled.\n",
             component, host, hosts[i]);
     free(disables);
     free(value);
@@ -696,8 +696,7 @@ printf("its here %s\n", hosts[i]);
   }
 
   if(add_to_string_array(&(ctx->swapped_component_hosts), 
-                         ctx->n_swaps, 
-                         key, -1, 1))
+                         ctx->n_swaps, value, -1, 1))
   {
    fprintf(stderr, "BCA: add_to_string_array() failed\n");
    return 1;
@@ -993,9 +992,8 @@ char *resolve_build_host_variable(struct bca_context *ctx,
                         ctx->build_configuration_length, 
                         host, project_component, key)) == NULL)
  {
-  if((value = lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length, 
-                         host, "ALL", key)) == NULL)
-   value = strdup("");
+  value = lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length, 
+                     host, "ALL", key);
  }
 
  return value;
@@ -1077,17 +1075,12 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
 
  for(i=0; i<23; i++)
  {
-  if(( *(host_resolve_vars[i]) = 
-       resolve_build_host_variable(ctx, cd->host, cd->project_component,
-                                   host_resolve_keys[i] )) == NULL)
-  {
-   fprintf(stderr, "BCA: resolve_build_host_variable() failed\n");
-   free(tc);
-   return NULL;
-  }
+  *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host, 
+                                                        cd->project_component,
+                                                        host_resolve_keys[i]);
  }
 
- if(ctx->verbose > 1)
+ if(ctx->verbose > 2)
  {
   for(i=0; i<23; i++)
   {
@@ -1536,7 +1529,8 @@ int smart_pull_value(struct bca_context *ctx)
  if(handled == 0)
  {
   fprintf(stderr, 
-          "BCA: should not happen: substring not in .ALL. value being to be copied and modified\n");
+          "BCA: should not happen: substring not in .ALL. value being to be copied "
+          "and modified\n");
   return 1;
  }
 

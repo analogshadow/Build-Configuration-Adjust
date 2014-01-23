@@ -77,7 +77,7 @@ struct bca_context
  char value_key[1024], value_string[1024]; 
  char *principle, *qualifier;
 
- char *install_prefix, *host_prefix;
+ char *install_prefix, *host_prefix, *build_prefix;
  char **without_strings, **disabled_components, **enabled_components, 
       **swapped_components, **swapped_component_hosts;
 

@@ -136,7 +136,7 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
  char in[512], out[512], *extension, **sources = NULL, **extensions = NULL, 
       **ext_depends = NULL, **file_deps, *value, **list = NULL;
 
- if(ctx->verbose > 2)
+ if(ctx->verbose > 1)
   fprintf(stderr, "BCA: graphviz_nodes()\n");
 
  for(x=0; x<n_build_hosts; x++)
@@ -409,12 +409,11 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
 {
  char temp[1024], *base_file_name, *extension, in[512], out[512],
       **list = NULL, **list_d, **extensions = NULL, *value;
- int i, x, y, yes, handled, n_items, n_items_d, driver_component_index = -1;
+ int i, x, y, yes, handled, n_items, n_items_d, driver_component_index = -1, swapped;
  struct host_configuration *tc;
 
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: graphviz_edges()\n");
-
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: graphviz_edges(host = %s)\n", cd->host);
 
  if((tc = resolve_host_configuration(ctx, cd)) == NULL)
  {
@@ -606,7 +605,7 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
  if((n_items = render_project_component_output_name(ctx, cd->host, cd->project_component, 2,
                                                     &list, &extensions)) < 0)
  {
-  fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+  fprintf(stderr, "BCA: render_project_component_output_name() failed. 1\n");
   return 1;
  }
 
@@ -655,23 +654,25 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
     yes = 0;
     handled = 0;
 
+    swapped = 0;
     i=0; 
     while(i<ctx->n_swaps)
     {
-     if(strcmp(cd->project_component, ctx->swapped_components[i]) == 0)
+     if(strcmp(cd->dependencies[y], ctx->swapped_components[i]) == 0)
      {
+      swapped = 1;
       break;
      }   
      i++;
     }
 
-    if(i == 0)
+    if(swapped == 0)
     {
      if((n_items_d = render_project_component_output_name(ctx, cd->host, 
                                                           cd->project_components[x], 2,
                                                           &list_d, NULL)) < 0)
      {
-      fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+      fprintf(stderr, "BCA: render_project_component_output_name() failed 2\n");
       return 1;
      }
     } else {
@@ -680,7 +681,7 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
                                                           cd->project_components[x], 2,
                                                           &list_d, NULL)) < 0)
      {
-      fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+      fprintf(stderr, "BCA: render_project_component_output_name() failed 3\n");
       return 1;
      }
     }
@@ -961,7 +962,6 @@ int generate_graphviz_mode(struct bca_context *ctx)
   cd.include_dirs = include_dirs;
   cd.n_include_dirs = n_include_dirs;
 
-
   for(y=0; y < n_hosts; y++)
   {
    cd.host = hosts[y];
@@ -993,7 +993,6 @@ int generate_graphviz_mode(struct bca_context *ctx)
    {
     return 1;
    }
-
    if(graphviz_edges(ctx, output, &cd))
    {
     fclose(output);

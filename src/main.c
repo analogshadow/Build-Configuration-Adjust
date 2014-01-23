@@ -61,6 +61,7 @@ void help(void)
         " --componeneffectivenames\n"
         " --newproject \"project name\"\n"
         " --swap-* host\n"
+        " --buildprefix=BUILD_PREFIX\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
         " --selftest (help debug buildconfigurationadjust itself)\n"
 #endif
@@ -865,6 +866,12 @@ struct bca_context *setup(int argc, char **argv)
    ctx->new_value_string = argv[++current_arg];
    ctx->mode = NEW_COMPONENT_MODE;
    handled = 1;
+  }
+
+  if(strncmp(argv[current_arg], "--buildprefix=", 14) == 0)
+  {
+   handled = 1;
+   ctx->build_prefix = argv[current_arg] + 14;
   }
 
   if(strncmp(argv[current_arg], "--prefix=", 9) == 0)
