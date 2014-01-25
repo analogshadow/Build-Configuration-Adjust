@@ -23,7 +23,92 @@
 #include "prototypes.h"
 #endif
 
+char *component_swap_host(struct bca_context *ctx, char *component)
+{
+ int i;
 
+ i = 0;
+ while(i < ctx->n_swaps)
+ { 
+  if(strcmp(ctx->swapped_components[i], component) == 0)
+   return ctx->swapped_component_hosts[i];
+  i++;
+ }
+
+ return NULL;
+}
+
+/*  each component might have multiple dependencies,
+    each one of those might be a internal dep, and also
+    be swapped component. If so, then for each of those
+    the directory for that host needs to be added to the
+    PKG_CONFIG_PATH *after* the build dir for the current
+    host (otherwise conflicting .pc files may get out of 
+    order). 
+
+ */
+int component_pkg_config_path(struct bca_context *ctx,
+                              struct component_details *cd,
+                              struct host_configuration *tc,
+                              FILE *output)
+{
+ int y, n_paths = 0, list_length = 0;
+ char **list = NULL, *swapped_host, *value;
+
+ if(tc->pkg_config_path != NULL)
+ {
+  fprintf(output, "PKG_CONFIG_PATH=");
+  fprintf(output, "%s", tc->pkg_config_path);
+  n_paths++;
+ }
+
+ for(y=0; y < cd->n_dependencies; y++)
+ {
+  swapped_host = component_swap_host(ctx, cd->dependencies[y]);
+
+  if(swapped_host != NULL)
+  {
+   if((value = lookup_key(ctx,
+                          ctx->build_configuration_contents, 
+                          ctx->build_configuration_length,
+                          swapped_host, "ALL", "BUILD_PREFIX")) == NULL)
+   {
+    fprintf(stderr, 
+            "BCA: can find the build prefix for component \"%s\" on host "
+            "\"%s\" which is swapped from host \"%s\"\n",
+            cd->dependencies[y], swapped_host, cd->host);
+    return 1;
+   }
+
+   /* prevent duplicate dirs */
+   if(add_to_string_array(&list, list_length, 
+                          value, -1, 1) == 0)
+   {
+    if(n_paths == 0)
+     fprintf(output, "PKG_CONFIG_PATH=");
+
+    if(n_paths > 0)
+     fprintf(output, ":");
+
+    fprintf(output, "%s", value);
+    n_paths++;
+
+    list_length++;
+   }
+
+   free(value);
+  }
+ }
+
+ if(n_paths)
+  fprintf(output, " ");
+
+ free_string_array(list, list_length);
+
+ return 0;
+}
+
+/* make clean logic */
 int gmake_clean_rules(struct bca_context *ctx, FILE *output, 
                       char **hosts, int n_build_hosts,
                       struct component_details *cd)
@@ -135,6 +220,7 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+/* make help */
 int gmake_help(struct bca_context *ctx, FILE *output, 
                       char **hosts, int n_build_hosts,
                       struct component_details *cd)
@@ -168,6 +254,7 @@ int gmake_help(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+/* "make all" calls each host, but you can do make specific-host */
 int generate_gmake_host_components(struct bca_context *ctx, FILE *output, 
                                    char **hosts, int n_hosts,
                                    struct component_details *cd)
@@ -257,6 +344,10 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+/* both source files that first go to object files before linking (ie .c),
+   and sources that compile and link in one step (ie .cs) will us these
+   "compile flags". 
+ */
 int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output, 
                                           struct component_details *cd,
                                           struct host_configuration *tc)
@@ -285,6 +376,8 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+/*
+ */
 int derive_file_dependencies_from_inputs(struct bca_context *ctx,
                                          struct host_configuration *tc,
                                          struct component_details *cd)
@@ -587,7 +680,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
                                                 char *output_file_name,
                                                 FILE *output)
 {
- int i, x, y, n_names;
+ int i, x, y, n_names, swapped;
  char **names = NULL;
 
  /* any component type may have a FILE_DEPENDS key */
@@ -618,6 +711,18 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
   {
    if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
    {
+    swapped = 0;
+    i = 0;
+    while(i<ctx->n_swaps)
+    {
+     if(strcmp(cd->project_components[y], ctx->swapped_components[i]) == 0)
+     {
+      swapped = 1;
+      break;
+     }       
+     i++;
+    }
+
     if(strcmp(cd->project_component_types[x], "SHAREDLIBRARY"))
     {
      fprintf(stderr, 
@@ -627,12 +732,24 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
      return 1;
     }
 
-    if((n_names = 
-        render_project_component_output_name(ctx, cd->host, cd->project_components[x],
-                                             2, &names, NULL)) < 2)
+    if(swapped == 0)
     {
-     fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
-     return 1;
+     if((n_names = 
+         render_project_component_output_name(ctx, cd->host, cd->project_components[x],
+                                              2, &names, NULL)) < 2)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
+      return 1;
+     }
+    } else {
+     if((n_names = 
+         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i], 
+                                              cd->project_components[x],
+                                              2, &names, NULL)) < 2)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
+      return 1;
+     }
     }
     fprintf(output, "%s ", names[1]);
 
@@ -679,8 +796,8 @@ int object_from_c_file(struct bca_context *ctx,
  {
   fprintf(output, "`");
 
-  if(tc->pkg_config_path != NULL)
-   fprintf(output, "PKG_CONFIG_PATH=%s ", tc->pkg_config_path);
+  if(component_pkg_config_path(ctx, cd, tc, output))
+   return 1;
 
   if(tc->pkg_config_libdir != NULL)
    fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
@@ -735,23 +852,29 @@ int object_from_c_file(struct bca_context *ctx,
 int generate_host_component_pkg_config_file(struct bca_context *ctx,  
                                             struct component_details *cd,
                                             struct host_configuration *tc,
+                                            char **build_file_names,
+                                            int n_build_file_names,
                                             char **output_file_names,
-                                            int n_output_file_nmes,
+                                            int n_output_file_names,
                                             FILE *output)
 {
  int x, i, yes;
  struct component_details cd_d;
-
+ char *build_prefix;
  memset(&cd_d, 0, sizeof(struct component_details));
 
 /* 
    Idea / question:
     reconcille package config's --variable and --define-variable with BCA variables
 */
-  fprintf(output, "%s : %s\n",
-          output_file_names[1], output_file_names[0]);
+  build_prefix = tc->build_prefix;
+  if(strncmp(build_prefix, "./", 2) == 0)
+   build_prefix += 2;
 
-  fprintf(output, "\trm -f %s\n", output_file_names[1]);
+  fprintf(output, "%s : %s\n",
+          build_file_names[1], build_file_names[0]);
+
+  fprintf(output, "\trm -f %s\n", build_file_names[1]);
 
   fprintf(output, "\techo \"prefix=%s/%s\" >> %s\n", 
 #ifdef HAVE_CWD
@@ -759,10 +882,10 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
 #else
           "`pwd`",
 #endif
-          tc->build_prefix, output_file_names[1]);
+          build_prefix, build_file_names[1]);
 
-  fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", output_file_names[1]);
-  fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", output_file_names[1]);
+  fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", build_file_names[1]);
+  fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", build_file_names[1]);
   if(cd->n_include_dirs > 0)
   {
    if(strncmp(cd->include_dirs[0], "./", 2) == 0)
@@ -773,16 +896,16 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
 #else
             "`pwd`",
 #endif
-            cd->include_dirs[0] + 2, output_file_names[1]);
+            cd->include_dirs[0] + 2, build_file_names[1]);
    } else {
-    fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], output_file_names[1]);
+    fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], build_file_names[1]);
    }
   }
-  fprintf(output, "\techo 'Name: %s' >> %s\n", cd->project_component, output_file_names[1]);
+  fprintf(output, "\techo 'Name: %s' >> %s\n", cd->project_component, build_file_names[1]);
   fprintf(output, "\techo 'Description: %s' >> %s\n", 
-          cd->project_component, output_file_names[1]);
+          cd->project_component, build_file_names[1]);
   fprintf(output, "\techo 'Version: %s.%s' >> %s\n", 
-          cd->major, cd->minor, output_file_names[1]);
+          cd->major, cd->minor, build_file_names[1]);
   fprintf(output, "\techo 'Requires: ");
   for(i=0; i < cd->n_dependencies; i++)
   {
@@ -807,31 +930,14 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
     fprintf(output, "%s ", cd->dependencies[i]);
   }
 
-  fprintf(output, "' >> %s\n", output_file_names[1]);
+  fprintf(output, "' >> %s\n", build_file_names[1]);
 
-  if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                          cd->project_component_output_name), ".so") == 0)
-  {
-   fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
-  }
-
-  if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                          cd->project_component_output_name), ".dylib") == 0)
-  {
-   fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
-  }
-
-  if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                          cd->project_component_output_name), ".dll") == 0)
-  {
-   fprintf(output, "\techo 'Libs: -L$${libdir} -l%s-%s.%s", 
-           cd->project_component_output_name, cd->major, cd->minor);
-  }
+  fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
 
   if(tc->ldflags != NULL)
    fprintf(output, " %s", tc->ldflags);
 
-  fprintf(output, "' >> %s\n", output_file_names[1]);
+  fprintf(output, "' >> %s\n", build_file_names[1]);
 
   fprintf(output, "\techo 'Cflags:");
 
@@ -841,7 +947,7 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
    return 1;
 
-  fprintf(output, "' >> %s\n", output_file_names[1]);
+  fprintf(output, "' >> %s\n", build_file_names[1]);
   
   /* add unversioned symlink */
   fprintf(output, "\tcd %s; ln -sf %s-%s.pc %s.pc", 
@@ -854,15 +960,24 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
 int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,  
                                                 struct component_details *cd,
                                                 struct host_configuration *tc,
-                                                char **output_file_names,
-                                                int n_output_file_nmes,
+                                                char **build_file_names,
+                                                int n_build_file_names,
                                                 FILE *output)
 {
- char **names_d;
- int i, x, y, handled, yes, n_names_d;
+ char **dependency_build_filenames, **output_file_names;
+ int i, x, y, handled, yes, n_dependency_build_filenames,
+     n_output_file_names, swapped;
  struct component_details cd_d;
 
  memset(&cd_d, 0, sizeof(struct component_details));
+
+ if((n_output_file_names = 
+     render_project_component_output_name(ctx, cd->host, cd->project_component,
+                                          1, &output_file_names, NULL)) < 0)
+ {
+  fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+  return 1;
+ }
 
  /* first build targets for each object file */
  for(i=0; i<cd->n_file_names; i++)
@@ -874,7 +989,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
    if(object_from_c_file(ctx, cd, tc, 
                          cd->file_base_names[i],
                          cd->file_names[i],
-                         output_file_names[0],
+                         build_file_names[0],
                          output))
    {
     fprintf(stderr, 
@@ -897,7 +1012,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  }
 
  /* make a variable to refer to the set of all the above objects */
- fprintf(output, "%s-OBJECTS = ", output_file_names[0]);
+ fprintf(output, "%s-OBJECTS = ", build_file_names[0]);
 
  for(i=0; i < cd->n_file_names; i++)
  {
@@ -909,11 +1024,10 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  fprintf(output, "\n\n");
 
  /* now make the component depend on its objects */
- fprintf(output, "%s : $(%s-OBJECTS) ", output_file_names[0], output_file_names[0]);
+ fprintf(output, "%s : $(%s-OBJECTS) ", build_file_names[0], build_file_names[0]);
 
  /* the component's target also depends on its internal dependencies targets */
 
-//this needs swap support
  for(y=0; y < cd->n_dependencies; y++)
  {
   x = 0;
@@ -921,18 +1035,42 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
   {
    if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
    {
-    if((n_names_d = 
-        render_project_component_output_name(ctx, cd->host, cd->project_components[x],
-                                             2, &names_d, NULL)) < 2)
+    /* internel dep */
+    swapped = 0;
+    i = 0;
+    while(i<ctx->n_swaps)
     {
-     fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
-     return 1;
+     if(strcmp(cd->project_components[y], ctx->swapped_components[i]) == 0)
+     {
+      swapped = 1;
+      break;
+     }       
+     i++;
     }
 
-    fprintf(output, "%s ", names_d[1]);
+    if(swapped == 0)
+    {
+     if((n_dependency_build_filenames = 
+         render_project_component_output_name(ctx, cd->host, cd->project_components[x],
+                                              2, &dependency_build_filenames, NULL)) < 2)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
+      return 1;
+     }
+    } else {
+     if((n_dependency_build_filenames = 
+         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
+                                              cd->project_components[x],
+                                              2, &dependency_build_filenames, NULL)) < 2)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
+      return 1;
+     }
+    }
 
-    free_string_array(names_d, n_names_d);
+    fprintf(output, "%s ", dependency_build_filenames[1]);
 
+    free_string_array(dependency_build_filenames, n_dependency_build_filenames);
     break;
    }
    x++;
@@ -951,46 +1089,46 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  }
 
  fprintf(output, " $(%s-OBJECTS) %s",
-         output_file_names[0], tc->cc_output_flag);
+         build_file_names[0], tc->cc_output_flag);
 
  /* figure out what the name of the output file should be,
     different for libraries and binaries */
  yes = 1;
- if(n_output_file_nmes > 3)
+ if(n_build_file_names > 3)
  {
-  if(output_file_names[3][0] != 0)
+  if(build_file_names[3][0] != 0)
   {
    yes = 0;
-   fprintf(output, " %s", output_file_names[3]);
+   fprintf(output, " %s", build_file_names[3]);
   }
  }
 
  if(yes == 1)
-  fprintf(output, " %s", output_file_names[0]);
+  fprintf(output, " %s", build_file_names[0]);
 
  /* add shared libary switches */
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
   if(contains_string(tc->cc, -1, "mingw", -1)) 
   {
-   if(n_output_file_nmes < 3)
+   if(n_build_file_names < 3)
    {
     fprintf(stderr, "BCA: there should have been an import name here\n");
     return 1;
    }
-   fprintf(output, " -Wl,--out-implib,%s", output_file_names[2]);
+   fprintf(output, " -Wl,--out-implib,%s", build_file_names[2]);
   } else {
    if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type, 
                                            cd->project_component_output_name), ".dll") == 0)
    {
     /* cygwin */
-    if(n_output_file_nmes < 3)
+    if(n_build_file_names < 3)
     {
      fprintf(stderr, "BCA: there should have been an import name here\n");
      return 1;
     }
     fprintf(output, " -Wl,--out-implib,%s",
-            output_file_names[2]);
+            build_file_names[2]);
    }
   }
 
@@ -998,7 +1136,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
                                           cd->project_component_output_name), ".dylib") == 0)
   {
    fprintf(output, " -compatibility_version %s.%s -install_name %s", 
-           cd->major, cd->minor, output_file_names[0]);
+           cd->major, cd->minor, build_file_names[0]);
   }
 
   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
@@ -1020,10 +1158,10 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  /* both libaries and binaries may have pkg-config dependencies */
  if(cd->n_dependencies > 0)
  {
-  fprintf(output, " `");
+  fprintf(output, "`");
 
-  if(tc->pkg_config_path != NULL)
-   fprintf(output, "PKG_CONFIG_PATH=%s ", tc->pkg_config_path);
+  if(component_pkg_config_path(ctx, cd, tc, output))
+   return 1;
 
   if(tc->pkg_config_libdir != NULL)
    fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
@@ -1073,8 +1211,10 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
   if(generate_host_component_pkg_config_file(ctx, cd, tc,
+                                             build_file_names,
+                                             n_build_file_names,
                                              output_file_names,
-                                             n_output_file_nmes,
+                                             n_output_file_names,
                                              output))
   {
    fprintf(stderr, 
@@ -1084,14 +1224,16 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
   }
  }
 
+ free_string_array(output_file_names, n_output_file_names);
+
  return 0;
 }
 
 int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *output, 
                                              struct component_details *cd)
 {
- char **names, **output_names;
- int handled, n_names, n_output_names;
+ char **names;
+ int handled, n_names;
  struct host_configuration *tc;
 
  if(ctx->verbose > 2)
@@ -1107,14 +1249,6 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
  {
   fprintf(stderr, "BCA: derive_file_dependencies_from_inputs(%s.%s) failed\n",
           cd->host, cd->project_component);
-  return 1;
- }
-
- if((n_output_names = 
-     render_project_component_output_name(ctx, cd->host, cd->project_component,
-                                          1, &output_names, NULL)) < 0)
- {
-  fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
   return 1;
  }
 
@@ -1206,7 +1340,6 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
  fprintf(output, "\n");
 
- free_string_array(output_names, n_output_names);
  free_string_array(names, n_names);
  free_host_configuration(ctx, tc);
 
@@ -1316,7 +1449,8 @@ int fresh_config_depends_check(struct bca_context *ctx, struct component_details
 int generate_gmakefile_mode(struct bca_context *ctx)
 {
  char **hosts, *value, **file_deps, **include_dirs, **lib_headers;
- int n_hosts, host_i, component_i, i, handled, n_file_deps, n_include_dirs, n_lib_headers;
+ int n_hosts, host_i, component_i, i, handled, n_file_deps, n_include_dirs, 
+     n_lib_headers, swapped;
  FILE *output;
  struct component_details cd;
 
@@ -1435,8 +1569,28 @@ int generate_gmakefile_mode(struct bca_context *ctx)
    printf("\n");
   }
 
-  for(component_i=0; component_i<cd.n_components; component_i++)
+  component_i=0; 
+  while(component_i < cd.n_components) 
   {
+
+   swapped = 0;
+   i = 0;
+   while(i<ctx->n_swaps)
+   {
+    if(strcmp(cd.project_components[component_i],
+              ctx->swapped_components[i]) == 0)
+    {
+     swapped = 1;
+     break;
+    }
+    i++;
+   }
+
+   if(swapped == 1)
+   {
+    component_i++;
+    continue;   
+   }
 
    /* component type sanity check ------------------- */
    handled = 0;
@@ -1732,7 +1886,9 @@ int generate_gmakefile_mode(struct bca_context *ctx)
 
    free(cd.major);   
    cd.major = NULL;
-  }
+
+   component_i++;
+  } // while() compoents
 
   free_string_array(cd.project_components, cd.n_components);
   free_string_array(cd.project_component_types, cd.n_components);

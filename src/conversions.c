@@ -278,7 +278,8 @@ int render_project_component_output_name(struct bca_context *ctx,
            {
             fprintf(stderr, 
                     "BCA: render_project_component_name(): "
-                    "I'm not sure what (if any) install location for a component of type %s will be.\n",
+                    "I'm not sure what (if any) install location for a component of type "
+                    "%s will be.\n",
                     cd.project_component_types[y]);
            return -1;
            }   

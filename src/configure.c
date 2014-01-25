@@ -514,6 +514,9 @@ int host_cc_configuration(struct bca_context *ctx,
 
  /* C compiler */
  if((s = getenv("CC")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
  {
   /* here we want to overwrite regardless */
   snprintf(temp, 512, "%s%s", host_prefix, s); 
@@ -561,6 +564,9 @@ int host_cxx_configuration(struct bca_context *ctx,
 
  /* C++ compiler */
  if((s = getenv("CXX")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
  {
   /* here we want to overwrite regardless */
   snprintf(temp, 512, "%s%s", host_prefix, s); 
@@ -648,6 +654,9 @@ int c_family_configuration(struct bca_context *ctx,
 
   /* CFLAGS */
   if((s = getenv("CFLAGS")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
   {
    /* here we want to overide regardless */
    tc->cflags = strdup(s);
@@ -669,7 +678,10 @@ int pkg_config_tests(struct bca_context *ctx,
 
  if(code == 1)
  {
-  if((s = getenv("PKG_CONFIG")) == NULL)
+  if((s = getenv("PKG_CONFIG")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s == NULL)
   {
    if((s = tc->pkg_config) == NULL)
     s = "pkg-config";
@@ -688,6 +700,10 @@ int pkg_config_tests(struct bca_context *ctx,
 
   /* PKG_CONFIG_PATH */
   if((s = getenv("PKG_CONFIG_PATH")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+
+  if(s != NULL)
   {
    /* here we want to overwrite regardless */
    snprintf(temp, 512,
@@ -716,6 +732,9 @@ int pkg_config_tests(struct bca_context *ctx,
 
   /* PKG_CONFIG_LIBDIR */
   if((s = getenv("PKG_CONFIG_LIBDIR")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
   {
    /* here we want to overwrite regardless */
    tc->pkg_config_libdir = strdup(s);
@@ -1180,6 +1199,9 @@ int derive_file_suffixes(struct bca_context *ctx,
 
  /* LDFLAGS */
  if((s = getenv("LDFLAGS")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
  {
   /* here we want to overwrite regardless */
   tc->ldflags = strdup(s);
@@ -1350,8 +1372,9 @@ int disables_and_enables(struct bca_context *ctx,
                          char ***mod_keys,
                          char ***mod_values)
 {
- char *value, **project_disables;
- int i, j, n_project_disables, yes, p_length;
+ char o_principle[256], o_component[256], o_key[256], 
+      *value, **project_disables;
+ int i, j, n_project_disables, yes, p_length, end;
 
  /* hack warning: 
     list_project_components() takes the disabled list into account,
@@ -1509,6 +1532,36 @@ int disables_and_enables(struct bca_context *ctx,
   free_string_array(project_disables, n_project_disables);
   project_disables = NULL;
   n_project_disables = 0;
+ }
+
+ /* Now we want to make sure than none of disabled componts are being
+    swapped to from other host.*/
+ end = -1;
+ while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
+                              ctx->build_configuration_length, &end,
+                              NULL, NULL, "SWAP", 
+                              o_principle, o_component, o_key, NULL))
+ {
+  value = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       o_principle, o_component, o_key);
+
+  for(i = 0; i < ctx->n_disables; i++)
+  {
+   if(strcmp(o_component, ctx->disabled_components[i]) == 0)
+   {
+    if(strcmp(value, ctx->principle) == 0)
+    {
+     fprintf(stderr, 
+             "BCA: I can not disable component \"%s\" on host \"%s\", "
+             "because it is swapped to from host \"%s\". Remove that swap first.\n",
+             o_component, value, o_principle);
+     return 1;
+    }
+   }
+  }
+
+  free(value);
  }
 
  /* DISABLED persistance */

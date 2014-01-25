@@ -27,7 +27,7 @@ prepare_environment() {
 
 try_configure() {
  ERROR=""
- BCA=$BCA PKG_CONFIG_PATH=$PKG_CONFIG_PATH ./configure "$@" >> out 2>> out
+ CFLAGS=$CFLAGS BCA=$BCA PKG_CONFIG_PATH=$PKG_CONFIG_PATH ./configure "$@" >> out 2>> out
  if [ $? != 0 ]
  then
   ERROR="failed: configure"
@@ -57,14 +57,14 @@ graphviz_sanity_check() {
  fi
 
  mkdir -p ../gvplottests
- echo -n "test: gvsane$test: " >> ../test.sh-results 
+ echo -n "test: ${test}gvsane: " >> ../test.sh-results 
 
  ./bca --generate-graphviz &> out
  if [ $? != 0 ]
  then
   ERROR="failed graphviz sanity check"
   echo $ERROR >> ../test.sh-results
-  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  echo "test.sh: $ERROR on test ${suite}.${test}gvsane:" >&2
   cat out >&2
   return
  fi
@@ -73,7 +73,7 @@ graphviz_sanity_check() {
  then
   ERROR="failed: no bcaproject.dot file created"
   echo $ERROR >> ../test.sh-results
-  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  echo "test.sh: $ERROR on test ${suite}.${test}gvsane:" >&2
   cat out >&2
   return
  fi
@@ -83,7 +83,7 @@ graphviz_sanity_check() {
  then 
   ERROR="failed: dot returned non-zero"
   echo $ERROR >> ../test.sh-results
-  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  echo "test.sh: $ERROR on test ${suite}.${test}gvsane:" >&2
   cat out >&2
   return
  fi
@@ -92,7 +92,7 @@ graphviz_sanity_check() {
  then
   ERROR="failed: no bcaproject.png file created"
   echo $ERROR >> ../test.sh-results
-  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  echo "test.sh: $ERROR on test ${suite}.${test}gvsane:" >&2
   cat out >&2
   return
  fi
@@ -146,7 +146,7 @@ created_files_check() {
 
 makeclean_check() {
  ERROR=""
- echo -n "test: makeclean$1: " >> ../test.sh-results
+ echo -n "test: ${test}makeclean: " >> ../test.sh-results
  $MAKE -f Makefile.bca clean &> out
 
  COMPONENTS=`./bca --listprojectcomponents`
@@ -159,7 +159,7 @@ makeclean_check() {
    then
     ERROR="failed: $FILE not removed by clean"
     echo $ERROR >> ../test.sh-results
-    echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+    echo "test.sh: $ERROR on test ${suite}.${test}makeclean:" >&2
     cat out >&2
     return
    fi
@@ -258,11 +258,12 @@ configurewrapper=(buildsinglefiledist useexistingbca userbcafrompath userbcafrom
 examples_helloworld() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Hello World" &> out
- ../native/bca-canadate --type BINARY --newvalue NAME hello >> out 2>> out
- ../native/bca-canadate --type BINARY --newvalue FILES hello.c >> out 2>> out
- echo -e "#include <stdio.h>\n\nint main(void)\n{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Hello World" &> out
+ ./bca --type BINARY --newvalue NAME hello >> out 2>> out
+ ./bca --type BINARY --newvalue FILES hello.c >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint main(void)\n{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -343,16 +344,17 @@ examples_multifilebin() {
 examples_sharedlib() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Shared Library" &> out
- ../native/bca-canadate --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Shared Library" &> out
+ ./bca --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
          "int print_hello(void);\n#endif\n" > hello.h
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -452,21 +454,22 @@ examples_extdepends() {
 examples_sharedlibandbin() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Shared Library and Binary" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Shared Library and Binary" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
          "int print_hello(void);\n#endif\n" > hello.h
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > main.c
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -512,13 +515,14 @@ examples_sharedlibandbin() {
 examples_concat() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Concatenate" &> out
- ../native/bca-canadate --component textfile --type CAT --newvalue NAME textfile >> out 2>> out
- ../native/bca-canadate --component textfile --type CAT --newvalue FILES "one two three" >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Concatenate" &> out
+ ./bca --component textfile --type CAT --newvalue NAME textfile >> out 2>> out
+ ./bca --component textfile --type CAT --newvalue FILES "one two three" >> out 2>> out
  echo -n "alpha " > one
  echo -n "beta " > two
  echo -n "gama " > three
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -563,16 +567,17 @@ examples_concat() {
 examples_macroexpand() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Macro Expansion" &> out
- ../native/bca-canadate --component textfile --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
- ../native/bca-canadate --component textfile --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
- ../native/bca-canadate --component textfile --type MACROEXPAND --newvalue MAJOR 1 >> out 2>> out
- ../native/bca-canadate --component textfile --type MACROEXPAND --newvalue MINOR 1 >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Macro Expansion" &> out
+ ./bca --component textfile --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
+ ./bca --component textfile --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
+ ./bca --component textfile --type MACROEXPAND --newvalue MAJOR 1 >> out 2>> out
+ ./bca --component textfile --type MACROEXPAND --newvalue MINOR 1 >> out 2>> out
  echo -e "#ifndef _CONFIGURE_H_\n#define _CONFIGURE_H_\n"\
          "#define VER_MAJOR \"@BCA.PROJECT.MACROEXPAND.textfile.MAJOR@\"\n"\
          "#define VER_MINOR \"@BCA.PROJECT.MACROEXPAND.textfile.MINOR@\"\n"\
          "#endif" > configure.h.in
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -617,15 +622,16 @@ examples_macroexpand() {
 examples_generateddeps() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Generated Dependencies" &> out
- ../native/bca-canadate --component configure --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
- ../native/bca-canadate --component configure --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
- ../native/bca-canadate --component NONE --type NONE --newvalue MAJOR 1 >> out 2>> out
- ../native/bca-canadate --component NONE --type NONE --newvalue MINOR 1 >> out 2>> out
- ../native/bca-canadate --component sourcefile --type CAT --newvalue NAME hello.c >> out 2>> out
- ../native/bca-canadate --component sourcefile --type CAT --newvalue FILES "one two three" >> out 2>> out
- ../native/bca-canadate  --type BINARY --newvalue NAME hello >> out 2>> out
- ../native/bca-canadate  --type BINARY --newvalue INPUT "configure sourcefile" >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Generated Dependencies" &> out
+ ./bca --component configure --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
+ ./bca --component configure --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
+ ./bca --component NONE --type NONE --newvalue MAJOR 1 >> out 2>> out
+ ./bca --component NONE --type NONE --newvalue MINOR 1 >> out 2>> out
+ ./bca --component sourcefile --type CAT --newvalue NAME hello.c >> out 2>> out
+ ./bca --component sourcefile --type CAT --newvalue FILES "one two three" >> out 2>> out
+ ./bca  --type BINARY --newvalue NAME hello >> out 2>> out
+ ./bca  --type BINARY --newvalue INPUT "configure sourcefile" >> out 2>> out
  echo -e "#ifndef _CONFIGURE_H_\n#define _CONFIGURE_H_\n"\
          "#define VER_MAJOR \"@BCA.PROJECT.BINARY.MAIN.MAJOR@\"\n"\
          "#define VER_MINOR \"@BCA.PROJECT.BINARY.MAIN.MINOR@\"\n"\
@@ -633,7 +639,7 @@ examples_generateddeps() {
  echo -e "#include <stdio.h>\n#include \"configure.h\"\n" > one
  echo -e "\nint main(void)\n{\n printf(\"version %s.%s\\\n\", VER_MAJOR, VER_MINOR);" > two
  echo -e "\n return 0;\n}\n" > three
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -686,12 +692,13 @@ examples_generateddeps() {
 examples_customcommand() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Custom Command" &> out
- ../native/bca-canadate --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
- ../native/bca-canadate --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Custom Command" &> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
+ ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
+ ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
+ ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation. Abcdef.</p>\n"\
          " </body>\n</html>\n" > documentation.html
@@ -699,7 +706,7 @@ examples_customcommand() {
          "if  	[ \"\$WORDS\" != \"\" ]\n"\
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
- ln -sf ../native/bca-canadate ./bca
+
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -749,17 +756,18 @@ examples_customcommand() {
 examples_inputtocustom() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Input to Custom" &> out
- ../native/bca-canadate --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
- ../native/bca-canadate --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
- ../native/bca-canadate --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
- ../native/bca-canadate --component documentation2_out --type MACROEXPAND --newvalue NAME documentation2.out &>> out
- ../native/bca-canadate --component documentation2_out --type MACROEXPAND --newvalue FILES documentation2.html.in &>> out
- ../native/bca-canadate --component documentation2 --type CUSTOM --newvalue NAME documentation2.html &>> out
- ../native/bca-canadate --component documentation2 --type CUSTOM --newvalue INPUT documentation2_out &>> out
- ../native/bca-canadate --component documentation2 --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Input to Custom" &> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
+ ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
+ ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
+ ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
+ ./bca --component documentation2_out --type MACROEXPAND --newvalue NAME documentation2.out &>> out
+ ./bca --component documentation2_out --type MACROEXPAND --newvalue FILES documentation2.html.in &>> out
+ ./bca --component documentation2 --type CUSTOM --newvalue NAME documentation2.html &>> out
+ ./bca --component documentation2 --type CUSTOM --newvalue INPUT documentation2_out &>> out
+ ./bca --component documentation2 --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation.\n"\
          "   If you think this good, check out page <a href=\"./documentation2.html\">two</a>.</p>\n"\
@@ -772,7 +780,6 @@ examples_inputtocustom() {
          "if  	[ \"\$WORDS\" != \"\" ]\n"\
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
- ln -sf ../native/bca-canadate ./bca
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -808,17 +815,17 @@ examples_inputtocustom() {
 examples_effectivepaths() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Hello World" &> out
- ../native/bca-canadate --type BINARY --newvalue NAME hello >> out 2>> out
- ../native/bca-canadate --type BINARY --newvalue FILES hello.c >> out 2>> out
  ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Hello World" &> out
+ ./bca --type BINARY --newvalue NAME hello >> out 2>> out
+ ./bca --type BINARY --newvalue FILES hello.c >> out 2>> out
  try_configure --prefix=/customdir
  if [ "$ERROR" != "" ]
  then
   return 1
  fi 
  rm out
- ../native/bca-canadate --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
+ ./bca --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
  grep "./native/" out > /dev/null
  if [ $? != 0 ]
  then
@@ -826,7 +833,7 @@ examples_effectivepaths() {
   echo "test.sh: failed test effectivepaths:" >&2
   cat out >&2
  else
-  ../native/bca-canadate --build --host ALL --component ALL --setvalue EFFECTIVE_PATHS INSTALL >> out 2>> out
+  ./bca --build --host ALL --component ALL --setvalue EFFECTIVE_PATHS INSTALL >> out 2>> out
   if [ $? != 0 ]
   then
    echo "failed" >> ../test.sh-results
@@ -834,7 +841,7 @@ examples_effectivepaths() {
    cat out >&2
   else
    rm out
-   ../native/bca-canadate --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
+   ./bca --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
    grep "/customdir/" out > /dev/null
    if [ $? != 0 ]
    then
@@ -843,8 +850,8 @@ examples_effectivepaths() {
     cat out >&2
    else
     rm out
-    ../native/bca-canadate --build --host ALL --component ALL --setvalue EFFECTIVE_PATHS LOCAL >> out 2>> out
-    ../native/bca-canadate --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
+    ./bca --build --host ALL --component ALL --setvalue EFFECTIVE_PATHS LOCAL >> out 2>> out
+    ./bca --host NATIVE --component MAIN --componenteffectivenames >> out 2>> out
     grep "./native/" out > /dev/null
     if [ $? != 0 ]
     then
@@ -870,17 +877,18 @@ examples=(helloworld multifilebin sharedlib sharedlibandbin concat macroexpand g
 enablelogic_disableall() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component alt --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component alt --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component alt --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component alt --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component alt --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component alt --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
@@ -889,7 +897,7 @@ enablelogic_disableall() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
+
  try_configure --disableall
  if [ "$ERROR" != "" ]
  then
@@ -932,17 +940,18 @@ enablelogic_disableall() {
 enablelogic_disableone() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
@@ -951,7 +960,6 @@ enablelogic_disableone() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
 
  try_configure --disable-ALT
  if [ "$ERROR" != "" ]
@@ -1010,17 +1018,18 @@ enablelogic_disableone() {
 enablelogic_enableone() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
@@ -1029,7 +1038,6 @@ enablelogic_enableone() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
 
  try_configure --disableall --enable-greetings
  if [ "$ERROR" != "" ]
@@ -1088,18 +1096,19 @@ enablelogic_enableone() {
 enablelogic_defaultdisabled() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
-../native/bca-canadate --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+./bca --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
 
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
@@ -1109,7 +1118,6 @@ enablelogic_defaultdisabled() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -1168,18 +1176,19 @@ enablelogic_defaultdisabled() {
 enablelogic_enabledefaultdisabled() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
-../native/bca-canadate --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component NONE --type NONE --newvalue DISABLES MAIN >> out 2>> out
 
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
@@ -1189,7 +1198,6 @@ enablelogic_enabledefaultdisabled() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
 
  try_configure --enable-MAIN
  if [ "$ERROR" != "" ]
@@ -1233,17 +1241,18 @@ enablelogic_enabledefaultdisabled() {
 enablelogic_disableinternaldep() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Component Enable Disable Test" &> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
- ../native/bca-canadate --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
- ../native/bca-canadate --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Enable Disable Test" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
 
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
@@ -1253,7 +1262,6 @@ enablelogic_disableinternaldep() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
- ln -sf ../native/bca-canadate ./bca
 
  ./configure --disable-greetings >> out 2>> out
  if [ $? == 0 ]
@@ -1264,19 +1272,233 @@ enablelogic_disableinternaldep() {
   cat out >&2
  fi
 
+ echo "passed" >> ../test.sh-results
+
  cd ..
 }
 
 enablelogic=(disableall disableone enableone defaultdisabled enabledefaultdisabled disableinternaldep)
 
+#some sanity checks on configure swap logic
+swaps_configureerrors() {
+ prepare_environment
+ cd testing_environment
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Swap Tests" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
 
-#swap suite
-#swap a disabled should fail
-#swap uses a non existant host should fail on make and graph
-#swap component is disabled in host should fail on make and graph
+ #for an example we might want to build component ALT on the to be prepared alternative
+ #host configuration, DEBUG. This should fail, since host DEBUG is not yet present.
+ ./configure --swap-ALT DEBUG >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: swapping to non-existing host should have failed"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ #now try a regular configure with a different host. For instance a parallel build
+ #in a debug configuration
+ CFLAGS=-g try_configure --host DEBUG 
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ rm out
+ #now that we do have a host named DEBUG, the above swap proceedure should work
+ try_configure --swap-ALT DEBUG 
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ rm out
+ #another thing that should not work is disable and swap at the same time
+ ./bca --configure --swap-ALT DEBUG --disable-ALT >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: disabling and swaping the same component on configure should have failed"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ rm out
+ #another way that could happen is swapping a component disabled by default
+ ./bca --component NONE --type NONE --newvalue DISABLES ALT >> out 2>> out
+ ./bca --configure --swap-ALT DEBUG >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: swaping component disabled by default should have failed"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+
+ rm out
+ #conversly this should work
+ try_configure --swap-ALT DEBUG --enable-ALT
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ rm out
+ #cleanup the default disable
+ ./bca --component NONE --type NONE --removevalue DISABLES >> out 2>> out
+ #now reconfigure the DEBUG host, disabling component ALT
+ #This is still being swapped so it should fail.
+ CFLAGS=-g ./configure --host DEBUG --disable-ALT >> out 2>> out
+ if [ $? == 0 ]
+ then
+  ERROR="failed: disabling component that is swaped to from other host should have failed"
+  echo $ERROR >> ../test.sh-results
+  echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+  cat out >&2
+  return
+ fi
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+ cd ..
+} 
+
+swaps_simple() {
+ prepare_environment
+ cd testing_environment
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Component Swap Tests" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ./bca --component MAIN --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue NAME altm >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue FILES altmain.c >> out 2>> out
+ ./bca --component ALT --type BINARY --newvalue INT_DEPENDS greetings >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > main.c
+ echo -e "#include \"hello.h\"\n\nint main(void)\n"\
+         "{\n print_hello();\n return 0;\n}\n" > altmain.c
+
+ #for an example we might want to build component ALT on the to be prepared alternative
+ #host configuration, DEBUG. 
+ CFLAGS=-g try_configure --host DEBUG 
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+ 
+ try_configure --swap-greetings DEBUG 
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ COMPONENTS="MAIN ALT"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --host NATIVE --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    ERROR="failed: $FILE should have been built"
+    echo $ERROR >> ../test.sh-results
+    echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+    return
+   fi
+  done
+ done
+
+ FILES=`./bca --host NATIVE --component greetings --componentbuildoutputnames`
+ for FILE in $FILES
+ do
+  if [ -f $FILE ]
+  then
+   ERROR="failed: $FILE should not have been built"
+   echo $ERROR >> ../test.sh-results
+   echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+   return
+  fi
+ done
+
+ COMPONENTS="MAIN ALT greetings"
+ for COMPONENT in $COMPONENTS
+ do
+  FILES=`./bca --host DEBUG --component $COMPONENT --componentbuildoutputnames`
+  for FILE in $FILES
+  do
+   if [ ! -f $FILE ]
+   then
+    ERROR="failed: $FILE should have been built"
+    echo $ERROR >> ../test.sh-results
+    echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
+    return
+   fi
+  done
+ done
+
+ echo "passed" >> ../test.sh-results
+
+ graphviz_sanity_check concat
+ makeclean_check concat 
+
+ cd ..
+} 
+
+#now we need swap tests for the cases:
+# -native build tool used in cross compile case
+# -profiler guided optimization
+
+swaps=(configureerrors simple)
+
 
 #script starts here------------------------------------------------
-suites=(configurewrapper autoconfsupport configuration examples enablelogic)
+suites=(configurewrapper autoconfsupport examples enablelogic swaps)
 
 BASEDIR=`pwd`
 MAKE=make
