@@ -409,7 +409,7 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
 {
  char temp[1024], *base_file_name, *extension, in[512], out[512],
       **list = NULL, **list_d, **extensions = NULL, *value;
- int i, x, y, yes, handled, n_items, n_items_d, driver_component_index = -1, swapped;
+ int i, x, y, yes, handled, n_items, n_items_d = 0, driver_component_index = -1, swapped;
  struct host_configuration *tc;
 
  if(ctx->verbose > 1)
@@ -498,8 +498,30 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
 
  for(i=0; i < cd->n_inputs; i++)
  {
+  /* what kind of component is this input? */
+  handled = 0;
+  x = 0;
+  while(x < cd->n_components)
+  {
+   if(strcmp(cd->inputs[i], cd->project_components[x]) == 0)
+   {
+    handled = 1;
+    break;
+   }
+   x++;
+  }
+
+  if(handled == 0)
+  {
+   /* this should have been discovered by now, but check again */
+   fprintf(stderr, 
+           "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
   snprintf(temp, 1024, "%s/%s",
-           tc->build_prefix, cd->inputs[i]);
+           tc->build_prefix, cd->project_output_names[x]);
 
   if(path_extract(temp, &base_file_name, &extension))
   {
@@ -535,62 +557,48 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
    continue;
   }
 
-  if(strcmp(extension, "c") == 0)
+  if(extension != NULL)
   {
-   if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
+   if(strcmp(extension, "c") == 0)
+   {
+    if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
+                           temp, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
+                           base_file_name, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
+                           extension, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_names++;
+    handled = 1;
+   }
+
+   if(strcmp(extension, "h") == 0)
+   {
+    if(add_to_string_array(&(cd->file_deps), cd->n_file_deps, 
                           temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_deps++;
+
+    handled = 1;
    }
-
-   if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
-                          base_file_name, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
-                          extension, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_file_names++;
-   handled = 1;
-  }
-
-  if(strcmp(extension, "h") == 0)
-  {
-   if(add_to_string_array(&(cd->file_deps), cd->n_file_deps, 
-                          temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_file_deps++;
-
-   x = strlen(temp);
-   while(x > 0)
-   {
-    if(temp[x] == '/')
-     break;
-    
-    temp[x--] = 0;
-   }
-
-   if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, 
-                          temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_include_dirs++;
-   handled = 1;
   }
 
   if(handled == 0)
@@ -878,6 +886,12 @@ int generate_graphviz_mode(struct bca_context *ctx)
  if(list_project_components(ctx, &cd))
  {
   fprintf(stderr, "BCA: list_project_components() failed\n");
+  return 1;
+ }
+
+ if(check_duplicate_output_names(ctx, &cd))
+ {
+  fclose(output);
   return 1;
  }
 

@@ -74,7 +74,7 @@ int is_file_of_type_used(struct bca_context *ctx,
                          struct component_details *cd,
                          char *type_extension)
 {
- int i, j, skip, pre_loaded, yes = 0;
+ int i, j, x, handled, skip, pre_loaded, yes = 0;
  char *extension;
 
  if(ctx->verbose > 1)
@@ -171,8 +171,28 @@ int is_file_of_type_used(struct bca_context *ctx,
 
    for(j=0; j < cd->n_inputs; j++)
    {
+    handled = 0;
+    x = 0;
+    while(x < cd->n_components)
+    {
+     if(strcmp(cd->inputs[j], cd->project_components[x]) == 0)
+     {
+      handled = 1;
+      break;
+     }
+     x++;
+    }
 
-    if(path_extract(cd->inputs[j], NULL, &extension))
+    if(handled == 0)
+    {
+     fprintf(stderr, 
+             "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+             cd->project_component, cd->host, cd->inputs[j]);
+     return 1;
+    }
+
+
+    if(path_extract(cd->project_output_names[x], NULL, &extension))
     {
      return 1;
     }
@@ -196,6 +216,9 @@ int is_file_of_type_used(struct bca_context *ctx,
     return 1;
   }
  }
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: No files matching *.%s found.\n", type_extension);
 
  return 0;
 }
@@ -1388,6 +1411,12 @@ int disables_and_enables(struct bca_context *ctx,
   fprintf(stderr, "BCA: list_project_components() failed.\n");
   return 1;
  }
+
+ if(check_duplicate_output_names(ctx, cd))
+ {
+  return 1;
+ }
+
  ctx->n_disables = n_project_disables;
  ctx->disabled_components = project_disables;
  n_project_disables = 0;

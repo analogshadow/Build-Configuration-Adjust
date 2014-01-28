@@ -263,7 +263,8 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    free_string_array(list, n_items);
    return value;
   } else {
-   fprintf(stderr, "BCA: replace key error: index out of range in \"%s\".\n", key);
+   fprintf(stderr, "BCA: replace key error: index %d out of range in \"%s\".\n",
+           i, key);
    return NULL;
   }
  }

@@ -774,7 +774,6 @@ examples_inputtocustom() {
          " </body>\n</html>\n" > documentation.html
   echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
           " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to page 2. \n"\
-          "   If this file were to be installed, it would be named @BCA.INSTALLEDNAME.documentation2[0]@.</p>\n"\
           " </body>\n</html>\n" > documentation2.html.in
  echo -e "#!/bin/bash\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
          "if  	[ \"\$WORDS\" != \"\" ]\n"\
@@ -867,7 +866,6 @@ examples_effectivepaths() {
  cd ..
 }
 
-
 examples_customwithnativetool() {
  #start from scratch
  prepare_environment
@@ -905,11 +903,11 @@ examples_customwithnativetool() {
 
  #contents of make_hello_world.sh.in
  #The last argument to a custom script will be output name. In this case it
- #should be argv[1] referenced as $1 in bash.
+ #should be argv[2] referenced as $2 in bash.
  #We also see how to know what the build output name of the make_hello
  #utility will be. 
  echo '#!/bin/bash' >> make_hello_wrapper.sh.in
- echo '@BCA.BUILDOUTPUTNAME.make_hello[0]@ > $1' >> make_hello_wrapper.sh.in
+ echo '@BCA.BUILDOUTPUTNAME.make_hello[0]@ > $2' >> make_hello_wrapper.sh.in
 
  #next add a CUSTOM component named generated_hello that will use the created file
  #make_hello_wrapper.sh to do its bidding, which is to generate a file called generated_hello.c

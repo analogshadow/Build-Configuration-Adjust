@@ -376,19 +376,31 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
-/*
+/* .INPUT is a list of other components from which to dynamically translate
+   the output file name of into elements on the .FILES list.
+  
+   Note that there is no inheritance for thigs like: dependencies, .FILE_DEPS,
+   and .INCLUDE_DIRS. Those must and can be added to the component(s)
+   using other components as an input.
+
+   The primary use case is for MACROEXPAND, CAT, and CUSTOM component types
+   to create source files for other types. See the test examples.enerateddeps
+   for an example.
+
+   Chaining of multiple layers can also be done. ie a conCATenation of MACROEXPANDS. 
+   (that needs a test).
+
+   The other allowed use is a CUSTOM component may have a BINARY compoent as
+   an INPUT. This simply creates a makefile dependency. The idea is the the .DRIVER
+   script would make use of said BINARY.
+
  */
 int derive_file_dependencies_from_inputs(struct bca_context *ctx,
                                          struct host_configuration *tc,
                                          struct component_details *cd)
 {
- int i, x, handled;
+ int i, x, y, handled, valid_input, add_file_name;
  char temp[1024], *base_file_name, *extension;
-
- /* tranlaste the .INPUTs to .FILES */
-
-
-//swaps logic needed here
 
  if(cd->n_file_names == 0)
  {
@@ -399,117 +411,182 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
 
  for(i=0; i < cd->n_inputs; i++)
  {
-  snprintf(temp, 1024, "%s/%s",
-           tc->build_prefix, cd->inputs[i]);
+  valid_input = 0;
 
-  if(path_extract(temp, &base_file_name, &extension))
-  {
-   return 1;
-  }
-
+  /* what kind of component is this input? */
   handled = 0;
-
-  if( (strcmp(cd->project_component_type, "CUSTOM") == 0) ||
-      (strcmp(cd->project_component_type, "MACROEXPAND") == 0) ||
-      (strcmp(cd->project_component_type, "CAT") == 0) )
+  x = 0;
+  while(x < cd->n_components)
   {
-   if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
-                          temp, -1, 0))
+   if(strcmp(cd->inputs[i], cd->project_components[x]) == 0)
    {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
+    handled = 1;
+    break;
    }
-
-   if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
-                          base_file_name, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
-                          extension, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_file_names++;
-   handled = 1;
-  }
-
-  if(strcmp(extension, "py") == 0)
-  {
-   handled = 1;
-  }
-
-  if( (handled == 0) && (strcmp(extension, "c") == 0) )
-  {
-   if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
-                          temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
-                          base_file_name, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
-                          extension, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_file_names++;
-   handled = 1;
-  }
-
-  if( (handled == 0) && (strcmp(extension, "h") == 0) )
-  {
-   if(add_to_string_array(&(cd->file_deps), cd->n_file_deps, 
-                          temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_file_deps++;
-
-   x = strlen(temp);
-   while(x > 0)
-   {
-    if(temp[x] == '/')
-     break;
-    
-    temp[x--] = 0;
-   }
-
-   if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, 
-                          temp, -1, 0))
-   {
-    fprintf(stderr, "BCA: add_to_string_array() failed\n");
-    return 1;
-   }
-
-   cd->n_include_dirs++;
-   handled = 1;
+   x++;
   }
 
   if(handled == 0)
   {
+   /* this should have been discovered by now, but check again */
    fprintf(stderr, 
-           "BCA: I don't know what to do with with input %s\n", cd->inputs[i]);
+           "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
    return 1;
   }
 
-  free(base_file_name);
-  free(extension);
+  valid_input = 0;
+  add_file_name = 0;
+
+  if(strcmp(cd->project_component_types[x], "CUSTOM") == 0)
+  {
+   valid_input = 1;
+   add_file_name = 1;
+  }
+
+  if(strcmp(cd->project_component_types[x], "CAT") == 0)
+  {
+   valid_input = 1;
+   add_file_name = 1;
+  }
+
+  if(strcmp(cd->project_component_types[x], "MACROEXPAND") == 0)
+  {
+   valid_input = 1;
+   add_file_name = 1;
+  }
+
+  if(strcmp(cd->project_component_type, "CUSTOM") == 0)
+
+  {
+   if(strcmp(cd->project_component_types[x], "BINARY") == 0)
+    valid_input = 1;
+  }
+
+  if(valid_input == 0)
+  {
+   fprintf(stderr,
+           "BCA: I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[x], 
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  if(add_file_name)
+  {
+   handled = 0;
+
+
+   /*  Normally for binary files, etc we want to use render_project_component_output_name()
+       to yield the correct file name for the host. Although here, we are only talking
+       about generate source files.
+    */
+   snprintf(temp, 1024, "%s/%s",
+            tc->build_prefix, cd->project_output_names[x]);
+
+   if(path_extract(temp, &base_file_name, &extension))
+   {
+    return 1;
+   }
+
+   /* this needs to be updated everytime new file types are added, this really
+      should be an array that is shared everywhere.
+      We could skip this check since later when the component target rules get
+      generated, a file type with an unkown corse of action will be reported,
+      but we wont know that it was from an .INPUT and we wont get to deal with
+      header files specially here.
+   */
+   if(strcmp(extension, "c") == 0)
+   {
+    /* Do the actual adding of the ouptut name to .FILES. At this point,
+       base names and extensions have already been expanded for the other
+       .FILES, so these need to be added here. */
+    if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
+                           temp, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
+                           base_file_name, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
+                           extension, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_names++;
+    handled = 1;
+   }
+
+   /*  If the input is a header file, then add it to the .FILE_DEPS since
+       it that there is some code path for creating the correct makefile dependency.
+       We need to also add the directory to the list of include paths.
+    */
+   if(strcmp(extension, "h") == 0)
+   {
+    if(add_to_string_array(&(cd->file_deps), cd->n_file_deps, 
+                           temp, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_deps++;
+
+    y = strlen(temp);
+    while(y > 0)
+    {
+     if(temp[y] == '/')
+      break;
+    
+     temp[y--] = 0;
+    }
+
+    if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, temp, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_include_dirs++;
+    handled = 1;
+   }
+
+   /* the text processing types can of course work with any file extension */
+   if(strcmp(cd->project_component_type, "CAT") == 0)
+    handled = 1;
+
+   if(strcmp(cd->project_component_type, "MACROEXPAND") == 0)
+    handled = 1;
+
+   /* along the same lines CUSTOM types could be doing anything */
+   if(strcmp(cd->project_component_type, "CUSTOM") == 0)
+    handled = 1;
+
+   if(handled == 0)
+   {
+    fprintf(stderr, 
+            "BCA: I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s, that is yielding an "
+           "output file with the extension '%s'.\n",
+           cd->inputs[i], cd->project_component_types[x], 
+           cd->project_component, cd->project_component_type,
+           cd->host, extension);
+    return 1;
+   }
+
+   free(base_file_name);
+   free(extension);
+  }
  }
 
  return 0;
@@ -549,7 +626,7 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
                                          FILE *output)
 {
  char *value;
- int yes, i;
+ int yes, i, j, driver_component;
 
  if((value = lookup_key(ctx,
                         ctx->project_configuration_contents, 
@@ -576,7 +653,7 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
   }
   i++;
  }
-
+ driver_component = i;
  if(yes == 0)
  {
   fprintf(stderr, 
@@ -584,8 +661,14 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
           cd->project_component, value);
   return 1;
  }
- yes = i;
  free(value);
+
+ if( (cd->file_names == NULL) && (cd->n_inputs == 0) )
+ {
+  fprintf(stderr, "BCA: CUSTOM component \"%s\", does not seem to have .INPUT or .FILES\n", 
+          cd->project_component);
+  return 1;
+ }
 
  fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
          output_file_name, output_file_name);
@@ -595,22 +678,46 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
   fprintf(output, "%s ", cd->file_names[i]);
  }
 
- if(cd->file_names == NULL)
+ for(i=0; i<cd->n_inputs; i++)
  {
-  fprintf(stderr, "BCA: CUSTOM component \"%s\", does not seem to have .INPUT or .FILES\n", 
-          cd->project_component);
-  return 1;
+  j=0;
+  while(j<cd->n_components)
+  {
+   if(strcmp(cd->project_components[j], cd->inputs[i]) == 0)
+    break;
+   j++;
+  }
+
+  fprintf(output, "%s/%s ", tc->build_prefix, cd->project_output_names[j]);
  }
 
- fprintf(output, "%s/%s\n", tc->build_prefix, cd->project_output_names[yes]);
+ fprintf(output, "%s/%s\n", tc->build_prefix, cd->project_output_names[driver_component]);
 
- fprintf(output, "\tchmod +x %s/%s\n", tc->build_prefix, cd->project_output_names[yes]);
- fprintf(output, "\t%s/%s %s %s\n", 
-         tc->build_prefix, cd->project_output_names[yes],
-         cd->file_names[0], output_file_name);
+ fprintf(output, "\tchmod +x %s/%s\n", 
+         tc->build_prefix, cd->project_output_names[driver_component]);
 
- fprintf(output, "\n");
+ fprintf(output, "\t%s/%s ", 
+         tc->build_prefix, cd->project_output_names[driver_component]);
 
+ for(j=0; j<cd->n_file_names; j++)
+ {
+  fprintf(output, "%s ", cd->file_names[j]);
+ }
+
+ for(i=0; i<cd->n_inputs; i++)
+ {
+  j=0;
+  while(j<cd->n_components)
+  {
+   if(strcmp(cd->project_components[j], cd->inputs[i]) == 0)
+    break;
+   j++;
+  }
+
+  fprintf(output, "%s/%s ", tc->build_prefix, cd->project_output_names[j]);
+ }
+
+ fprintf(output, "%s\n\n", output_file_name);
  return 0;
 }
 
@@ -1555,6 +1662,12 @@ int generate_gmakefile_mode(struct bca_context *ctx)
   if(list_project_components(ctx, &cd))
   {
    fprintf(stderr, "BCA: list_project_components() failed\n");
+   fclose(output);
+   return 1;
+  }
+
+  if(check_duplicate_output_names(ctx, &cd))
+  {
    fclose(output);
    return 1;
   }

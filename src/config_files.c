@@ -565,6 +565,32 @@ int list_component_opt_external_dependencies(struct bca_context *ctx,
  return 0;
 }
 
+int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd)
+{
+ char **output_names = NULL;
+ int n_output_names = 0, x;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: check_duplicate_output_names()\n");
+
+ for(x=0; x<cd->n_components; x++)
+ {
+  if(add_to_string_array(&output_names, n_output_names, 
+                         cd->project_output_names[x], -1, 1))
+  {
+   fprintf(stderr, 
+           "BCA: The component output name \"%s\" is used more than once.\n",
+           cd->project_output_names[x]);
+           
+   return 1;
+  }
+  n_output_names++;
+ }
+
+ free_string_array(output_names, n_output_names);
+ return 0;
+}
+
 int engage_build_configuration_disables_for_host(struct bca_context *ctx, char *host)
 {
  char *value;
@@ -1374,7 +1400,7 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
    return 1;
   }
 
-  if(add_to_string_array(&(cd->inputs), cd->n_inputs, cd->project_output_names[i], -1, 1))
+  if(add_to_string_array(&(cd->inputs), cd->n_inputs, cd->project_components[i], -1, 1))
   {
    fprintf(stderr, "BCA: resolve_component_file_dependencies(): add_to_string_array()\n");
    return 1;

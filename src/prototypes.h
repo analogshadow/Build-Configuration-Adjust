@@ -316,6 +316,8 @@ int resolve_effective_path_mode(struct bca_context *ctx);
 int resolve_component_installation_path(struct bca_context *ctx, char *component_type, 
                                         char *component, char **path);
 
+int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
+
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx, 
                          struct component_details *cd);  

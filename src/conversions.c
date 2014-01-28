@@ -133,7 +133,7 @@ int render_project_component_output_name(struct bca_context *ctx,
                                          char *host, char *component, int edition,
                                          char ***array_ptr, char ***extensions)
 {
- char **hosts, *extension, temp[1024], **names = NULL, *component_install_path;
+ char **hosts, *extension, temp[1024], **names = NULL, *component_install_path, *e;
  int n_hosts, x, y, handled, matched, n_names = 0, code,
      prefix_length, import, effective_path_mode;
  struct component_details cd;
@@ -272,6 +272,26 @@ int render_project_component_output_name(struct bca_context *ctx,
                     "BCA: NOTE: I need a way to know if CAT component \"%s\" needs"
                     " to be installed\n", cd.project_components[y]);
             matched = 1;
+           }
+
+           if( (matched == 0) && 
+               (strcmp(cd.project_component_types[y], "CUSTOM") == 0) )
+           {
+            e = NULL;
+            if(path_extract(cd.project_output_names[y], NULL, &e))
+            {
+             return 1;
+            }
+
+            /* try to go with extension */
+            if(strcmp(e, "html") == 0)
+            {
+             prefix_length = snprintf(temp, 1024, "[fix me: should be documentation directory]");
+             matched = 1; 
+            }
+
+            free(e);
+            e = NULL;
            }
 
            if(matched == 0)
