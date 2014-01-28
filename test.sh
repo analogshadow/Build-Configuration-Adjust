@@ -867,12 +867,92 @@ examples_effectivepaths() {
  cd ..
 }
 
+
+examples_customwithnativetool() {
+ #start from scratch
+ prepare_environment
+ cd testing_environment
+ ln -sf ../native/bca-canadate ./bca
+
+ #start a new bca project by giving it a name
+ ./bca --newproject "Custom with Native Tool" &> out
+
+ #add a component named "make_hello" that is binary executable to be
+ #build from the C source file make_hello.c, with the output named make_hello
+ ./bca --component make_hello --type BINARY --newvalue NAME make_hello >> out 2>> out
+ ./bca --component make_hello --type BINARY --newvalue FILES make_hello.c >> out 2>> out
+
+ #Behold, sh script that outputs a C program, that outputs a C program.
+ echo "#include <stdio.h>" > make_hello.c
+ echo "int main(void)" >> make_hello.c
+ echo "{" >> make_hello.c
+ echo ' printf("#include <stdio.h>\n");' >> make_hello.c
+ echo ' printf("int main(void)\n");' >> make_hello.c
+ echo ' printf("{\n");' >> make_hello.c
+ echo ' printf(" printf(\"hello world\\n\");\n");' >> make_hello.c
+ echo ' printf(" return 0;\n");' >> make_hello.c
+ echo ' printf("}\n");' >> make_hello.c
+ echo ' return 0;' >> make_hello.c
+ echo '}' >> make_hello.c
+ 
+ #add a component named "make_hello_wrapper" that is a macro expanded text file
+ #with the output name of make_hello_wrapper.sh from the source file 
+ #make_hello_wrapper.sh.in
+./bca --component make_hello_wrapper --type MACROEXPAND --newvalue NAME \
+ make_hello_wrapper.sh &>> out
+ ./bca --component make_hello_wrapper --type MACROEXPAND --newvalue FILES \
+ "make_hello_wrapper.sh.in" &>> out
+
+ #contents of make_hello_world.sh.in
+ #The last argument to a custom script will be output name. In this case it
+ #should be argv[1] referenced as $1 in bash.
+ #We also see how to know what the build output name of the make_hello
+ #utility will be. 
+ echo '#!/bin/bash' >> make_hello_wrapper.sh.in
+ echo '@BCA.BUILDOUTPUTNAME.make_hello[0]@ > $1' >> make_hello_wrapper.sh.in
+
+ #next add a CUSTOM component named generated_hello that will use the created file
+ #make_hello_wrapper.sh to do its bidding, which is to generate a file called generated_hello.c
+ ./bca --component generated_hello --type CUSTOM --newvalue NAME generated_hello.c &>> out
+ ./bca --component generated_hello --type CUSTOM --newvalue INPUT make_hello &>> out
+ ./bca --component generated_hello --type CUSTOM --newvalue DRIVER make_hello_wrapper &>> out
+
+ #now we want to actually build the tool-generated source file as part of our project.
+ ./bca --component special_hello --type BINARY --newvalue NAME special_hello >> out 2>> out
+ ./bca --component special_hello --type BINARY --newvalue INPUT generated_hello >> out 2>> out
+
+ try_configure 
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ output_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ echo "passed" >> ../test.sh-results
+
+ graphviz_sanity_check concat
+ makeclean_check concat 
+
+ cd ..
+} 
+
 usage() {
  echo -e "usage:\n test.sh\n test.sh suite\n test.sh suite testname\n test.sh --list" >&2
 }
 
 examples=(helloworld multifilebin sharedlib sharedlibandbin concat macroexpand generateddeps \
-          customcommand inputtocustom effectivepaths)
+          customcommand inputtocustom effectivepaths customwithnativetool)
 
 enablelogic_disableall() {
  prepare_environment
@@ -932,6 +1012,7 @@ enablelogic_disableall() {
   done
  done
  echo "passed" >> ../test.sh-results
+ #this graph is broken
  graphviz_sanity_check concat
  makeclean_check concat 
  cd ..
@@ -1160,7 +1241,7 @@ enablelogic_defaultdisabled() {
   do
    if [ ! -f $FILE ]
    then
-    echo "failed: $FILE should have been build; component $COMPONENT should have not been disabled" >> ../test.sh-results
+    echo "failed: $FILE should have been build; component $COMPONENT should have not been  disabled" >> ../test.sh-results
     echo "test.sh: failed test enablelogic.defaultdisabled:" >&2
     cat out >&2
     return 1
@@ -1489,6 +1570,7 @@ swaps_simple() {
 
  cd ..
 } 
+
 
 #now we need swap tests for the cases:
 # -native build tool used in cross compile case
