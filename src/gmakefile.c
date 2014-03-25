@@ -1253,10 +1253,8 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
            output_file_names[0]);
   }
 
- } else {
-
-  fprintf(output, " ");
  }
+ fprintf(output, " ");
 
  /* both libraries and binaries may have LDFLAGS */
  if(tc->ldflags != NULL)
