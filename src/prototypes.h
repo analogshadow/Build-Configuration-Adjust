@@ -36,7 +36,7 @@
 
 #define NEW_PROJECT_MODE 2
 #define REMOVE_VALUE_MODE 4
-#define SHOW_VALUE_MODE 5 
+#define SHOW_VALUE_MODE 5
 #define SET_VALUE_MODE 6
 #define ADD_VALUE_MODE 7
 #define PULL_VALUE_MODE 8
@@ -71,14 +71,14 @@
 
 struct bca_context
 {
- int mode, extra_args_start, manipulation_type, verbose, 
+ int mode, extra_args_start, manipulation_type, verbose,
      n_withouts, n_disables, n_enables, n_swaps;
  char *search_value_key, *new_value_string;
- char value_key[1024], value_string[1024]; 
+ char value_key[1024], value_string[1024];
  char *principle, *qualifier;
 
  char *install_prefix, *host_prefix, *build_prefix;
- char **without_strings, **disabled_components, **enabled_components, 
+ char **without_strings, **disabled_components, **enabled_components,
       **swapped_components, **swapped_component_hosts;
 
 #ifdef HAVE_CWD
@@ -106,7 +106,7 @@ struct component_details
 
  char **inputs;
  int n_inputs;
- 
+
  char **file_deps;
  int n_file_deps;
 
@@ -168,7 +168,7 @@ struct host_configuration
  char *install_bin_dir;        /* autoconf's bindir */
  char *install_lib_dir;        /* autoconf's libdir */
  char *install_include_dir;    /* autoconf's includedir */
- char *install_pkg_config_dir; 
+ char *install_pkg_config_dir;
  char *install_locale_data_dir;
 };
 
@@ -181,7 +181,7 @@ int string_replace(struct bca_context *ctx);
 /* conversions.c -------------------------------- */
 char *without_string_to_without_macro(struct bca_context *ctx, char *in);
 
-int render_project_component_output_name(struct bca_context *ctx, 
+int render_project_component_output_name(struct bca_context *ctx,
                                          char *host, char *component, int edition,
                                          char ***array_ptr, char ***extensions);
 
@@ -190,7 +190,7 @@ char *host_identifier_from_host_prefix(struct bca_context *ctx);
 char *build_prefix_from_host_prefix(struct bca_context *ctx);
 
 char *component_type_file_extension(struct bca_context *ctx, struct host_configuration *tc,
-                                    char *project_component_type, 
+                                    char *project_component_type,
                                     char *project_component_output_name);
 
 /* main.c --------------------------------------- */
@@ -207,7 +207,7 @@ int concatenate(struct bca_context *ctx, int argc, char **argv);
 /* strings.c ------------------------------------ */
 int contains_string(char *source, int source_length, char *search, int search_length);  // selftested
 
-int add_to_string_array(char ***array, int array_size, 
+int add_to_string_array(char ***array, int array_size,
                         char *string, int string_length,
                         int prevent_duplicates);  // selftested
 
@@ -227,25 +227,25 @@ char *escape_value(struct bca_context *ctx, char *source, int length);  // selft
 /* config_files.c ------------------------------- */
 int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length, int *offset,
                            char *principle_filter, char *component_filter, char *key_filter,
-                           char principle[256], char component[256], char key[256], 
+                           char principle[256], char component[256], char key[256],
                            int *equals_pos);    // selftested
 
-char *lookup_key(struct bca_context *ctx, char *file, int file_length, 
+char *lookup_key(struct bca_context *ctx, char *file, int file_length,
                  char *principle_filter, char *component_filter, char *key_filter);   // selftested
 
 int list_unique_principles(struct bca_context *ctx, char *qualifier,
                            char *contents, int length,
                            char ***principle_list, int *n_principles);   // selftested
 
-int output_modifications(struct bca_context *ctx, FILE *output, 
+int output_modifications(struct bca_context *ctx, FILE *output,
                          char *contents, int length, int n_records,
                          char **principle, char **component, char **key, char **value); // selftested
 
-int output_modification(struct bca_context *ctx, FILE *output, 
+int output_modification(struct bca_context *ctx, FILE *output,
                         char *contents, int length,
                         char *principle, char *component, char *key, char *value);
 
-int modify_file(struct bca_context *ctx, char *filename, 
+int modify_file(struct bca_context *ctx, char *filename,
                 char *principle, char *component, char *key, char *value);
 
 int add_value(struct bca_context *ctx);
@@ -264,42 +264,42 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
 
 int check_project_component_types(struct bca_context *ctx);
 
-int list_project_components(struct bca_context *ctx, 
+int list_project_components(struct bca_context *ctx,
                             struct component_details *cd);
 
-int list_component_internal_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int list_component_internal_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          char ***list, int *n_elements);
 
-int list_component_external_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int list_component_external_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          char ***list, int *n_elements);
 
-int list_component_opt_external_dependencies(struct bca_context *ctx, 
-                                             struct component_details *cd, 
+int list_component_opt_external_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd,
                                              char ***list, int *n_elements);
 
 int resolve_project_name(struct bca_context *ctx);  // selftested
 
-int resolve_component_dependencies(struct bca_context *ctx, 
+int resolve_component_dependencies(struct bca_context *ctx,
                                    struct component_details *cd);
 
-int resolve_component_version(struct bca_context *ctx, 
+int resolve_component_version(struct bca_context *ctx,
                               char *contents, int contents_length,
                               struct component_details *cd,
                               char *component_type,
                               char *project_component);
 
-int resolve_component_file_dependencies(struct bca_context *ctx, 
-                                        struct component_details *cd, 
+int resolve_component_file_dependencies(struct bca_context *ctx,
+                                        struct component_details *cd,
                                         int component_index);
 
-int resolve_component_input_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int resolve_component_input_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          int component_index);
 
-char *resolve_build_host_variable(struct bca_context *ctx, 
-                                  char *host, 
+char *resolve_build_host_variable(struct bca_context *ctx,
+                                  char *host,
                                   char *project_component,
                                   char *key);
 
@@ -313,20 +313,20 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
 int resolve_effective_path_mode(struct bca_context *ctx);
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type, 
+int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
                                         char *component, char **path);
 
 int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
 
 /* configure.c ---------------------------------- */
-int is_c_compiler_needed(struct bca_context *ctx, 
-                         struct component_details *cd);  
+int is_c_compiler_needed(struct bca_context *ctx,
+                         struct component_details *cd);
 
-int is_pkg_config_needed(struct bca_context *ctx, 
-                         struct component_details *cd);  
+int is_pkg_config_needed(struct bca_context *ctx,
+                         struct component_details *cd);
 
-int test_package_exist(struct bca_context *ctx, 
-                       struct component_details *cd, 
+int test_package_exist(struct bca_context *ctx,
+                       struct component_details *cd,
                        struct host_configuration *tc,
                        char *package, int optional);
 
@@ -335,7 +335,7 @@ int test_runnable(struct bca_context *ctx, char *command);
 int configure(struct bca_context *ctx);
 
 int append_host_configuration(struct bca_context *ctx,
-                              struct host_configuration *tc, 
+                              struct host_configuration *tc,
                               struct component_details *cd,
                               int *n_modify_records,
                               char ***mod_principles,
@@ -346,33 +346,33 @@ int append_host_configuration(struct bca_context *ctx,
 /* gmakefile.c ---------------------------------- */
 int generate_gmakefile_mode(struct bca_context *ctx);
 
-int generate_gmake_host_components(struct bca_context *ctx, FILE *output, 
+int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
                                    char **hosts, int n_hosts,
                                    struct component_details *cd);
 
-int generate_gmake_clean_rules(struct bca_context *ctx, FILE *output, 
+int generate_gmake_clean_rules(struct bca_context *ctx, FILE *output,
                                char **hosts, int n_hosts,
                                struct component_details *cd);
 
-int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *output, 
+int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *output,
                                              struct component_details *cd);
 
-int generate_gmake_install_rules(struct bca_context *ctx, FILE *output, 
+int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  char **hosts, int n_build_hosts,
                                  struct component_details *cd);
 
 /* graphviz.c ----------------------------------- */
-int graphviz_edges(struct bca_context *ctx, FILE *output, 
+int graphviz_edges(struct bca_context *ctx, FILE *output,
                    struct component_details *cd);
 
-int graphviz_nodes(struct bca_context *ctx, FILE *output, 
+int graphviz_nodes(struct bca_context *ctx, FILE *output,
                    char **hosts, int n_build_hosts,
                    struct component_details *cd);
 
 int generate_graphviz_mode(struct bca_context *ctx);
 
-int graphviz_string_clean(struct bca_context *ctx, 
-                          char *input, int length, 
+int graphviz_string_clean(struct bca_context *ctx,
+                          char *input, int length,
                           char *output, int size);
 
 /* newt.c --------------------------------------- */

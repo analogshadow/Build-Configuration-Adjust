@@ -57,7 +57,7 @@ graphviz_sanity_check() {
  fi
 
  mkdir -p ../gvplottests
- echo -n "test: ${test}gvsane: " >> ../test.sh-results 
+ echo -n "test: ${test}gvsane: " >> ../test.sh-results
 
  ./bca --generate-graphviz &> out
  if [ $? != 0 ]
@@ -80,7 +80,7 @@ graphviz_sanity_check() {
 
  dot -Tpng -o bcaproject.png bcaproject.dot
  if [ $? != 0 ]
- then 
+ then
   ERROR="failed: dot returned non-zero"
   echo $ERROR >> ../test.sh-results
   echo "test.sh: $ERROR on test ${suite}.${test}gvsane:" >&2
@@ -179,7 +179,7 @@ configurewrapper_buildsinglefiledist() {
  then
   return
  fi
- 
+
  if [ ! -f "./bca" ]
  then
   echo "failed: bca not created" >> ../test.sh-results
@@ -200,7 +200,7 @@ configurewrapper_useexistingbca() {
  if [ "$ERROR" != "" ]
  then
   return
- fi 
+ fi
 
  echo "passed" >> ../test.sh-results
 
@@ -220,7 +220,7 @@ configurewrapper_userbcafrompath() {
  if [ "$ERROR" != "" ]
  then
   return
- fi 
+ fi
 
  if [ ! -f "./bca" ]
  then
@@ -242,7 +242,7 @@ configurewrapper_userbcafromenv() {
  if [ "$ERROR" != "" ]
  then
   return
- fi 
+ fi
 
  if [ ! -f "./bca" ]
  then
@@ -269,14 +269,14 @@ examples_helloworld() {
  if [ "$ERROR" != "" ]
  then
   return
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
  then
   return
  fi
- 
+
  created_files_check
  if [ "$ERROR" != "" ]
  then
@@ -284,13 +284,13 @@ examples_helloworld() {
  fi
 
  ./native/hello$NATIVEBINSUFFIX >> out 2>> out
- if [ $? != 0 ] 
+ if [ $? != 0 ]
  then
   echo "failed: hello binary return code wrong" >> ../test.sh-results
- else 
+ else
   echo "passed" >> ../test.sh-results
   graphviz_sanity_check helloworld
-  makeclean_check helloworld 
+  makeclean_check helloworld
  fi
 
  cd ..
@@ -314,7 +314,7 @@ examples_multifilebin() {
  if [ "$ERROR" != "" ]
  then
   return
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -329,13 +329,13 @@ examples_multifilebin() {
  fi
 
  ./native/hello$NATIVEBINSUFFIX >> out 2>> out
- if [ $? != 0 ] 
+ if [ $? != 0 ]
  then
   echo "failed: hello binary return code wrong" >> ../test.sh-results
- else 
+ else
   echo "passed" >> ../test.sh-results
   graphviz_sanity_check multifilebin
-  makeclean_check multifilebin 
+  makeclean_check multifilebin
  fi
 
  cd ..
@@ -360,7 +360,7 @@ examples_sharedlib() {
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -382,7 +382,7 @@ examples_sharedlib() {
 
  echo "passed" >> ../test.sh-results
  graphviz_sanity_check sharedlib
- makeclean_check sharedlib 
+ makeclean_check sharedlib
 
  cd ..
 }
@@ -406,12 +406,12 @@ examples_extdepends() {
          "{\n print_hello();\n return 0;\n}\n" > main.c
  ln -sf ../native/bca-canadate ./bca
 
- PKG_CONFIG_PATH=../testing_environment/native 
+ PKG_CONFIG_PATH=../testing_environment/native
  try_configure
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -425,13 +425,13 @@ examples_extdepends() {
   return
  fi
 
- export LD_LIBRARY_PATH=../testing_environment/native 
+ export LD_LIBRARY_PATH=../testing_environment/native
  export DYLD_LIBRARY_PATH=../testing_environment/native
  ./native/main$NATIVEBINSUFFIX >> out 2>> out
  unset LD_LIBRARY_PATH
  unset DYLD_LIBRARY_PATH
  unset PKG_CONFIG_PATH
- if [ $? != 0 ] 
+ if [ $? != 0 ]
  then
   echo "failed: binary, main, return code wrong" >> ../test.sh-results
   return
@@ -475,7 +475,7 @@ examples_sharedlibandbin() {
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -489,16 +489,16 @@ examples_sharedlibandbin() {
   return
  fi
 
- export LD_LIBRARY_PATH=./native 
+ export LD_LIBRARY_PATH=./native
  export DYLD_LIBRARY_PATH=./native
  ./native/main$NATIVEBINSUFFIX >> out 2>> out
  unset LD_LIBRARY_PATH
  unset DYLD_LIBRARY_PATH
- if [ $? != 0 ] 
+ if [ $? != 0 ]
  then
   echo "failed: binary, main, return code wrong" >> ../test.sh-results
   return
- fi 
+ fi
 
  output_check
  if [ "$ERROR" != "" ]
@@ -508,7 +508,7 @@ examples_sharedlibandbin() {
 
  echo "passed" >> ../test.sh-results
  graphviz_sanity_check sharedlibandbin
- makeclean_check sharedlibandbin 
+ makeclean_check sharedlibandbin
  cd ..
 }
 
@@ -528,7 +528,7 @@ examples_concat() {
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -559,7 +559,7 @@ examples_concat() {
 
  echo "passed" >> ../test.sh-results
  graphviz_sanity_check concat
- makeclean_check concat 
+ makeclean_check concat
 
  cd ..
 }
@@ -583,7 +583,7 @@ examples_macroexpand() {
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -614,7 +614,7 @@ examples_macroexpand() {
 
  echo "passed" >> ../test.sh-results
  graphviz_sanity_check macroexpand
- makeclean_check macroexpand 
+ makeclean_check macroexpand
 
  cd ..
 }
@@ -645,7 +645,7 @@ examples_generateddeps() {
  if [ "$ERROR" != "" ]
  then
   return 1
- fi 
+ fi
 
  try_make
  if [ "$ERROR" != "" ]
@@ -660,7 +660,7 @@ examples_generateddeps() {
  fi
 
  ./native/hello$NATIVEBINSUFFIX >> out 2>> out
- if [ $? != 0 ] 
+ if [ $? != 0 ]
  then
   echo "failed: hello binary return code wrong" >> ../test.sh-results
   echo "test.sh: unexpected binary output" >&2
@@ -684,7 +684,7 @@ examples_generateddeps() {
 
  echo "passed" >> ../test.sh-results
  graphviz_sanity_check generateddeps
- makeclean_check generateddeps 
+ makeclean_check generateddeps
 
  cd ..
 }
@@ -703,7 +703,7 @@ examples_customcommand() {
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation. Abcdef.</p>\n"\
          " </body>\n</html>\n" > documentation.html
  echo -e "#!/bin/bash\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
-         "if  	[ \"\$WORDS\" != \"\" ]\n"\
+         "if  [ \"\$WORDS\" != \"\" ]\n"\
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
 
@@ -892,9 +892,9 @@ examples_customwithnativetool() {
  echo ' printf("}\n");' >> make_hello.c
  echo ' return 0;' >> make_hello.c
  echo '}' >> make_hello.c
- 
+
  #add a component named "make_hello_wrapper" that is a macro expanded text file
- #with the output name of make_hello_wrapper.sh from the source file 
+ #with the output name of make_hello_wrapper.sh from the source file
  #make_hello_wrapper.sh.in
 ./bca --component make_hello_wrapper --type MACROEXPAND --newvalue NAME \
  make_hello_wrapper.sh &>> out
@@ -905,12 +905,12 @@ examples_customwithnativetool() {
  #The last argument to a custom script will be output name. In this case it
  #should be argv[2] referenced as $2 in bash.
  #We also see how to know what the build output name of the make_hello
- #utility will be. 
+ #utility will be.
  echo '#!/bin/bash' >> make_hello_wrapper.sh.in
  echo '@BCA.BUILDOUTPUTNAME.make_hello[0]@ > $2' >> make_hello_wrapper.sh.in
 
  #next add a CUSTOM component named generated_hello that will use the created file
- #make_hello_wrapper.sh to do its bidding, which is to generate a file called generated_hello.c
+ #make_hello_wrapper.sh to do its bidding, [M W,which is to generate a file called generated_hello.c
  ./bca --component generated_hello --type CUSTOM --newvalue NAME generated_hello.c &>> out
  ./bca --component generated_hello --type CUSTOM --newvalue INPUT make_hello &>> out
  ./bca --component generated_hello --type CUSTOM --newvalue DRIVER make_hello_wrapper &>> out

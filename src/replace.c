@@ -150,7 +150,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   if((value = (char *) malloc(allocation_size)) == NULL)
   {
    fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
-   return NULL;   
+   return NULL;
   }
 
   length = 0;
@@ -329,8 +329,8 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   {
    if(ctx->build_configuration_contents == NULL)
    {
-    if((ctx->build_configuration_contents = 
-        read_file("./buildconfiguration/buildconfiguration", 
+    if((ctx->build_configuration_contents =
+        read_file("./buildconfiguration/buildconfiguration",
                   &(ctx->build_configuration_length), 0)) == NULL)
     {
      fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
@@ -341,7 +341,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    if(strcmp(a, "CURRENT") == 0)
     snprintf(a , 256, "%s", ctx->principle);
 
-   if((value = lookup_key(ctx, ctx->build_configuration_contents, 
+   if((value = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length, a, b, c)) != NULL)
    {
     return value;
@@ -349,7 +349,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 
    if(strcmp(b, "ALL") != 0)
    {
-    return lookup_key(ctx, ctx->build_configuration_contents, 
+    return lookup_key(ctx, ctx->build_configuration_contents,
                       ctx->build_configuration_length, a, "ALL", c);
    }
 
@@ -360,24 +360,24 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   {
    if(ctx->project_configuration_contents == NULL)
    {
-    if((ctx->project_configuration_contents = 
-         read_file("./buildconfiguration/projectconfiguration", 
+    if((ctx->project_configuration_contents =
+         read_file("./buildconfiguration/projectconfiguration",
                    &(ctx->project_configuration_length), 0)) == NULL)
     {
      return NULL;
     }
    }
 
-   if((value = lookup_key(ctx, ctx->project_configuration_contents, 
+   if((value = lookup_key(ctx, ctx->project_configuration_contents,
                           ctx->project_configuration_length, a, b, c)) != NULL)
    {
     return value;
    }
 
-   if( ( (strcmp(c, "MAJOR") == 0) || (strcmp(c, "MINOR") == 0) ) && 
+   if( ( (strcmp(c, "MAJOR") == 0) || (strcmp(c, "MINOR") == 0) ) &&
         (strcmp(b, "NONE") != 0) )
    {
-    return lookup_key(ctx, ctx->project_configuration_contents, 
+    return lookup_key(ctx, ctx->project_configuration_contents,
                       ctx->project_configuration_length, "NONE", "NONE", c);
    }
 
@@ -406,7 +406,7 @@ int string_replace(struct bca_context *ctx)
   } else {
 
    index = 0;
-   while(!feof(stdin)) 
+   while(!feof(stdin))
    {
     fscanf(stdin, "%c", &c);
     if(c != '@')
@@ -425,7 +425,7 @@ int string_replace(struct bca_context *ctx)
    if(index == 0)
    {
     /* @@ escapes out @ */
-    fprintf(stdout, "@"); 
+    fprintf(stdout, "@");
    } else {
 
     key[index] = 0;

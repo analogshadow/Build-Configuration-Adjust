@@ -26,8 +26,8 @@
 char temp[1024];
 int temp_length;
 
-int detect_platform(struct bca_context *ctx, 
-                    char *host_root, 
+int detect_platform(struct bca_context *ctx,
+                    char *host_root,
                     char **platform)
 {
  FILE *test;
@@ -37,7 +37,7 @@ int detect_platform(struct bca_context *ctx,
   if( (strcmp(ctx->principle, "NATIVE") != 0) &&
       (ctx->host_prefix != NULL) )
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: detect_platform() - warning: HOST_ROOT is NULL, "
            "and this looks like cross compile.\n");
    return 0;
@@ -70,7 +70,7 @@ int detect_platform(struct bca_context *ctx,
  return 0;
 }
 
-int is_file_of_type_used(struct bca_context *ctx, 
+int is_file_of_type_used(struct bca_context *ctx,
                          struct component_details *cd,
                          char *type_extension)
 {
@@ -80,7 +80,7 @@ int is_file_of_type_used(struct bca_context *ctx,
  if(ctx->verbose > 1)
  {
   printf("BCA: Looking for a project file for an enabled component with extension '%s'.\n",
-         type_extension); 
+         type_extension);
   fflush(stdout);
  }
 
@@ -116,10 +116,10 @@ int is_file_of_type_used(struct bca_context *ctx,
    {
     if(strcmp(cd->file_extensions[j], type_extension) == 0)
     {
-     yes = 1;     
+     yes = 1;
      break;
     }
- 
+
     j++;
    }
 
@@ -185,7 +185,7 @@ int is_file_of_type_used(struct bca_context *ctx,
 
     if(handled == 0)
     {
-     fprintf(stderr, 
+     fprintf(stderr,
              "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
              cd->project_component, cd->host, cd->inputs[j]);
      return 1;
@@ -196,7 +196,7 @@ int is_file_of_type_used(struct bca_context *ctx,
     {
      return 1;
     }
-   
+
     if(strcmp(extension, type_extension) == 0)
      yes = 1;
 
@@ -223,43 +223,43 @@ int is_file_of_type_used(struct bca_context *ctx,
  return 0;
 }
 
-int is_c_compiler_needed(struct bca_context *ctx, 
+int is_c_compiler_needed(struct bca_context *ctx,
                          struct component_details *cd)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C source files to see if C compiler is needed.\n"); 
+  printf("BCA: Looking for a C source files to see if C compiler is needed.\n");
   fflush(stdout);
  }
 
  return is_file_of_type_used(ctx, cd, "c");
 }
 
-int is_cxx_compiler_needed(struct bca_context *ctx, 
+int is_cxx_compiler_needed(struct bca_context *ctx,
                            struct component_details *cd)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed.\n"); 
+  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed.\n");
   fflush(stdout);
  }
 
  return is_file_of_type_used(ctx, cd, "cpp");
 }
 
-int is_erlang_compiler_needed(struct bca_context *ctx, 
+int is_erlang_compiler_needed(struct bca_context *ctx,
                               struct component_details *cd)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed.\n"); 
+  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed.\n");
   fflush(stdout);
  }
 
  return is_file_of_type_used(ctx, cd, "erl");
 }
 
-int is_pkg_config_needed(struct bca_context *ctx, 
+int is_pkg_config_needed(struct bca_context *ctx,
                          struct component_details *cd)
 {
  int i, n_elements, check_all = 0;
@@ -343,13 +343,13 @@ int is_fpic_needed(struct bca_context *ctx,
   fprintf(f, "int function(void) { return 0; }\n\n");
   fclose(f);
 
-  snprintf(command, 1024, 
+  snprintf(command, 1024,
            "%s %s -fpic configuretestfile.c %s configuretestfile.o 1> configuretestoutput "
-           "2> configuretestoutput", 
+           "2> configuretestoutput",
            tc->cc, tc->cc_compile_bin_obj_flag, tc->cc_output_flag);
 
   if(ctx->verbose)
-   printf("BCA: about to run \"%s\"\n", command); 
+   printf("BCA: about to run \"%s\"\n", command);
 
   system(command);
 
@@ -374,29 +374,25 @@ int is_fpic_needed(struct bca_context *ctx,
  return needed;
 }
 
-int test_package_exist(struct bca_context *ctx, 
-                       struct component_details *cd, 
-                       struct host_configuration *tc,
-                       char *package, int optional)
+int test_package_exist_helper(char *command,
+                              struct bca_context *ctx,
+                              struct component_details *cd,
+                              struct host_configuration *tc,
+                              char *package)
 {
- char command[1024];
  int code, length;
-
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: test_package_exist(%s, %d)\n", package, optional);
 
  length = 0;
 
  if(tc->pkg_config_path != NULL)
-  length += snprintf(command + length, 1024 - length, 
+  length += snprintf(command + length, 1024 - length,
                     "PKG_CONFIG_PATH=%s ", tc->pkg_config_path);
 
  if(tc->pkg_config_libdir != NULL)
-  length += snprintf(command + length, 1024 - length, 
+  length += snprintf(command + length, 1024 - length,
                     "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
 
  snprintf(command + length, 1024 - length, "%s %s", tc->pkg_config, package);
- 
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: about to try system(\"%s\")...\n", command);
@@ -414,10 +410,44 @@ int test_package_exist(struct bca_context *ctx,
 
  if(WEXITSTATUS(code) == 0)
   return 0;
+}
+
+int test_package_exist(struct bca_context *ctx,
+                       struct component_details *cd,
+                       struct host_configuration *tc,
+                       char *package, int optional)
+{
+ char command[1024];
+ int code;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: test_package_exist(%s, %d)\n", package, optional);
+
+ if(test_package_exist_helper(command, ctx, cd, tc, package) == 0)
+  return 0;
+
+ snprintf(command, 1024, "./buildconfiguration/generate-pkg-config-%s-%s.sh",
+          package, cd->host);
+
+ /* todo: check to see if command exists, and that is executable */
+
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: attempting \"%s\"...\n", command);
+
+ if( (code = system(command)) > -1)
+ {
+  if(WEXITSTATUS(code) == 0)
+  {
+   if(test_package_exist_helper(command, ctx, cd, tc, package) == 0)
+    return 0;
+  } else {
+   fprintf(stderr, "BCA: %s not successful.\n", command);
+  }
+ }
 
  if(ctx->verbose > 0)
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: Could not find package '%s' for host '%s' using\n"
           "BCA: command line '%s'.\n"
           "BCA: Tweak with PKG_CONFIG_PATH, PKG_CONFIG_LIBDIR, and "
@@ -434,7 +464,7 @@ int test_package_exist(struct bca_context *ctx,
           "but something some\n"
           "BCA: distributions may include for convience and others do not.\n", package);
 
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: Similarly, the author(s) of \"%s\" might intend for a package config wrapper "
           "to be\n"
           "BCA: crafted for this purpose by those performing a build. Read the project's "
@@ -443,13 +473,13 @@ int test_package_exist(struct bca_context *ctx,
            ctx->project_name);
 
   if(optional == 1)
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Since this is only needed an optional package we will continue. "
            "You can disable this\n"
            "BCA: message with --without-%s .\n", package);
 
   if(optional == 2)
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Since package \"%s\" is an optional dependency for some componets of "
            "this project\n"
            "BCA: --without-%s can be used to disable the dependency for such component(s). "
@@ -460,12 +490,12 @@ int test_package_exist(struct bca_context *ctx,
  } else {
   if(optional == 1)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Could not find optional package '%s' for host '%s'.\n",
            package, ctx->principle);
   } else {
-   fprintf(stderr, 
-           "BCA: Could not find package '%s' for host '%s'.\n", 
+   fprintf(stderr,
+           "BCA: Could not find package '%s' for host '%s'.\n",
            package, ctx->principle);
   }
  }
@@ -492,13 +522,13 @@ int test_runnable(struct bca_context *ctx, char *command)
   perror("BCA: system()");
   return 1;
  }
-  
+
  if(WEXITSTATUS(code) == 127) /* does not exit code - system(3) */
  {
   fprintf(stderr, "BCA: not able to run \"%s\". Check your path. ", string);
   return 1;
  }
-  
+
  return 0;
 }
 
@@ -520,7 +550,7 @@ int *expand_int_array(int *ptr, int *allocated_size, int needed_size)
  return array;
 }
 
-int host_cc_configuration(struct bca_context *ctx, 
+int host_cc_configuration(struct bca_context *ctx,
                           struct host_configuration *tc,
                           struct component_details *cd)
 {
@@ -542,24 +572,24 @@ int host_cc_configuration(struct bca_context *ctx,
  if(s != NULL)
  {
   /* here we want to overwrite regardless */
-  snprintf(temp, 512, "%s%s", host_prefix, s); 
+  snprintf(temp, 512, "%s%s", host_prefix, s);
  } else {
   /* here we guess only if we have to */
   if(tc->cc != NULL)
   {
-   snprintf(temp, 512, "%s", tc->cc); 
+   snprintf(temp, 512, "%s", tc->cc);
   } else {
-   snprintf(temp, 512, "%sgcc", host_prefix); 
+   snprintf(temp, 512, "%sgcc", host_prefix);
   }
  }
 
  if(test_runnable(ctx, temp))
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: Specify alternative with C compiler with the CC environment variable.\n");
   return 1;
  }
-  
+
  if(ctx->verbose)
   printf("BCA: Host %s C Compiler = %s\n", ctx->principle, temp);
 
@@ -570,7 +600,7 @@ int host_cc_configuration(struct bca_context *ctx,
  return 0;
 }
 
-int host_cxx_configuration(struct bca_context *ctx, 
+int host_cxx_configuration(struct bca_context *ctx,
                            struct host_configuration *tc,
                            struct component_details *cd)
 {
@@ -592,24 +622,24 @@ int host_cxx_configuration(struct bca_context *ctx,
  if(s != NULL)
  {
   /* here we want to overwrite regardless */
-  snprintf(temp, 512, "%s%s", host_prefix, s); 
+  snprintf(temp, 512, "%s%s", host_prefix, s);
  } else {
   /* here we guess only if we have to */
   if(tc->cc != NULL)
   {
-   snprintf(temp, 512, "%s", tc->cxx); 
+   snprintf(temp, 512, "%s", tc->cxx);
   } else {
-   snprintf(temp, 512, "%sg++", host_prefix); 
+   snprintf(temp, 512, "%sg++", host_prefix);
   }
  }
 
  if(test_runnable(ctx, temp))
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: Specify alternative with C++ compiler with the CXX environment variable.\n");
   return 1;
  }
-  
+
  if(ctx->verbose)
   printf("BCA: Host %s C++ Compiler = %s\n", ctx->principle, temp);
 
@@ -620,11 +650,11 @@ int host_cxx_configuration(struct bca_context *ctx,
  return 0;
 }
 
-int c_family_configuration(struct bca_context *ctx, 
+int c_family_configuration(struct bca_context *ctx,
                            struct host_configuration *tc,
                            struct component_details *cd)
 {
- int code, need_cc, need_cxx; 
+ int code, need_cc, need_cxx;
  char *s;
 
  if((need_cxx = is_cxx_compiler_needed(ctx, cd)) == -1)
@@ -683,13 +713,13 @@ int c_family_configuration(struct bca_context *ctx,
   {
    /* here we want to overide regardless */
    tc->cflags = strdup(s);
-  } 
+  }
  }
 
  return 0;
 }
 
-int pkg_config_tests(struct bca_context *ctx, 
+int pkg_config_tests(struct bca_context *ctx,
                      struct host_configuration *tc,
                      struct component_details *cd)
 {
@@ -709,10 +739,10 @@ int pkg_config_tests(struct bca_context *ctx,
    if((s = tc->pkg_config) == NULL)
     s = "pkg-config";
   }
-  
+
   if(test_runnable(ctx, s))
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Specify alternative with pkg-config with the PKG_CONFIG "
            "environment variable.\n");
    return 1;
@@ -793,21 +823,21 @@ int append_host_configuration_helper(int *n_modify_records,
  return 0;
 }
 
-int process_dependencies(struct bca_context *ctx, 
+int process_dependencies(struct bca_context *ctx,
                          struct host_configuration *tc,
                          struct component_details *cd,
                          char ***mod_principles,
                          char ***mod_components,
-                         char ***mod_keys, 
+                         char ***mod_keys,
                          char ***mod_values,
                          int *n_modify_records)
 {
- /* Given the lists of external, and optional external filtered with --withouts, created 
+ /* Given the lists of external, and optional external filtered with --withouts, created
     a unique test list and test. Then given the --withouts, the tested list, and the
     internal deps list create the DEPENDS key for each component in this build.
  */
- int n_test_packages = 0, test_package_optional_flags_size = 0, 
-     n_elements, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length, 
+ int n_test_packages = 0, test_package_optional_flags_size = 0,
+     n_elements, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length,
      *test_package_optional_flags = NULL;
  char **test_package_list = NULL, **depends = NULL, **list = NULL, **opt_dep_list = NULL;
 
@@ -860,13 +890,13 @@ int process_dependencies(struct bca_context *ctx,
      {
       n_test_packages++;
 
-      /* we keep an array along side the list of packages to test for that 
+      /* we keep an array along side the list of packages to test for that
          holds if the package was an optional dependency. This way we don't
          test for the same package twice if it is in both catagories. The
          optional flag then deturmins if we can proceed if the package was
          not found. */
-      test_package_optional_flags = expand_int_array(test_package_optional_flags, 
-                                                     &test_package_optional_flags_size, 
+      test_package_optional_flags = expand_int_array(test_package_optional_flags,
+                                                     &test_package_optional_flags_size,
                                                      n_test_packages);
 
       test_package_optional_flags[n_test_packages - 1] = 1;
@@ -911,8 +941,8 @@ int process_dependencies(struct bca_context *ctx,
     {
      n_test_packages++;
 
-     test_package_optional_flags = expand_int_array(test_package_optional_flags, 
-                                                    &test_package_optional_flags_size, 
+     test_package_optional_flags = expand_int_array(test_package_optional_flags,
+                                                    &test_package_optional_flags_size,
                                                     n_test_packages);
 
      test_package_optional_flags[n_test_packages - 1] = 0;
@@ -953,7 +983,7 @@ int process_dependencies(struct bca_context *ctx,
    {
     return 1;
    } else {
-    if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts, 
+    if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts,
                            test_package_list[i], -1, 1))
     {
      fprintf(stderr, "BCA: add_to_string_array() failed while trying to add to the without list "
@@ -965,8 +995,8 @@ int process_dependencies(struct bca_context *ctx,
   }
   test_package_optional_flags[i] = code;
  }
- 
- /* the last step is to generate a list for the build configuration file's 
+
+ /* the last step is to generate a list for the build configuration file's
     host.component.depends record. This is how the set of dependencies
     persists from the configure phase to the makefile generation phase. */
  for(i=0; i < cd->n_components; i++)
@@ -987,12 +1017,12 @@ int process_dependencies(struct bca_context *ctx,
     return 1;
    }
    if(code == 0)
-    n_depends++;  
+    n_depends++;
 
   }
   free_string_array(list, n_elements);
 
-  /* everything in the external deps list should have been found or we would have errored before 
+  /* everything in the external deps list should have been found or we would have errored before
      this point */
   if(list_component_external_dependencies(ctx, cd, &list, &n_elements))
    return 1;
@@ -1004,7 +1034,7 @@ int process_dependencies(struct bca_context *ctx,
     return 1;
    }
    if(code == 0)
-    n_depends++;  
+    n_depends++;
   }
   free_string_array(list, n_elements);
 
@@ -1034,14 +1064,14 @@ int process_dependencies(struct bca_context *ctx,
     {
      if(strcmp(test_package_list[x], list[j]) == 0)
      {
-      if(test_package_optional_flags[x] != 0) 
+      if(test_package_optional_flags[x] != 0)
        yes = 0;
       break;
      }
      x++;
     }
    }
-     
+
    if(yes)
    {
     if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
@@ -1049,7 +1079,7 @@ int process_dependencies(struct bca_context *ctx,
      return 1;
     }
     if(code == 0)
-     n_depends++;  
+     n_depends++;
    }
   }
   free_string_array(list, n_elements);
@@ -1064,10 +1094,10 @@ int process_dependencies(struct bca_context *ctx,
   }
   free_string_array(depends, n_depends);
 
-  /* the actual modifying of the buildconfiguration file is deffered 
+  /* the actual modifying of the buildconfiguration file is deffered
      until the last step (for several reasons) with the 4 string arrays
-     of p.c.k = v "to modify" strings.   
-   */ 
+     of p.c.k = v "to modify" strings.
+   */
   if(add_to_string_array(mod_principles, *n_modify_records, ctx->principle, -1, 0))
    return 1;
 
@@ -1122,14 +1152,14 @@ int process_dependencies(struct bca_context *ctx,
     {
      if(strcmp(ctx->without_strings[x], opt_dep_list[j]) == 0)
      {
-      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ", 
+      temp_length += snprintf(temp + temp_length, 1024 - temp_length, "%s ",
                               ctx->without_strings[x]);
      }
     }
    }
-   temp[temp_length -= 1] = 0;   
+   temp[temp_length -= 1] = 0;
 
-   free_string_array(opt_dep_list, n_opt_deps);  
+   free_string_array(opt_dep_list, n_opt_deps);
 
    if(append_host_configuration_helper(n_modify_records,
                                        mod_principles, mod_components,
@@ -1145,14 +1175,14 @@ int process_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int derive_file_suffixes(struct bca_context *ctx, 
+int derive_file_suffixes(struct bca_context *ctx,
                          struct host_configuration *tc,
                          struct component_details *cd,
                          char *platform)
 {
  char host_prefix[512], *s;
  int yes;
- 
+
  /* host prefix */
  if(ctx->host_prefix == NULL)
  {
@@ -1172,7 +1202,7 @@ int derive_file_suffixes(struct bca_context *ctx,
    yes = 1;
 
   if(yes)
-  { 
+  {
    tc->binary_suffix = ".exe";
   } else {
    tc->binary_suffix = "";
@@ -1194,7 +1224,7 @@ int derive_file_suffixes(struct bca_context *ctx,
   {
    tc->shared_library_suffix = ".dll";
   } else if (strcmp(platform, "osx") == 0) {
-   tc->shared_library_suffix = ".dylib"; 
+   tc->shared_library_suffix = ".dylib";
   } else {
    tc->shared_library_suffix = ".so";
   }
@@ -1232,7 +1262,7 @@ int derive_file_suffixes(struct bca_context *ctx,
 
  return 0;
 }
-int derive_install_paths(struct bca_context *ctx, 
+int derive_install_paths(struct bca_context *ctx,
                          struct host_configuration *tc,
                          struct component_details *cd,
                          char *platform)
@@ -1269,14 +1299,14 @@ int derive_install_paths(struct bca_context *ctx,
  }
 
  /* INSTALL_PREFIX */
- if(tc->install_prefix == NULL) 
+ if(tc->install_prefix == NULL)
  {
   snprintf(temp, 512, "%s", install_prefix);
   tc->install_prefix = strdup(temp);
  }
 
  /* INSTALL_BIN_DIR */
- if(tc->install_bin_dir == NULL) 
+ if(tc->install_bin_dir == NULL)
  {
   snprintf(temp, 512, "%s/bin", install_prefix);
   tc->install_bin_dir = strdup(temp);
@@ -1331,7 +1361,7 @@ int swap_checks(struct bca_context *ctx)
   if(strcmp(ctx->swapped_component_hosts[x],
             ctx->principle) == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: swap for component %s can not point to the same host\n",
            ctx->swapped_components[x]);
    return 1;
@@ -1344,7 +1374,7 @@ int swap_checks(struct bca_context *ctx)
     disabled_by_default = 0;
 
     if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                           ctx->project_configuration_length, 
+                           ctx->project_configuration_length,
                            "NONE", "NONE", "DISABLES")) != NULL)
     {
      if(split_strings(ctx, value, -1, &n_project_disables, &project_disables))
@@ -1352,7 +1382,7 @@ int swap_checks(struct bca_context *ctx)
       fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
       return 1;
      }
-    
+
      j = 0;
      while(j < n_project_disables)
      {
@@ -1370,10 +1400,10 @@ int swap_checks(struct bca_context *ctx)
      fprintf(stderr,
              "BCA: Swaped compent \"%s\" is disabled by default. "
              "This requires both --enable-%s and --swap-%s\n.",
-             ctx->swapped_components[x], ctx->swapped_components[x], 
+             ctx->swapped_components[x], ctx->swapped_components[x],
              ctx->swapped_components[x]);
     } else {
-     fprintf(stderr, 
+     fprintf(stderr,
              "BCA: --disable-%s and --swap-%s are mutally exclusive.\n",
              ctx->swapped_components[x], ctx->swapped_components[x]);
     }
@@ -1386,7 +1416,7 @@ int swap_checks(struct bca_context *ctx)
  return 0;
 }
 
-int disables_and_enables(struct bca_context *ctx, 
+int disables_and_enables(struct bca_context *ctx,
                          struct host_configuration *tc,
                          struct component_details *cd,
                          int *n_modify_records,
@@ -1395,11 +1425,11 @@ int disables_and_enables(struct bca_context *ctx,
                          char ***mod_keys,
                          char ***mod_values)
 {
- char o_principle[256], o_component[256], o_key[256], 
+ char o_principle[256], o_component[256], o_key[256],
       *value, **project_disables;
  int i, j, n_project_disables, yes, p_length, end;
 
- /* hack warning: 
+ /* hack warning:
     list_project_components() takes the disabled list into account,
     here want the list of all components period */
  n_project_disables = ctx->n_disables;
@@ -1434,7 +1464,7 @@ int disables_and_enables(struct bca_context *ctx,
 
  /* 1) Start with disable by default components - the NONE.NONE.DISABLES. */
  if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                        ctx->project_configuration_length, 
+                        ctx->project_configuration_length,
                         "NONE", "NONE", "DISABLES")) != NULL)
  {
   if(ctx->verbose)
@@ -1464,7 +1494,7 @@ int disables_and_enables(struct bca_context *ctx,
    }
    j++;
   }
-  
+
   if(yes == 0)
   {
    fprintf(stderr,
@@ -1473,13 +1503,13 @@ int disables_and_enables(struct bca_context *ctx,
    return 1;
   }
 
-  if(add_to_string_array(&project_disables, n_project_disables, 
+  if(add_to_string_array(&project_disables, n_project_disables,
                          ctx->disabled_components[i], -1, 1) == -1)
   {
    /* this could safely return 1 for the duplicates */
    fprintf(stderr, "BCA: add_to_string_array() failed. This should not have happend!\n");
    return 1;
-  }  
+  }
   n_project_disables++;
  }
 
@@ -1494,7 +1524,7 @@ int disables_and_enables(struct bca_context *ctx,
    ctx->n_disables = n_project_disables;
   }
   /* 4) if there are no enables, and no default disables, then then the
-     only disables will be what ever (if any) specified on the command 
+     only disables will be what ever (if any) specified on the command
      line and already in use */
  } else {
 
@@ -1502,7 +1532,7 @@ int disables_and_enables(struct bca_context *ctx,
         away from the set of disables */
   free_string_array(ctx->disabled_components, ctx->n_disables);
   ctx->disabled_components = NULL;
-  ctx->n_disables = 0; 
+  ctx->n_disables = 0;
 
   /* user error check on the enable list */
   for(i=0; i < ctx->n_enables; i++)
@@ -1521,7 +1551,7 @@ int disables_and_enables(struct bca_context *ctx,
 
    if(yes == 0)
    {
-    fprintf(stderr, 
+    fprintf(stderr,
             "BCA: I do not have a disabled component named %s to enable.\n",
             ctx->enabled_components[i]);
      return 1;
@@ -1547,7 +1577,7 @@ int disables_and_enables(struct bca_context *ctx,
       effective set */
    if(yes == 1)
    {
-    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
+    if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables,
                            project_disables[i], -1, 1) != 0)
     {
      fprintf(stderr, "BCA: add_to_string_array() failed. This should not have happend!\n");
@@ -1568,7 +1598,7 @@ int disables_and_enables(struct bca_context *ctx,
  end = -1;
  while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
                               ctx->build_configuration_length, &end,
-                              NULL, NULL, "SWAP", 
+                              NULL, NULL, "SWAP",
                               o_principle, o_component, o_key, NULL))
  {
   value = lookup_key(ctx, ctx->build_configuration_contents,
@@ -1581,7 +1611,7 @@ int disables_and_enables(struct bca_context *ctx,
    {
     if(strcmp(value, ctx->principle) == 0)
     {
-     fprintf(stderr, 
+     fprintf(stderr,
              "BCA: I can not disable component \"%s\" on host \"%s\", "
              "because it is swapped to from host \"%s\". Remove that swap first.\n",
              o_component, value, o_principle);
@@ -1596,19 +1626,19 @@ int disables_and_enables(struct bca_context *ctx,
  /* DISABLED persistance */
  /* The disable list is not loaded from the build configuration at configure time.
     The way to enable something that was previously disabled is to not disable it on
-    the subsequent configure (or edit the file/value). This is in contrast to build 
-    configuration values such as CFLAGS that start with the old value (if any), modify 
+    the subsequent configure (or edit the file/value). This is in contrast to build
+    configuration values such as CFLAGS that start with the old value (if any), modify
     with flags etc, then save the revised state.
 
     Also remember that all of this is only to effect the build configuration (including the
     test that are performed). Generating  makefiles, build plots etc, use an existing build
-    configuration. 
+    configuration.
  */
 
  temp_length = 0;
  for(i=0; i < ctx->n_disables; i++)
  {
-  temp_length += snprintf(temp + temp_length, 1024 - temp_length, 
+  temp_length += snprintf(temp + temp_length, 1024 - temp_length,
                           "%s", ctx->disabled_components[i]);
   if( (ctx->n_disables > 1) && (i < ctx->n_disables - 1) )
    temp_length += snprintf(temp + temp_length, 1024 - temp_length, " ");
@@ -1624,12 +1654,11 @@ int disables_and_enables(struct bca_context *ctx,
                                      "DISABLES", temp))
   return 1;
 
- 
  return 0;
 }
 
 int persist_host_swap_configuration(struct bca_context *ctx,
-                                    struct host_configuration *tc, 
+                                    struct host_configuration *tc,
                                     struct component_details *cd,
                                     int *n_modify_records,
                                     char ***mod_principles,
@@ -1650,10 +1679,10 @@ int persist_host_swap_configuration(struct bca_context *ctx,
 
  p_length = strlen(ctx->principle);
  end = -1;
-                          
+
  while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
                               ctx->build_configuration_length, &end,
-                              ctx->principle, NULL, "SWAP", 
+                              ctx->principle, NULL, "SWAP",
                               o_principle, o_component, o_key, NULL))
  {
   o_value = lookup_key(ctx, ctx->build_configuration_contents,
@@ -1717,7 +1746,7 @@ int persist_host_swap_configuration(struct bca_context *ctx,
                                        mod_keys,
                                        mod_values,
                                        p_length, -1, 4, -1,
-                                       ctx->principle, 
+                                       ctx->principle,
                                        ctx->swapped_components[i], "SWAP",
                                        ctx->swapped_component_hosts[i]))
     return 1;
@@ -1729,7 +1758,7 @@ int persist_host_swap_configuration(struct bca_context *ctx,
 }
 
 int append_host_configuration(struct bca_context *ctx,
-                              struct host_configuration *tc, 
+                              struct host_configuration *tc,
                               struct component_details *cd,
                               int *n_modify_records,
                               char ***mod_principles,
@@ -1743,9 +1772,9 @@ int append_host_configuration(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: append_host_configuration()\n");
 
- char *host_updates[45] = 
+ char *host_updates[45] =
 
- { "CC", tc->cc, 
+ { "CC", tc->cc,
    "BUILD_PREFIX", tc->build_prefix,
    "CC_SPECIFY_OUTPUT_FLAG", tc->cc_output_flag,
    "CC_COMPILE_BIN_OBJ_FLAG", tc->cc_compile_bin_obj_flag,
@@ -1785,7 +1814,7 @@ int append_host_configuration(struct bca_context *ctx,
 
  if(ctx->verbose > 0)
  {
-  printf("BCA: about to modify the follow %d records in the build configuration:\n", 
+  printf("BCA: about to modify the follow %d records in the build configuration:\n",
          *n_modify_records);
   for(i=0; i<*n_modify_records; i++)
   {
@@ -1800,9 +1829,9 @@ int append_host_configuration(struct bca_context *ctx,
   return 1;
  }
 
- if(output_modifications(ctx, output, 
-                         ctx->build_configuration_contents, 
-                         ctx->build_configuration_length, 
+ if(output_modifications(ctx, output,
+                         ctx->build_configuration_contents,
+                         ctx->build_configuration_length,
                          *n_modify_records, *mod_principles, *mod_components,
                          *mod_keys, *mod_values))
  {
@@ -1833,8 +1862,8 @@ int configure(struct bca_context *ctx)
 
  cd.host = ctx->principle;
 
- if((ctx->build_configuration_contents = 
-     read_file("./buildconfiguration/buildconfiguration", 
+ if((ctx->build_configuration_contents =
+     read_file("./buildconfiguration/buildconfiguration",
                &(ctx->build_configuration_length), 1)) != NULL)
  {
   if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
@@ -1852,11 +1881,11 @@ int configure(struct bca_context *ctx)
   }
   memset(tc, 0, sizeof(struct host_configuration));
  }
- 
+
  if(ctx->project_configuration_contents == NULL)
  {
-  if((ctx->project_configuration_contents = 
-      read_file("./buildconfiguration/projectconfiguration", 
+  if((ctx->project_configuration_contents =
+      read_file("./buildconfiguration/projectconfiguration",
                 &(ctx->project_configuration_length), 0)) == NULL)
   {
    fprintf(stderr, "BCA: can't open project configuration file\n");
@@ -1869,7 +1898,7 @@ int configure(struct bca_context *ctx)
   fprintf(stderr, "BCA: can't resolve project name.\n"
                   "BCA: Make sure project file has a NONE.NONE.PROJECT_NAME record\n");
   return 1;
- } 
+ }
 
  host_root = getenv("HOST_ROOT");
  if(ctx->verbose)
@@ -1938,12 +1967,12 @@ int configure(struct bca_context *ctx)
  if(process_dependencies(ctx, tc, &cd,
                          &mod_principles,
                          &mod_components,
-                         &mod_keys, 
+                         &mod_keys,
                          &mod_values,
                          &n_modify_records))
  return 1;
- 
- if(persist_host_swap_configuration(ctx, tc, &cd, 
+
+ if(persist_host_swap_configuration(ctx, tc, &cd,
                                     &n_modify_records,
                                     &mod_principles,
                                     &mod_components,
@@ -1951,7 +1980,7 @@ int configure(struct bca_context *ctx)
                                     &mod_values))
   return 1;
 
- if(append_host_configuration(ctx, tc, &cd, &n_modify_records, 
+ if(append_host_configuration(ctx, tc, &cd, &n_modify_records,
                               &mod_principles, &mod_components,
                               &mod_keys, &mod_values))
  {

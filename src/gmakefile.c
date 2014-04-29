@@ -16,7 +16,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this program.  If not, see http://www.gnu.org/licenses.
 */
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
@@ -29,7 +29,7 @@ char *component_swap_host(struct bca_context *ctx, char *component)
 
  i = 0;
  while(i < ctx->n_swaps)
- { 
+ {
   if(strcmp(ctx->swapped_components[i], component) == 0)
    return ctx->swapped_component_hosts[i];
   i++;
@@ -43,8 +43,8 @@ char *component_swap_host(struct bca_context *ctx, char *component)
     be swapped component. If so, then for each of those
     the directory for that host needs to be added to the
     PKG_CONFIG_PATH *after* the build dir for the current
-    host (otherwise conflicting .pc files may get out of 
-    order). 
+    host (otherwise conflicting .pc files may get out of
+    order).
 
  */
 int component_pkg_config_path(struct bca_context *ctx,
@@ -69,11 +69,11 @@ int component_pkg_config_path(struct bca_context *ctx,
   if(swapped_host != NULL)
   {
    if((value = lookup_key(ctx,
-                          ctx->build_configuration_contents, 
+                          ctx->build_configuration_contents,
                           ctx->build_configuration_length,
                           swapped_host, "ALL", "BUILD_PREFIX")) == NULL)
    {
-    fprintf(stderr, 
+    fprintf(stderr,
             "BCA: can find the build prefix for component \"%s\" on host "
             "\"%s\" which is swapped from host \"%s\"\n",
             cd->dependencies[y], swapped_host, cd->host);
@@ -81,7 +81,7 @@ int component_pkg_config_path(struct bca_context *ctx,
    }
 
    /* prevent duplicate dirs */
-   if(add_to_string_array(&list, list_length, 
+   if(add_to_string_array(&list, list_length,
                           value, -1, 1) == 0)
    {
     if(n_paths == 0)
@@ -109,7 +109,7 @@ int component_pkg_config_path(struct bca_context *ctx,
 }
 
 /* make clean logic */
-int gmake_clean_rules(struct bca_context *ctx, FILE *output, 
+int gmake_clean_rules(struct bca_context *ctx, FILE *output,
                       char **hosts, int n_build_hosts,
                       struct component_details *cd)
 {
@@ -124,7 +124,7 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
 
  for(x=0; x<n_build_hosts; x++)
  {
-  fprintf(output, "%s-clean-targets = ", hosts[x]); 
+  fprintf(output, "%s-clean-targets = ", hosts[x]);
 
   if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
   {
@@ -154,7 +154,7 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
     {
      swapped = 1;
      break;
-    }       
+    }
     i++;
    }
 
@@ -303,7 +303,7 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
     {
      swapped = 1;
      break;
-    }       
+    }
     i++;
    }
 
@@ -378,7 +378,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
 
 /* .INPUT is a list of other components from which to dynamically translate
    the output file name of into elements on the .FILES list.
-  
+
    Note that there is no inheritance for thigs like: dependencies, .FILE_DEPS,
    and .INCLUDE_DIRS. Those must and can be added to the component(s)
    using other components as an input.
@@ -619,7 +619,7 @@ int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
  return 0;
 }
 
-int generate_gmake_host_component_custom(struct bca_context *ctx,  
+int generate_gmake_host_component_custom(struct bca_context *ctx,
                                          struct component_details *cd,
                                          struct host_configuration *tc,
                                          char *output_file_name,
@@ -629,10 +629,10 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
  int yes, i, j, driver_component;
 
  if((value = lookup_key(ctx,
-                        ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        "CUSTOM", 
-                        cd->project_component, 
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        "CUSTOM",
+                        cd->project_component,
                         "DRIVER")) == NULL)
  {
   fprintf(stderr, "BCA: no project file record for CUSTOM.%s.DRIVER\n", cd->project_component);
@@ -782,7 +782,7 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
  return 0;
 }
 
-int generate_host_component_target_dependencies(struct bca_context *ctx,  
+int generate_host_component_target_dependencies(struct bca_context *ctx,
                                                 struct component_details *cd,
                                                 char *output_file_name,
                                                 FILE *output)
@@ -826,7 +826,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
      {
       swapped = 1;
       break;
-     }       
+     }
      i++;
     }
 
@@ -956,7 +956,7 @@ int object_from_c_file(struct bca_context *ctx,
  return 0;
 }
 
-int generate_host_component_pkg_config_file(struct bca_context *ctx,  
+int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                             struct component_details *cd,
                                             struct host_configuration *tc,
                                             char **build_file_names,
@@ -967,104 +967,145 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
 {
  int x, i, yes;
  struct component_details cd_d;
- char *build_prefix;
- memset(&cd_d, 0, sizeof(struct component_details));
+ char *build_prefix, *package_name = NULL, *package_description = NULL;
 
-/* 
+/*
    Idea / question:
     reconcille package config's --variable and --define-variable with BCA variables
 */
-  build_prefix = tc->build_prefix;
-  if(strncmp(build_prefix, "./", 2) == 0)
-   build_prefix += 2;
 
-  fprintf(output, "%s : %s\n",
-          build_file_names[1], build_file_names[0]);
+  package_name = lookup_key(ctx,
+                            ctx->project_configuration_contents,
+                            ctx->project_configuration_length,
+                            cd->project_component_type,
+                            cd->project_component,
+                            "PACKAGE_NAME");
 
-  fprintf(output, "\trm -f %s\n", build_file_names[1]);
+ if(package_name == NULL)
+ {
+  package_name = lookup_key(ctx,
+                            ctx->project_configuration_contents,
+                            ctx->project_configuration_length,
+                            cd->project_component_type,
+                            cd->project_component,
+                            "NAME");
+ }
 
-  fprintf(output, "\techo \"prefix=%s/%s\" >> %s\n", 
+ if(package_name == NULL)
+ {
+  package_name = strdup(ctx->project_name);
+ }
+
+ package_description = lookup_key(ctx,
+                                  ctx->project_configuration_contents,
+                                  ctx->project_configuration_length,
+                                  cd->project_component_type,
+                                  cd->project_component,
+                                  "DESCRIPTION");
+
+ build_prefix = tc->build_prefix;
+ if(strncmp(build_prefix, "./", 2) == 0)
+  build_prefix += 2;
+
+ fprintf(output, "%s : %s\n",
+         build_file_names[1], build_file_names[0]);
+
+ fprintf(output, "\trm -f %s\n", build_file_names[1]);
+
+ fprintf(output, "\techo \"prefix=%s/%s\" >> %s\n",
 #ifdef HAVE_CWD
-          ctx->cwd, 
+         ctx->cwd,
 #else
-          "`pwd`",
+         "`pwd`",
 #endif
-          build_prefix, build_file_names[1]);
+         build_prefix, build_file_names[1]);
 
-  fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", build_file_names[1]);
-  fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", build_file_names[1]);
-  if(cd->n_include_dirs > 0)
+ fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", build_file_names[1]);
+ fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", build_file_names[1]);
+ if(cd->n_include_dirs > 0)
+ {
+  if(strncmp(cd->include_dirs[0], "./", 2) == 0)
   {
-   if(strncmp(cd->include_dirs[0], "./", 2) == 0)
-   {
-    fprintf(output, "\techo \"includedir=%s/%s\" >> %s\n", 
+   fprintf(output, "\techo \"includedir=%s/%s\" >> %s\n",
 #ifdef HAVE_CWD
-            ctx->cwd, 
+           ctx->cwd,
 #else
-            "`pwd`",
+           "`pwd`",
 #endif
-            cd->include_dirs[0] + 2, build_file_names[1]);
-   } else {
-    fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], build_file_names[1]);
-   }
+           cd->include_dirs[0] + 2, build_file_names[1]);
+  } else {
+   fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], build_file_names[1]);
   }
-  fprintf(output, "\techo 'Name: %s' >> %s\n", cd->project_component, build_file_names[1]);
-  fprintf(output, "\techo 'Description: %s' >> %s\n", 
+ }
+ fprintf(output, "\techo 'Name: %s' >> %s\n",
+         package_name, build_file_names[1]);
+ if(package_description == NULL)
+  fprintf(output, "\techo 'Description: (set me with SHAREDLIBRARY.%s.DESCRIPTION)' >> %s\n",
           cd->project_component, build_file_names[1]);
-  fprintf(output, "\techo 'Version: %s.%s' >> %s\n", 
-          cd->major, cd->minor, build_file_names[1]);
-  fprintf(output, "\techo 'Requires: ");
-  for(i=0; i < cd->n_dependencies; i++)
+ else
+  fprintf(output, "\techo 'Description: %s' >> %s\n",
+          package_description, build_file_names[1]);
+ fprintf(output, "\techo 'Version: %s.%s' >> %s\n",
+         cd->major, cd->minor, build_file_names[1]);
+ fprintf(output, "\techo 'Requires: ");
+ for(i=0; i < cd->n_dependencies; i++)
+ {
+  yes = 0;
+  x = 0;
+  while(x < cd->n_components)
   {
-   yes = 0;
-   x = 0;
-   while(x < cd->n_components)
+   if(strcmp(cd->dependencies[i], cd->project_components[x]) == 0)
    {
-    if(strcmp(cd->dependencies[i], cd->project_components[x]) == 0)
-    {
-     resolve_component_version(ctx, ctx->project_configuration_contents, 
-                               ctx->project_configuration_length, &cd_d,
-                                "SHAREDLIBRARY", cd->project_components[x]);
+    resolve_component_version(ctx, ctx->project_configuration_contents,
+                              ctx->project_configuration_length, &cd_d,
+                               "SHAREDLIBRARY", cd->project_components[x]);
 
-     fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
-     yes = 1;
-     break;
-    }
-    x++;
+    fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
+    yes = 1;
+    break;
    }
-
-   if(yes == 0)
-    fprintf(output, "%s ", cd->dependencies[i]);
+   x++;
   }
 
-  fprintf(output, "' >> %s\n", build_file_names[1]);
+  if(yes == 0)
+   fprintf(output, "%s ", cd->dependencies[i]);
+ }
 
-  fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
+ fprintf(output, "' >> %s\n", build_file_names[1]);
 
-  if(tc->ldflags != NULL)
-   fprintf(output, " %s", tc->ldflags);
+ fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
 
-  fprintf(output, "' >> %s\n", build_file_names[1]);
+ if(tc->ldflags != NULL)
+  fprintf(output, " %s", tc->ldflags);
 
-  fprintf(output, "\techo 'Cflags:");
+ fprintf(output, "' >> %s\n", build_file_names[1]);
 
-  if(cd->n_include_dirs > 0)
-   fprintf(output, " -I$${includedir} ");
+ fprintf(output, "\techo 'Cflags:");
 
-  if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
-   return 1;
+ if(cd->n_include_dirs > 0)
+  fprintf(output, " -I$${includedir} ");
 
-  fprintf(output, "' >> %s\n", build_file_names[1]);
-  
-  /* add unversioned symlink */
-  fprintf(output, "\tcd %s; ln -sf %s-%s.pc %s.pc", 
-          tc->build_prefix, cd->project_component_output_name, 
-          cd->major, cd->project_component_output_name);
+ if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
+  return 1;
+
+ fprintf(output, "' >> %s\n", build_file_names[1]);
+
+ /* add unversioned symlink */
+ fprintf(output, "\tcd %s; ln -sf %s-%s.pc %s.pc",
+         tc->build_prefix, cd->project_component_output_name,
+         cd->major, cd->project_component_output_name);
+
+
+ if(package_description != NULL)
+  free(package_description);
+
+ if(package_name != NULL)
+  free(package_name);
 
  return 0;
 }
 
-int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,  
+int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
                                                 struct component_details *cd,
                                                 struct host_configuration *tc,
                                                 char **build_file_names,
@@ -1078,7 +1119,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
 
  memset(&cd_d, 0, sizeof(struct component_details));
 
- if((n_output_file_names = 
+ if((n_output_file_names =
      render_project_component_output_name(ctx, cd->host, cd->project_component,
                                           1, &output_file_names, NULL)) < 0)
  {
@@ -1093,13 +1134,13 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
 
   if(strcmp(cd->file_extensions[i], "c") == 0)
   {
-   if(object_from_c_file(ctx, cd, tc, 
+   if(object_from_c_file(ctx, cd, tc,
                          cd->file_base_names[i],
                          cd->file_names[i],
                          build_file_names[0],
                          output))
    {
-    fprintf(stderr, 
+    fprintf(stderr,
             "BCA: object_from_c_file(%s.%s.%s) failed\n", 
             cd->project_component_type, cd->host, cd->project_component);
     return 1;
@@ -1151,7 +1192,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
      {
       swapped = 1;
       break;
-     }       
+     }
      i++;
     }
 
@@ -1738,7 +1779,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
     fclose(output);
     return 1;
    }
-  
+
    /* FILE_DEPENDS --------------------- */
    if((value = lookup_key(ctx, ctx->project_configuration_contents, 
                           ctx->project_configuration_length, 

@@ -23,13 +23,13 @@
 #include "prototypes.h"
 #endif
 
-char *lookup_key(struct bca_context *ctx, char *file, int file_length, 
+char *lookup_key(struct bca_context *ctx, char *file, int file_length,
                  char *principle_filter, char *component_filter, char *key_filter)
 {
  char principle[256], component[256], key[256];
- char *value = NULL; 
+ char *value = NULL;
  int start, index, equals, in_quotes, end, value_length, offset;
- 
+
  if(ctx->verbose > 3)
   fprintf(stderr, "BCA: lookup_key()\n");
 
@@ -69,7 +69,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
       return NULL;
      }
     }
-   } 
+   }
 
    if(in_quotes == 1)
    {
@@ -115,7 +115,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  value[value_length] = 0;
 
  /* escape out " marks in values with \" */
- index=0; 
+ index=0;
  while(index < (value_length - 1))
  {
   if( (value[index] == '\\') &&
@@ -131,7 +131,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  return value;
 }
 
-int output_modifications(struct bca_context *ctx, FILE *output, 
+int output_modifications(struct bca_context *ctx, FILE *output,
                          char *contents, int length, int n_records,
                          char **principle, char **component, char **key, char **value)
 {
@@ -649,10 +649,10 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
  }
 
  host_length = strlen(host);
-                          
+
  while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
                               ctx->build_configuration_length, &end,
-                              host, NULL, "SWAP", 
+                              host, NULL, "SWAP",
                               principle, component, key, NULL))
  {
   value = lookup_key(ctx, ctx->build_configuration_contents,
@@ -661,7 +661,7 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
 
   if(strcmp(value, host) == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Component %s on host %s swaps back to the same host.\n",
            component, host);
    free(value);
@@ -685,7 +685,7 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
   }
   if(ok == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: Component \"%s\" on host \"%s\" swaps to unconfigured host \"%s\".\n",
            component, host, value);
    free(value);
@@ -693,14 +693,14 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
    return 1;
   }
 
-  if((disables = lookup_key(ctx, 
+  if((disables = lookup_key(ctx,
                             ctx->build_configuration_contents,
-                            ctx->build_configuration_length, 
+                            ctx->build_configuration_length,
                             hosts[i], component, "DISABLES")) == NULL)
   {
    if(contains_string(disables, -1, component, -1))
    {
-    fprintf(stderr, 
+    fprintf(stderr,
             "BCA: Component \"%s\" on host \"%s\" swaps to host \"%s\", "
             "on which it is disabled.\n",
             component, host, hosts[i]);
@@ -713,15 +713,15 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
    free(disables);
   }
 
-  if(add_to_string_array(&(ctx->swapped_components), 
-                         ctx->n_swaps, 
+  if(add_to_string_array(&(ctx->swapped_components),
+                         ctx->n_swaps,
                          component, -1, 1))
   {
    fprintf(stderr, "BCA: add_to_string_array() failed\n");
    return 1;
   }
 
-  if(add_to_string_array(&(ctx->swapped_component_hosts), 
+  if(add_to_string_array(&(ctx->swapped_component_hosts),
                          ctx->n_swaps, value, -1, 1))
   {
    fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -744,10 +744,10 @@ int check_project_component_types(struct bca_context *ctx)
  char *component_types[9] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
                               "MACROEXPAND", "PYTHONMODULE", "CUSTOM" };
 
- char *component_keys[18] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
-                            "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS", 
-                            "FILE_DEPENDS", "INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
-                            "LIB_HEADERS", "DISABLES" };
+ char *component_keys[20] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
+                              "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS",
+                              "FILE_DEPENDS", "INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
+                              "LIB_HEADERS", "DISABLES", "DESCRIPTION", "PACKAGE_NAME" };
 
  while(iterate_key_primitives(ctx, ctx->project_configuration_contents,
                               ctx->project_configuration_length, &offset,
@@ -755,7 +755,6 @@ int check_project_component_types(struct bca_context *ctx)
                               type, component, key, NULL))
  {
   handled = 0;
-
   i=0;
   while(i<8)
   {
@@ -768,14 +767,15 @@ int check_project_component_types(struct bca_context *ctx)
   }
 
   if(handled == 0)
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: WARNING - Are you sure about a project component type of \"%s\"?\n",
-           type); 
+           type);
 
+  handled = 0;
   i=0;
-  while(i<17)
+  while(i<19)
   {
-   if(strcmp(type, component_keys[i]) == 0)
+   if(strcmp(key, component_keys[i]) == 0)
    {
     handled = 1;
     break;
@@ -784,16 +784,16 @@ int check_project_component_types(struct bca_context *ctx)
   }
 
   if(handled == 0)
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: WARNING - Are you sure about a project component key of \"%s\"?\n",
-           key); 
+           key);
 
- } 
+ }
 
  return 0;
 }
 
-int list_project_components(struct bca_context *ctx, 
+int list_project_components(struct bca_context *ctx,
                             struct component_details *cd)
 {
  int pass = 0, allocation_size, string_length, offset, i, disabled, ok;
