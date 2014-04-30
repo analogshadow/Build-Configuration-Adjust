@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2012,2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -24,7 +24,7 @@
 #endif
 
 char *component_type_file_extension(struct bca_context *ctx, struct host_configuration *tc,
-                                    char *project_component_type, 
+                                    char *project_component_type,
                                     char *project_component_output_name)
 {
  int x, length;
@@ -129,7 +129,7 @@ char *build_prefix_from_host_prefix(struct bca_context *ctx)
 }
 
 
-int render_project_component_output_name(struct bca_context *ctx, 
+int render_project_component_output_name(struct bca_context *ctx,
                                          char *host, char *component, int edition,
                                          char ***array_ptr, char ***extensions)
 {
@@ -152,8 +152,8 @@ int render_project_component_output_name(struct bca_context *ctx,
 
  if(ctx->build_configuration_contents == NULL)
  {
-  if((ctx->build_configuration_contents = 
-      read_file("./buildconfiguration/buildconfiguration", 
+  if((ctx->build_configuration_contents =
+      read_file("./buildconfiguration/buildconfiguration",
                 &(ctx->build_configuration_length), 0)) == NULL)
   {
    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
@@ -161,7 +161,7 @@ int render_project_component_output_name(struct bca_context *ctx,
   }
  }
 
- if(list_unique_principles(ctx, NULL, ctx->build_configuration_contents, 
+ if(list_unique_principles(ctx, NULL, ctx->build_configuration_contents,
                            ctx->build_configuration_length, &hosts, &n_hosts))
  {
   fprintf(stderr, "BCA: list_build_hosts() failed\n");
@@ -170,8 +170,8 @@ int render_project_component_output_name(struct bca_context *ctx,
 
  if(ctx->project_configuration_contents == NULL)
  {
-  if((ctx->project_configuration_contents = 
-       read_file("./buildconfiguration/projectconfiguration", 
+  if((ctx->project_configuration_contents =
+       read_file("./buildconfiguration/projectconfiguration",
                  &(ctx->project_configuration_length), 0)) == NULL)
   {
    return -1;
@@ -200,7 +200,7 @@ int render_project_component_output_name(struct bca_context *ctx,
      if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
       return -1;
 
-     if((extension = component_type_file_extension(ctx, tc, cd.project_component_types[y], 
+     if((extension = component_type_file_extension(ctx, tc, cd.project_component_types[y],
                                                    cd.project_output_names[y])) == NULL)
      {
       fprintf(stderr, "BCA: component_type_file_extension(%s) failed\n",
@@ -210,6 +210,7 @@ int render_project_component_output_name(struct bca_context *ctx,
 
      handled = 0;
 
+     /* resolve the prefix (if any) */
      switch(edition)
      {
       case 1: /* output name */
@@ -217,7 +218,7 @@ int render_project_component_output_name(struct bca_context *ctx,
             break;
 
       case 2: /* build output name */
-           prefix_length = snprintf(temp, 1024, "%s/", tc->build_prefix); 
+           prefix_length = snprintf(temp, 1024, "%s/", tc->build_prefix);
            break;
 
       case 3: /* install output name */
@@ -225,8 +226,8 @@ int render_project_component_output_name(struct bca_context *ctx,
            prefix_length = 1;
            matched = 0;
 
-           if(resolve_component_installation_path(ctx, cd.project_component_types[y], 
-                                                  cd.project_components[y], 
+           if(resolve_component_installation_path(ctx, cd.project_component_types[y],
+                                                  cd.project_components[y],
                                                   &component_install_path) == 0)
            {
             matched = 1;
@@ -238,44 +239,42 @@ int render_project_component_output_name(struct bca_context *ctx,
             prefix_length = snprintf(temp, 1024, "%s/", component_install_path);
            }
 
-           if(strcmp(cd.project_component_types[y], "BINARY") == 0)
+           if((matched == 0) &&
+              strcmp(cd.project_component_types[y], "BINARY") == 0)
            {
             prefix_length = snprintf(temp, 1024, "%s/", tc->install_bin_dir);
             matched = 1;
            }
 
-           if(strcmp(cd.project_component_types[y], "BUILDBINARY") == 0)
-           {
-            prefix_length = snprintf(temp, 1024, "%s/", tc->install_bin_dir);
-            matched = 1;
-           }
-
-           if(strcmp(cd.project_component_types[y], "SHAREDLIBRARY") == 0)
+           if((matched == 0) &&
+              strcmp(cd.project_component_types[y], "SHAREDLIBRARY") == 0)
            {
             prefix_length = snprintf(temp, 1024, "%s/", tc->install_lib_dir);
             matched = 1;
            }
 
-           if(strcmp(cd.project_component_types[y], "MACROEXPAND") == 0)
+           if((matched == 0) &&
+              strcmp(cd.project_component_types[y], "MACROEXPAND") == 0)
            {
             prefix_length = snprintf(temp, 1024, "%s/", tc->install_prefix);
-            fprintf(stderr, 
+            fprintf(stderr,
                     "BCA: NOTE: I need a way to know if MACROEXPAND component \"%s\" needs"
                     " to be installed\n", cd.project_components[y]);
             matched = 1;
            }
 
-           if(strcmp(cd.project_component_types[y], "CAT") == 0)
+           if((matched == 0) &&
+              strcmp(cd.project_component_types[y], "CAT") == 0)
            {
             prefix_length = snprintf(temp, 1024, "%s/", tc->install_prefix);
-            fprintf(stderr, 
+            fprintf(stderr,
                     "BCA: NOTE: I need a way to know if CAT component \"%s\" needs"
                     " to be installed\n", cd.project_components[y]);
             matched = 1;
            }
 
-           if( (matched == 0) && 
-               (strcmp(cd.project_component_types[y], "CUSTOM") == 0) )
+           if((matched == 0) &&
+              (strcmp(cd.project_component_types[y], "CUSTOM") == 0) )
            {
             e = NULL;
             if(path_extract(cd.project_output_names[y], NULL, &e))
@@ -287,7 +286,7 @@ int render_project_component_output_name(struct bca_context *ctx,
             if(strcmp(e, "html") == 0)
             {
              prefix_length = snprintf(temp, 1024, "[fix me: should be documentation directory]");
-             matched = 1; 
+             matched = 1;
             }
 
             free(e);
@@ -296,26 +295,26 @@ int render_project_component_output_name(struct bca_context *ctx,
 
            if(matched == 0)
            {
-            fprintf(stderr, 
+            fprintf(stderr,
                     "BCA: render_project_component_name(): "
                     "I'm not sure what (if any) install location for a component of type "
                     "%s will be.\n",
                     cd.project_component_types[y]);
            return -1;
-           }   
+           }
            break;
 
       case 4: /* effective output name */
            if((effective_path_mode = resolve_effective_path_mode(ctx)) == -1)
             return -1;
-           
+
            switch(effective_path_mode)
            {
             case EFFECTIVE_PATHS_LOCAL:
                  return render_project_component_output_name(ctx, host, component, 2,
                                                              array_ptr, extensions);
                  break;
-           
+
             case EFFECTIVE_PATHS_INSTALL:
                  return render_project_component_output_name(ctx, host, component, 3,
                                                              array_ptr, extensions);
@@ -338,8 +337,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if(strcmp(cd.project_component_types[y], "PYTHONMODULE") == 0)
      {
       handled = 1;
-      snprintf(temp + prefix_length, 1024 - prefix_length, 
-               "%s-setup.py", cd.project_output_names[y]); 
+      snprintf(temp + prefix_length, 1024 - prefix_length,
+               "%s-setup.py", cd.project_output_names[y]);
 
       if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
        return -1;
@@ -350,12 +349,12 @@ int render_project_component_output_name(struct bca_context *ctx,
 
       n_names++;
      }
-   
+
      if(strcmp(cd.project_component_types[y], "BINARY") == 0)
      {
       handled = 1;
-      snprintf(temp + prefix_length, 1024 - prefix_length, 
-               "%s%s", cd.project_output_names[y], extension); 
+      snprintf(temp + prefix_length, 1024 - prefix_length,
+               "%s%s", cd.project_output_names[y], extension);
 
       if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
        return -1;
@@ -370,8 +369,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if(strcmp(cd.project_component_types[y], "BUILDBINARY") == 0)
      {
       handled = 1;
-      snprintf(temp + prefix_length, 1024 - prefix_length, 
-               "%s%s", cd.project_output_names[y], extension); 
+      snprintf(temp + prefix_length, 1024 - prefix_length,
+               "%s%s", cd.project_output_names[y], extension);
 
       if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
        return -1;
@@ -387,7 +386,7 @@ int render_project_component_output_name(struct bca_context *ctx,
      {
       handled = 1;
 
-      if(resolve_component_version(ctx, ctx->project_configuration_contents, 
+      if(resolve_component_version(ctx, ctx->project_configuration_contents,
                                    ctx->project_configuration_length, &cd,
                                    "SHAREDLIBRARY", cd.project_components[y]))
       {
@@ -398,8 +397,8 @@ int render_project_component_output_name(struct bca_context *ctx,
       if(strcmp(extension, ".so") == 0)
       {
        /* so name */
-       snprintf(temp + prefix_length, 1024 - prefix_length, 
-                "%s%s%s.%s", 
+       snprintf(temp + prefix_length, 1024 - prefix_length,
+                "%s%s%s.%s",
                 tc->shared_library_prefix, cd.project_output_names[y], extension, cd.major); 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -413,12 +412,12 @@ int render_project_component_output_name(struct bca_context *ctx,
        /* pc file name */
        if(edition == 3)
        {
-        snprintf(temp, 1024, "%s/%s-%s.pc", 
-                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major); 
+        snprintf(temp, 1024, "%s/%s-%s.pc",
+                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major);
        } else {
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "%s-%s.pc", 
-                 cd.project_output_names[y], cd.major); 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "%s-%s.pc",
+                 cd.project_output_names[y], cd.major);
        }
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -439,10 +438,10 @@ int render_project_component_output_name(struct bca_context *ctx,
        n_names++;
 
        /* real name */
-       snprintf(temp + prefix_length, 1024 - prefix_length, 
-                "%s%s%s.%s.%s", 
-                tc->shared_library_prefix, cd.project_output_names[y], extension, 
-                cd.major, cd.minor); 
+       snprintf(temp + prefix_length, 1024 - prefix_length,
+                "%s%s%s.%s.%s",
+                tc->shared_library_prefix, cd.project_output_names[y], extension,
+                cd.major, cd.minor);
 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -456,10 +455,10 @@ int render_project_component_output_name(struct bca_context *ctx,
       if(strcmp(extension, ".dll") == 0)
       {
        /* so name */
-       snprintf(temp + prefix_length, 1024 - prefix_length, 
-                "%s%s-%s.%s%s", 
-                tc->shared_library_prefix, cd.project_output_names[y], 
-                cd.major, cd.minor, extension); 
+       snprintf(temp + prefix_length, 1024 - prefix_length,
+                "%s%s-%s.%s%s",
+                tc->shared_library_prefix, cd.project_output_names[y],
+                cd.major, cd.minor, extension);
 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -472,12 +471,12 @@ int render_project_component_output_name(struct bca_context *ctx,
        /* pc file */
        if(edition == 3)
        {
-        snprintf(temp, 1024, "%s/%s-%s.pc", 
-                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major); 
+        snprintf(temp, 1024, "%s/%s-%s.pc",
+                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major);
        } else {
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "%s-%s.pc", 
-                 cd.project_output_names[y], cd.major); 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "%s-%s.pc",
+                 cd.project_output_names[y], cd.major);
        }
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -493,10 +492,10 @@ int render_project_component_output_name(struct bca_context *ctx,
        if(contains_string(tc->cc, -1, "mingw", -1))
        {
         import = 1;
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "%s%s-%s.%s%s.a", 
-                 tc->shared_library_prefix, cd.project_output_names[y], 
-                 cd.major, cd.minor, extension); 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "%s%s-%s.%s%s.a",
+                 tc->shared_library_prefix, cd.project_output_names[y],
+                 cd.major, cd.minor, extension);
 
         if(extensions != NULL)
          if((code = add_to_string_array(extensions, n_names, "a", -1, 0)) < 0)
@@ -506,9 +505,9 @@ int render_project_component_output_name(struct bca_context *ctx,
        if(strcmp(tc->shared_library_prefix, "cyg") == 0)
        {
         import = 1;
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "lib%s-%s.%s%s.a", 
-                 cd.project_output_names[y], cd.major, cd.minor, extension); 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "lib%s-%s.%s%s.a",
+                 cd.project_output_names[y], cd.major, cd.minor, extension);
         if(extensions != NULL)
          if((code = add_to_string_array(extensions, n_names, "a", -1, 0)) < 0)
           return -1;
@@ -516,8 +515,8 @@ int render_project_component_output_name(struct bca_context *ctx,
 
        if(import == 0)
        {
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "%s%s-%s.%s.lib", 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "%s%s-%s.%s.lib",
                  tc->shared_library_prefix, cd.project_output_names[y], cd.major, cd.minor); 
 
         if(extensions != NULL)
@@ -529,7 +528,7 @@ int render_project_component_output_name(struct bca_context *ctx,
         return -1;
        n_names++;
 
-       temp[0] = 0; 
+       temp[0] = 0;
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
 
@@ -543,8 +542,8 @@ int render_project_component_output_name(struct bca_context *ctx,
       if(strcmp(extension, ".dylib") == 0)
       {
        /* install name (soname analog) */
-       snprintf(temp + prefix_length, 1024 - prefix_length, 
-                "%s%s.%s%s", 
+       snprintf(temp + prefix_length, 1024 - prefix_length,
+                "%s%s.%s%s",
                 tc->shared_library_prefix, cd.project_output_names[y], cd.major, extension); 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -558,12 +557,12 @@ int render_project_component_output_name(struct bca_context *ctx,
        /* pc file name */
        if(edition == 3)
        {
-        snprintf(temp, 1024, "%s/%s-%s.pc", 
-                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major); 
+        snprintf(temp, 1024, "%s/%s-%s.pc",
+                 tc->install_pkg_config_dir, cd.project_output_names[y], cd.major);
        } else {
-        snprintf(temp + prefix_length, 1024 - prefix_length, 
-                 "%s-%s.pc", 
-                 cd.project_output_names[y], cd.major); 
+        snprintf(temp + prefix_length, 1024 - prefix_length,
+                 "%s-%s.pc",
+                 cd.project_output_names[y], cd.major);
        }
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -584,10 +583,10 @@ int render_project_component_output_name(struct bca_context *ctx,
        n_names++;
 
        /* real name */
-       snprintf(temp + prefix_length, 1024 - prefix_length, 
-                "%s%s.%s.%s%s", 
-                tc->shared_library_prefix, cd.project_output_names[y], 
-                cd.major, cd.minor, extension); 
+       snprintf(temp + prefix_length, 1024 - prefix_length,
+                "%s%s.%s.%s%s",
+                tc->shared_library_prefix, cd.project_output_names[y],
+                cd.major, cd.minor, extension);
 
        if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
         return -1;
@@ -647,9 +646,9 @@ int render_project_component_output_name(struct bca_context *ctx,
 
      if(handled == 0)
      {
-      fprintf(stderr, 
+      fprintf(stderr,
               "BCA: I don't know how to render an output file name for component "
-              "type of \"%s\"\n", 
+              "type of \"%s\"\n",
               cd.project_component_types[y]);
       return -1;
      }
@@ -657,14 +656,14 @@ int render_project_component_output_name(struct bca_context *ctx,
      free_host_configuration(ctx, tc);
     }
    }
-  } 
+  }
  }
 
  free_string_array(hosts, n_hosts);
 
  if(n_names < 1)
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: render_project_component_output_name(): is there really a component "
           "named \"%s\" ?\n",
           component);
@@ -690,7 +689,7 @@ char *without_string_to_without_macro(struct bca_context *ctx, char *in)
   return NULL;
  }
 
- for(i=0; i<length; i++) 
+ for(i=0; i<length; i++)
  {
   if(isalnum(in[i]))
   {

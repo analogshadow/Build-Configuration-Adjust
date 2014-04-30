@@ -247,7 +247,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
     return 1;
    }
 
-   if(ctx->verbose > 3) 
+   if(ctx->verbose > 3)
     fprintf(stderr, "BCA: appending record %s.%s.%s = %s\n",
             principle[i], component[i], key[i], output_value);
 
@@ -262,7 +262,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
-int output_modification(struct bca_context *ctx, FILE *output, 
+int output_modification(struct bca_context *ctx, FILE *output,
                         char *contents, int length,
                         char *principle, char *component, char *key, char *value)
 {
@@ -271,7 +271,7 @@ int output_modification(struct bca_context *ctx, FILE *output,
 }
 
 
-int modify_file(struct bca_context *ctx, char *filename, 
+int modify_file(struct bca_context *ctx, char *filename,
                 char *principle, char *component, char *key, char *value)
 {
  FILE *output;
@@ -285,7 +285,7 @@ int modify_file(struct bca_context *ctx, char *filename,
  {
   fprintf(stderr, "BCA: modify_file(): read_file() failed\n");
   return 1;
- } 
+ }
 
  if((output = fopen(filename, "w")) == NULL)
  {
@@ -307,13 +307,13 @@ int modify_file(struct bca_context *ctx, char *filename,
 
 int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length, int *offset,
                            char *principle_filter, char *component_filter, char *key_filter,
-                           char principle[256], char component[256], char key[256], 
-                           int *equals_pos) 
+                           char principle[256], char component[256], char key[256],
+                           int *equals_pos)
 {
  int start, end, line_length = 0, n_periods, periods[2], index, equals = -1, no,
-     principle_length, component_length, key_length, principle_filter_length, 
+     principle_length, component_length, key_length, principle_filter_length,
      component_filter_length, key_filter_length;
- 
+
  if(ctx->verbose > 3)
   fprintf(stderr, "BCA: iterate_key_primitives()\n");
 
@@ -321,21 +321,21 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
  {
   principle_filter = "*";
   principle_filter_length = 1;
- } else 
+ } else
   principle_filter_length = strlen(principle_filter);
 
  if(component_filter == NULL)
  {
   component_filter = "*";
   component_filter_length = 1;
- } else 
+ } else
   component_filter_length = strlen(component_filter);
 
  if(key_filter == NULL)
  {
   key_filter = "*";
   key_filter_length = 1;
- } else 
+ } else
   key_filter_length = strlen(key_filter);
 
  end = *offset;
@@ -349,14 +349,14 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
    if(file[index] == '.')
    {
     if(n_periods > 1)
-    { 
+    {
      file[end] = 0; /* destructive but we are aborting anyway */
      fprintf(stderr, "BCA: more than 2 periods on the left of '=' on the line \"%s\"\n",
              file + start);
      exit(1);
 
     }
-   
+
     periods[n_periods++] = index;
    }
 
@@ -396,8 +396,8 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
 
     if(no)
     {
-     file[end] = 0; 
-     fprintf(stderr, 
+     file[end] = 0;
+     fprintf(stderr,
              "BCA: left of '=' not in the format TARGET.COMPONENT.KEY on the line \"%s\"\n",
              file + start);
      exit(1);
@@ -412,12 +412,12 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
 
   if(equals == -1)
   {
-   file[end] = 0; 
+   file[end] = 0;
    fprintf(stderr, "BCA: no '=' on the line \"%s\"\n", file + start);
    exit(1);
   }
 
-  if(principle_filter[0] != '*') 
+  if(principle_filter[0] != '*')
   {
    if(principle_length != principle_filter_length)
     continue;
@@ -442,10 +442,10 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
 
   if(key_filter[0] != '*')
   {
-   if(key_length != key_filter_length) 
+   if(key_length != key_filter_length)
     continue;
    if(strncmp(key_filter, file + periods[1] + 1, key_length) != 0)
-    continue; 
+    continue;
   }
 
   memcpy(key, file + periods[1] + 1, key_length);
@@ -457,11 +457,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
   return 1;
  }
 
- return 0; 
+ return 0;
 }
 
-int list_component_internal_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int list_component_internal_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          char ***list, int *n_elements)
 {
  char *value = NULL;
@@ -469,20 +469,20 @@ int list_component_internal_dependencies(struct bca_context *ctx,
  if(ctx->verbose > 1)
   fprintf(stderr, "BCA: list_component_internal_dependencies()\n");
 
- if((value = lookup_key(ctx, 
-                        ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        cd->project_component_type, 
-                        cd->project_component, 
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_type,
+                        cd->project_component,
                         "INT_DEPENDS")) == NULL)
  {
   if(ctx->verbose)
-   printf("BCA: No internal dependencies found for component \"%s\".\n", 
+   printf("BCA: No internal dependencies found for component \"%s\".\n",
           cd->project_component);
-  
+
   *list = NULL;
   *n_elements = 0;
-  return 0; 
+  return 0;
  }
 
  if(split_strings(ctx, value, -1, n_elements, list))
@@ -495,8 +495,8 @@ int list_component_internal_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int list_component_external_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int list_component_external_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          char ***list, int *n_elements)
 {
  char *value = NULL;
@@ -504,17 +504,17 @@ int list_component_external_dependencies(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: list_component_external_dependencies()\n");
 
- if((value = lookup_key(ctx, 
-                        ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        cd->project_component_type, 
-                        cd->project_component, 
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_type,
+                        cd->project_component,
                         "EXT_DEPENDS")) == NULL)
  {
   if(ctx->verbose)
-   printf("BCA: No external dependencies found for component \"%s\".\n", 
+   printf("BCA: No external dependencies found for component \"%s\".\n",
           cd->project_component);
-  
+
   *list = NULL;
   *n_elements = 0;
   return 0; 
@@ -530,8 +530,8 @@ int list_component_external_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int list_component_opt_external_dependencies(struct bca_context *ctx, 
-                                             struct component_details *cd, 
+int list_component_opt_external_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd,
                                              char ***list, int *n_elements)
 {
  char *value = NULL;
@@ -539,20 +539,20 @@ int list_component_opt_external_dependencies(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: list_component_opt_external_dependencies()\n");
 
- if((value = lookup_key(ctx, 
-                        ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        cd->project_component_type, 
-                        cd->project_component, 
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_type,
+                        cd->project_component,
                         "OPT_EXT_DEPENDS")) == NULL)
  {
   if(ctx->verbose)
-   printf("BCA: No optional external dependencies found for component \"%s\".\n", 
+   printf("BCA: No optional external dependencies found for component \"%s\".\n",
           cd->project_component);
-  
+
   *list = NULL;
   *n_elements = 0;
-  return 0; 
+  return 0;
  }
 
  if(split_strings(ctx, value, -1, n_elements, list))
@@ -575,13 +575,13 @@ int check_duplicate_output_names(struct bca_context *ctx, struct component_detai
 
  for(x=0; x<cd->n_components; x++)
  {
-  if(add_to_string_array(&output_names, n_output_names, 
+  if(add_to_string_array(&output_names, n_output_names,
                          cd->project_output_names[x], -1, 1))
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: The component output name \"%s\" is used more than once.\n",
            cd->project_output_names[x]);
-           
+
    return 1;
   }
   n_output_names++;
@@ -599,7 +599,7 @@ int engage_build_configuration_disables_for_host(struct bca_context *ctx, char *
   fprintf(stderr, "BCA: engage_build_configuration_disables_for_host(%s)\n", host);
 
  value = lookup_key(ctx, ctx->build_configuration_contents,
-                    ctx->build_configuration_length, 
+                    ctx->build_configuration_length,
                     host, "ALL", "DISABLES");
 
  if(ctx->disabled_components != NULL)
@@ -640,7 +640,7 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
   ctx->swapped_component_hosts = NULL;
  }
 
- if(list_unique_principles(ctx, NULL, 
+ if(list_unique_principles(ctx, NULL,
                            ctx->build_configuration_contents,
                            ctx->build_configuration_length,
                            &hosts, &n_hosts))
@@ -953,7 +953,7 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
 
   if(strcmp(principle, "ALL") == 0)
    matched = 1;
-  
+
   if(strcmp(principle, "NONE") == 0)
    matched = 1;
 
@@ -966,7 +966,7 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
      matched = 1;
      break;
     }
-   
+
     x++;
    }
   }
@@ -981,7 +981,7 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
     perror("BCA: list_unique_principles(): realloc()");
     return 1;
    }
-   
+
    principles = new_ptr;
 
    allocation_size = strlen(principle) + 1;
@@ -1001,7 +1001,7 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
  return 0;
 }
 
-char *resolve_build_host_variable(struct bca_context *ctx, 
+char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *host, 
                                   char *project_component,
                                   char *key)
@@ -1046,14 +1046,14 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  memset(tc, 0, allocation_size);
 
  char **host_resolve_vars[24] =
- { 
+ {
   &(tc->build_prefix),
   &(tc->cc),
   &(tc->cc_output_flag),
   &(tc->cc_compile_bin_obj_flag),
   &(tc->cc_compile_shared_library_obj_flag),
   &(tc->cc_include_dir_flag),
-  &(tc->cc_define_macro_flag), 
+  &(tc->cc_define_macro_flag),
   &(tc->cflags),
   &(tc->pkg_config),
   &(tc->pkg_config_path),
@@ -1068,40 +1068,40 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   &(tc->install_lib_dir),
   &(tc->install_include_dir),
   &(tc->install_pkg_config_dir),
-  &(tc->install_locale_data_dir), 
+  &(tc->install_locale_data_dir),
   &(tc->python)
  };
 
  char *host_resolve_keys[24] =
- { 
+ {
   "BUILD_PREFIX",
   "CC",
   "CC_SPECIFY_OUTPUT_FLAG",
   "CC_COMPILE_BIN_OBJ_FLAG",
-  "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG", 
-  "CC_INCLUDE_DIR_FLAG", 
-  "CC_DEFINE_MACRO_FLAG", 
+  "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG",
+  "CC_INCLUDE_DIR_FLAG",
+  "CC_DEFINE_MACRO_FLAG",
   "CFLAGS",
   "PKG_CONFIG",
-  "PKG_CONFIG_PATH", 
+  "PKG_CONFIG_PATH",
   "PKG_CONFIG_LIBDIR",
-  "BINARY_SUFFIX", 
+  "BINARY_SUFFIX",
   "SHARED_LIBRARY_SUFFIX",
-  "SHARED_LIBRARY_PREFIX", 
-  "OBJ_SUFFIX", 
-  "LDFLAGS", 
-  "INSTALL_PREFIX", 
-  "INSTALL_BIN_DIR", 
-  "INSTALL_LIB_DIR", 
-  "INSTALL_INCLUDE_DIR", 
-  "INSTALL_PKG_CONFIG_DIR", 
-  "INSTALL_LOCALE_DATA_DIR", 
+  "SHARED_LIBRARY_PREFIX",
+  "OBJ_SUFFIX",
+  "LDFLAGS",
+  "INSTALL_PREFIX",
+  "INSTALL_BIN_DIR",
+  "INSTALL_LIB_DIR",
+  "INSTALL_INCLUDE_DIR",
+  "INSTALL_PKG_CONFIG_DIR",
+  "INSTALL_LOCALE_DATA_DIR",
   "PYTHON"
  };
 
  for(i=0; i<23; i++)
  {
-  *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host, 
+  *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host,
                                                         cd->project_component,
                                                         host_resolve_keys[i]);
  }
@@ -1110,7 +1110,7 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  {
   for(i=0; i<23; i++)
   {
-   printf("BCA: %s.%s.%s resolves to %s\n", 
+   printf("BCA: %s.%s.%s resolves to %s\n",
           cd->host, cd->project_component,  host_resolve_keys[i], *(host_resolve_vars[i]));
   }
  }
@@ -1123,7 +1123,7 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: fee_host_configuration()\n");
 
- if(tc != NULL) 
+ if(tc != NULL)
  {
   if(tc->cc != NULL)
    free(tc->cc);
@@ -1196,7 +1196,7 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
  return 0;
 }
 
-int resolve_component_dependencies(struct bca_context *ctx, 
+int resolve_component_dependencies(struct bca_context *ctx,
                                    struct component_details *cd)
 {
  char *value = NULL;
@@ -1206,8 +1206,8 @@ int resolve_component_dependencies(struct bca_context *ctx,
   fprintf(stderr, "BCA: resolve_component_dependencies()\n");
 
  if(ctx->build_configuration_contents != NULL)
-  value = lookup_key(ctx, 
-                     ctx->build_configuration_contents, 
+  value = lookup_key(ctx,
+                     ctx->build_configuration_contents,
                      ctx->build_configuration_length,
                      cd->host, cd->project_component, "DEPENDS");
 
@@ -1216,12 +1216,12 @@ int resolve_component_dependencies(struct bca_context *ctx,
   if(ctx->verbose)
    fprintf(stderr,
            "BCA: No DEPENDS key found for component \"%s\" "
-           "on host \"%s\", implying dependencies.\n", 
+           "on host \"%s\", implying dependencies.\n",
             cd->project_component, cd->host);
-  
+
   cd->dependencies = NULL;
   cd->n_dependencies = 0;
-  return 0; 
+  return 0;
  }
 
  if(split_strings(ctx, value, -1, &(cd->n_dependencies), &(cd->dependencies)))
@@ -1246,8 +1246,8 @@ int resolve_component_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int resolve_component_file_dependencies(struct bca_context *ctx, 
-                                        struct component_details *cd, 
+int resolve_component_file_dependencies(struct bca_context *ctx,
+                                        struct component_details *cd,
                                         int component_index)
 {
  char *value, *base_file_name, *extension;
@@ -1258,21 +1258,21 @@ int resolve_component_file_dependencies(struct bca_context *ctx,
 
  if(component_index >= cd->n_components)
  {
-  fprintf(stderr, 
-          "BCA: resolve_component_file_dependencies(): invalid component_index %d\n", 
+  fprintf(stderr,
+          "BCA: resolve_component_file_dependencies(): invalid component_index %d\n",
           component_index);
   return 1;
  }
 
- if((value = lookup_key(ctx, ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        cd->project_component_types[component_index], 
-                        cd->project_components[component_index], 
+ if((value = lookup_key(ctx, ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_types[component_index],
+                        cd->project_components[component_index],
                         "FILES")) == NULL)
  {
   if(ctx->verbose)
-   printf("BCA: Could not find %s.%s.FILES\n", 
-          cd->project_component_types[component_index], 
+   printf("BCA: Could not find %s.%s.FILES\n",
+          cd->project_component_types[component_index],
           cd->project_components[component_index]);
 
   cd->n_file_names = 0;
@@ -1289,7 +1289,7 @@ int resolve_component_file_dependencies(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: Found the following files for component \"%s\" (%d): ", 
+  printf("BCA: Found the following files for component \"%s\" (%d): ",
          cd->project_components[component_index], cd->n_file_names);
 
   for(z=0; z < cd->n_file_names; z++)
@@ -1326,8 +1326,8 @@ int resolve_component_file_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int resolve_component_input_dependencies(struct bca_context *ctx, 
-                                         struct component_details *cd, 
+int resolve_component_input_dependencies(struct bca_context *ctx,
+                                         struct component_details *cd,
                                          int component_index)
 {
  char *value, **list = NULL;
@@ -1338,21 +1338,21 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
 
  if(component_index >= cd->n_components)
  {
-  fprintf(stderr, 
-          "BCA: resolve_component_file_dependencies(): invalid component_index %d\n", 
+  fprintf(stderr,
+          "BCA: resolve_component_file_dependencies(): invalid component_index %d\n",
           component_index);
   return 1;
  }
 
- if((value = lookup_key(ctx, ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
-                        cd->project_component_types[component_index], 
-                        cd->project_components[component_index], 
+ if((value = lookup_key(ctx, ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_types[component_index],
+                        cd->project_components[component_index],
                         "INPUT")) == NULL)
  {
   if(ctx->verbose)
-   printf("BCA: Could not find %s.%s.INPUT\n", 
-          cd->project_component_types[component_index], 
+   printf("BCA: Could not find %s.%s.INPUT\n",
+          cd->project_component_types[component_index],
           cd->project_components[component_index]);
 
   cd->n_inputs = 0;
@@ -1409,11 +1409,11 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
  }
 
  free_string_array(list, n_elements);
- 
+
  return 0;
 }
 
-int resolve_component_version(struct bca_context *ctx, 
+int resolve_component_version(struct bca_context *ctx,
                               char *contents, int contents_length,
                               struct component_details *cd,
                               char *component_type,
@@ -1422,20 +1422,20 @@ int resolve_component_version(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: resolve_component_version()\n");
 
- if((cd->major = lookup_key(ctx, contents, contents_length, 
+ if((cd->major = lookup_key(ctx, contents, contents_length,
                             component_type, project_component, "MAJOR")) == NULL)
  {
-  if((cd->major = lookup_key(ctx, contents, contents_length, 
+  if((cd->major = lookup_key(ctx, contents, contents_length,
                              "NONE", "NONE", "MAJOR")) == NULL)
   {
    cd->major = strdup("0");
   }
  }
 
- if((cd->minor = lookup_key(ctx, contents, contents_length, 
+ if((cd->minor = lookup_key(ctx, contents, contents_length,
                             component_type, project_component, "MINOR")) == NULL)
  {
-  if((cd->minor = lookup_key(ctx, contents, contents_length, 
+  if((cd->minor = lookup_key(ctx, contents, contents_length,
                              "NONE", "NONE", "MINOR")) == NULL)
   {
    cd->minor = strdup("0");
@@ -1444,7 +1444,7 @@ int resolve_component_version(struct bca_context *ctx,
 
 
  if(ctx->verbose)
-    printf("BCA: Component \"%s\" version string set to %s.%s\n", 
+    printf("BCA: Component \"%s\" version string set to %s.%s\n",
            project_component, cd->major, cd->minor);
 
  return 0;
@@ -1471,7 +1471,7 @@ int smart_pull_value(struct bca_context *ctx)
   return 0;
  }
 
- /* at this point the value is present either the exact or the .ALL. variant */ 
+ /* at this point the value is present either the exact or the .ALL. variant */
 
  switch(ctx->manipulation_type)
  {
@@ -1488,9 +1488,9 @@ int smart_pull_value(struct bca_context *ctx)
  {
   return 1;
  }
- 
+
  q = ctx->qualifier;
- if((value = lookup_key(ctx, contents, length, ctx->principle, 
+ if((value = lookup_key(ctx, contents, length, ctx->principle,
                         ctx->qualifier, ctx->search_value_key)) == NULL)
  {
   if(strcmp(ctx->qualifier, "ALL") != 0)
@@ -1501,12 +1501,12 @@ int smart_pull_value(struct bca_context *ctx)
 
   if(value == NULL)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: This should not happen!  No exact or .ALL. variant present"
            " after positive check_value().\n");
    return 1;
   }
- } 
+ }
 
  if( (strcmp(q, "ALL") != 0) ||
      (strcmp(ctx->qualifier, "ALL") == 0) )
@@ -1519,10 +1519,10 @@ int smart_pull_value(struct bca_context *ctx)
   free(value);
   free(contents);
   return pull_value(ctx);
- } 
+ }
 
  /* here the value is present in a .ALL. record, but we want to remove it for the exact record
-    case. so we copy and modify the .ALL. record and store it as an exact record */ 
+    case. so we copy and modify the .ALL. record and store it as an exact record */
 
  allocation_size = strlen(value);
 
@@ -1546,7 +1546,7 @@ int smart_pull_value(struct bca_context *ctx)
   {
    handled = 1;
   } else {
-   nv_length += 
+   nv_length +=
    snprintf(new_value + nv_length, allocation_size - nv_length,
            "%s ", values[i]);
   }
@@ -1554,13 +1554,13 @@ int smart_pull_value(struct bca_context *ctx)
 
  if(handled == 0)
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: should not happen: substring not in .ALL. value being to be copied "
           "and modified\n");
   return 1;
  }
 
- if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+ if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                 ctx->search_value_key, new_value))
  {
   fprintf(stderr, "BCA: modify_file() failed\n");
@@ -1610,13 +1610,13 @@ int smart_add_value(struct bca_context *ctx)
  {
   return 1;
  }
- 
- if((value = lookup_key(ctx, contents, length, ctx->principle, 
+
+ if((value = lookup_key(ctx, contents, length, ctx->principle,
                         ctx->qualifier, ctx->search_value_key)) == NULL)
  {
   if(strcmp(ctx->qualifier, "ALL") != 0)
    value = lookup_key(ctx, contents, length, ctx->principle, "ALL", ctx->search_value_key);
- } 
+ }
 
  if(value != NULL)
  {
@@ -1631,7 +1631,7 @@ int smart_add_value(struct bca_context *ctx)
 
   length = strlen(ctx->new_value_string);
 
-  if(add_to_string_array(&values, n_values, 
+  if(add_to_string_array(&values, n_values,
                          ctx->new_value_string, length, 1) != 0)
   {
    fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -1649,7 +1649,7 @@ int smart_add_value(struct bca_context *ctx)
   length = 0;
   for(i=0; i < n_values; i++)
   {
-   length += 
+   length +=
    snprintf(new_value + length, allocation_size - length,
             "%s ", values[i]);
   }
@@ -1658,7 +1658,7 @@ int smart_add_value(struct bca_context *ctx)
   new_value = ctx->new_value_string;
  }
 
- if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+ if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                 ctx->search_value_key, new_value))
  {
   fprintf(stderr, "BCA: modify_file() failed\n");
@@ -1692,14 +1692,13 @@ int add_value(struct bca_context *ctx)
  {
   return 1;
  }
- 
- if((value = lookup_key(ctx, contents, length, ctx->principle, 
+
+ if((value = lookup_key(ctx, contents, length, ctx->principle,
                         ctx->qualifier, ctx->search_value_key)) == NULL)
  {
   fprintf(stderr,
           "BCA: lookup_key() failed for %s.%s.%s in file %s\n",
           ctx->principle, ctx->qualifier, ctx->search_value_key, file);
- 
   return 1;
  }
 
@@ -1713,7 +1712,7 @@ int add_value(struct bca_context *ctx)
 
  nv_length = strlen(ctx->new_value_string);
 
- if(add_to_string_array(&values, n_values, 
+ if(add_to_string_array(&values, n_values,
                         ctx->new_value_string, nv_length, 1) != 0)
  {
   fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -1731,13 +1730,13 @@ int add_value(struct bca_context *ctx)
  nv_length = 0;
  for(i=0; i < n_values; i++)
  {
-  nv_length += 
+  nv_length +=
   snprintf(new_value + nv_length, allocation_size - nv_length,
            "%s ", values[i]);
  }
 
 
- if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+ if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                 ctx->search_value_key, new_value))
  {
   fprintf(stderr, "BCA: modify_file() failed\n");
@@ -1774,14 +1773,13 @@ int pull_value(struct bca_context *ctx)
  {
   return 1;
  }
- 
- if((value = lookup_key(ctx, contents, length, ctx->principle, 
+
+ if((value = lookup_key(ctx, contents, length, ctx->principle,
                         ctx->qualifier, ctx->search_value_key)) == NULL)
  {
   fprintf(stderr,
           "BCA: lookup_key() failed for %s.%s.%s in file %s\n",
           ctx->principle, ctx->qualifier, ctx->search_value_key, file);
- 
   return 1;
  }
 
@@ -1807,7 +1805,7 @@ int pull_value(struct bca_context *ctx)
   {
    handled = 1;
   } else {
-   nv_length += 
+   nv_length +=
    snprintf(new_value + nv_length, allocation_size - nv_length,
            "%s ", values[i]);
   }
@@ -1820,7 +1818,7 @@ int pull_value(struct bca_context *ctx)
   return 1;
  }
 
- if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+ if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                 ctx->search_value_key, new_value))
  {
   fprintf(stderr, "BCA: modify_file() failed\n");
@@ -1857,9 +1855,9 @@ int check_value(struct bca_context *ctx)
  {
   return 1;
  }
- 
+
  q = ctx->qualifier;
- if((value = lookup_key(ctx, contents, length, ctx->principle, 
+ if((value = lookup_key(ctx, contents, length, ctx->principle,
                         ctx->qualifier, ctx->search_value_key)) == NULL)
  {
   if(ctx->verbose)
@@ -1869,14 +1867,13 @@ int check_value(struct bca_context *ctx)
 
   if(strcmp(ctx->qualifier, "ALL") != 0)
   {
-   if((value = lookup_key(ctx, contents, length, ctx->principle, 
+   if((value = lookup_key(ctx, contents, length, ctx->principle,
                           "ALL", ctx->search_value_key)) == NULL)
    {
     if(ctx->verbose)
      fprintf(stderr,
              "BCA: lookup_key() failed for %s.%s.%s in file %s\n",
              ctx->principle, "ALL", ctx->search_value_key, file);
- 
     return 0;
    }
    q = "ALL";
@@ -1898,8 +1895,8 @@ int check_value(struct bca_context *ctx)
   if(strcmp(values[i], ctx->new_value_string) == 0)
   {
    if(ctx->verbose)
-    fprintf(stderr, 
-            "BCA: '%s' found in %s.%s.%s = '%s'. Returning 2.\n", 
+    fprintf(stderr,
+            "BCA: '%s' found in %s.%s.%s = '%s'. Returning 2.\n",
             ctx->new_value_string, ctx->principle, q, ctx->search_value_key, value);
 
    free_string_array(values, n_values);
@@ -1910,7 +1907,7 @@ int check_value(struct bca_context *ctx)
  }
 
  if(ctx->verbose)
-  fprintf(stderr, "BCA: '%s' not found in %s.%s.%s. Returning 3\n", 
+  fprintf(stderr, "BCA: '%s' not found in %s.%s.%s. Returning 3\n",
           ctx->new_value_string, ctx->principle, ctx->qualifier, ctx->search_value_key);
 
  free_string_array(values, n_values);
@@ -1948,16 +1945,16 @@ int resolve_effective_path_mode(struct bca_context *ctx)
 
  if(ctx->build_configuration_contents == NULL)
  {
-  if((ctx->build_configuration_contents = 
-      read_file("./buildconfiguration/buildconfiguration", 
+  if((ctx->build_configuration_contents =
+      read_file("./buildconfiguration/buildconfiguration",
                 &(ctx->build_configuration_length), 1)) == NULL)
   {
    return -1;
   }
  }
 
- if((value = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+ if((value = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         "ALL", "ALL", "EFFECTIVE_PATHS")) != NULL)
  {
   if(strcmp(value, "LOCAL") == 0)
@@ -1974,7 +1971,7 @@ int resolve_effective_path_mode(struct bca_context *ctx)
 
   if(handled == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: invalid value for build configuration value ALL.ALL.EFFECTIVE_PATHS, \"%s\"\n",
            value);
    result = -1;
@@ -1982,10 +1979,10 @@ int resolve_effective_path_mode(struct bca_context *ctx)
   free(value);
  }
 
- return result; 
+ return result;
 }
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type, 
+int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
                                         char *component, char **path)
 {
  char *avalue, *bvalue;
@@ -1994,8 +1991,8 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
  if(ctx->project_configuration_contents == NULL)
  {
-  if((ctx->project_configuration_contents = 
-      read_file("./buildconfiguration/projectconfiguration", 
+  if((ctx->project_configuration_contents =
+      read_file("./buildconfiguration/projectconfiguration",
                 &(ctx->project_configuration_length), 1)) == NULL)
   {
    return 1;
@@ -2004,20 +2001,20 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
  if(ctx->build_configuration_contents == NULL)
  {
-  if((ctx->build_configuration_contents = 
-      read_file("./buildconfiguration/buildconfiguration", 
+  if((ctx->build_configuration_contents =
+      read_file("./buildconfiguration/buildconfiguration",
                 &(ctx->build_configuration_length), 1)) == NULL)
   {
    return 1;
   }
  }
 
- if((avalue = lookup_key(ctx, ctx->project_configuration_contents, 
-                        ctx->project_configuration_length, 
+ if((avalue = lookup_key(ctx, ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
                         component_type, component, "INSTALL_PATH")) == NULL)
  {
-  avalue = lookup_key(ctx, ctx->project_configuration_contents, 
-                      ctx->project_configuration_length, 
+  avalue = lookup_key(ctx, ctx->project_configuration_contents,
+                      ctx->project_configuration_length,
                       component_type, "ALL", "INSTALL_PATH");
  }
 
@@ -2030,12 +2027,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${PREFIX}", 9) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_PREFIX")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_PREFIX");
    }
    offset = 9;
@@ -2043,12 +2040,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${BIN_DIR}", 10) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_BIN_DIR")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_BIN_DIR");
    }
    offset = 10;
@@ -2056,12 +2053,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${LIB_DIR}", 10) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_LIB_DIR")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_LIB_DIR");
    }
    offset = 10;
@@ -2069,12 +2066,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${INCLUDE_DIR}", 14) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_INCLUDE_DIR")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_INCLUDE_DIR");
    }
    offset = 14;
@@ -2082,12 +2079,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${PKG_CONFIG_DIR}", 17) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_PKG_CONFIG_DIR");
    }
    offset = 17;
@@ -2095,12 +2092,12 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
   if(strncmp(avalue, "${LOCALE_DATA_DIR}", 18) == 0)
   {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                           ctx->build_configuration_length, 
+   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                           ctx->build_configuration_length,
                            ctx->principle, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
    {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents, 
-                        ctx->build_configuration_length, 
+    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
                         ctx->principle, "ALL", "INSTALL_LOCALE_DATA_DIR");
    }
    offset = 18;
@@ -2112,7 +2109,7 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
    *path = strdup(temp);
    free(bvalue);
   } else {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: resolve_component_installation_path(): component %s INSTALL_PATH %s failed.\n",
            component, avalue);
    return 1;

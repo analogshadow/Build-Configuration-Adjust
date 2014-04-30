@@ -418,7 +418,8 @@ int test_package_exist(struct bca_context *ctx,
                        char *package, int optional)
 {
  char command[1024];
- int code;
+ int code, length;
+ FILE *test;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: test_package_exist(%s, %d)\n", package, optional);
@@ -426,22 +427,27 @@ int test_package_exist(struct bca_context *ctx,
  if(test_package_exist_helper(command, ctx, cd, tc, package) == 0)
   return 0;
 
- snprintf(command, 1024, "./buildconfiguration/generate-pkg-config-%s-%s.sh",
-          package, cd->host);
+ length = snprintf(command, 1024, "./buildconfiguration/generate-pkg-config-%s",
+                   package);
 
- /* todo: check to see if command exists, and that is executable */
-
- if(ctx->verbose > 1)
-  fprintf(stderr, "BCA: attempting \"%s\"...\n", command);
-
- if( (code = system(command)) > -1)
+ if((test = fopen(command, "r")) != NULL)
  {
-  if(WEXITSTATUS(code) == 0)
+  fclose(test);
+  snprintf(command + length, 1024 - length,
+           "%s", cd->host);
+
+  if(ctx->verbose > 1)
+   fprintf(stderr, "BCA: attempting \"%s\"...\n", command);
+
+  if( (code = system(command)) > -1)
   {
-   if(test_package_exist_helper(command, ctx, cd, tc, package) == 0)
-    return 0;
-  } else {
-   fprintf(stderr, "BCA: %s not successful.\n", command);
+   if(WEXITSTATUS(code) == 0)
+   {
+    if(test_package_exist_helper(command, ctx, cd, tc, package) == 0)
+     return 0;
+   } else {
+    fprintf(stderr, "BCA: %s not successful.\n", command);
+   }
   }
  }
 
@@ -837,7 +843,7 @@ int process_dependencies(struct bca_context *ctx,
     internal deps list create the DEPENDS key for each component in this build.
  */
  int n_test_packages = 0, test_package_optional_flags_size = 0,
-     n_elements, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length,
+     n_elements = 0, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length,
      *test_package_optional_flags = NULL;
  char **test_package_list = NULL, **depends = NULL, **list = NULL, **opt_dep_list = NULL;
 
@@ -881,7 +887,8 @@ int process_dependencies(struct bca_context *ctx,
        list of packages to test for */
     if(yes)
     {
-     if((code = add_to_string_array(&test_package_list, n_test_packages, list[j], -1, 1)) < 0)
+     if((code = add_to_string_array(&test_package_list, 
+                                    n_test_packages, list[j], -1, 1)) < 0)
      {
       return 1;
      }
@@ -893,7 +900,7 @@ int process_dependencies(struct bca_context *ctx,
       /* we keep an array along side the list of packages to test for that
          holds if the package was an optional dependency. This way we don't
          test for the same package twice if it is in both catagories. The
-         optional flag then deturmins if we can proceed if the package was
+         optional flag then determines if we can proceed if the package was
          not found. */
       test_package_optional_flags = expand_int_array(test_package_optional_flags,
                                                      &test_package_optional_flags_size,
