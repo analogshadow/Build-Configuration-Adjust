@@ -49,13 +49,15 @@ void help(void)
         " --build (print & manipulate values from build configuration) (default)\n"
         " --project (print & manipulate values from project configuration)\n"
         " --generate-gmakefile\n"
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
         " --generate-graphviz\n"
+#endif
         " --configure\n"
         " --concatenate file list\n"
         " --replacestrings\n"
         " --listbuildhosts\n"
         " --listprojectcomponents\n"
-	" --componentoutputnames\n"
+        " --componentoutputnames\n"
         " --componentbuildoutputnames\n"
         " --componentinstallnames\n"
         " --componeneffectivenames\n"
@@ -105,8 +107,9 @@ int main(int argc, char **argv)
  if((ctx = setup(argc, argv)) == NULL)
   return 1;
 
- if(ctx->verbose > 1)
-  fprintf(stderr, "BCA: version 0.01\n");
+ if(ctx->verbose)
+  fprintf(stderr, "BCA: Version %s.%s\n",
+          BCA_MAJOR, BCA_MINOR);
 
  switch(ctx->manipulation_type)
  {
@@ -143,7 +146,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "BCA: couldn't create file '%s'\n", file);
         return 1;
        }
-       if(output_modification(ctx, output, NULL, 0, "NONE", "NONE", "PROJECT_NAME", 
+       if(output_modification(ctx, output, NULL, 0, "NONE", "NONE", "PROJECT_NAME",
                               ctx->new_value_string))
        {
         fprintf(stderr, "BCA: modify_file(): output_modifications() failed\n");
@@ -154,12 +157,12 @@ int main(int argc, char **argv)
        return 0;
        break;
 
-  case SHOW_VALUE_MODE: 
+  case SHOW_VALUE_MODE:
        if((contents = read_file(file, &length, 0)) == NULL)
        {
         return 1;
        }
-       if((value = lookup_key(ctx, contents, length, ctx->principle, 
+       if((value = lookup_key(ctx, contents, length, ctx->principle,
                               ctx->qualifier, ctx->search_value_key)) == NULL)
        {
 
@@ -170,7 +173,7 @@ int main(int argc, char **argv)
           printf("BCA: component level build setting for \"%s\" not found, "
                  "checking host default...\n",
                  ctx->qualifier);
- 
+
          value = lookup_key(ctx, contents, length, ctx->principle, "ALL", ctx->search_value_key);
         }
        }
@@ -200,7 +203,7 @@ int main(int argc, char **argv)
        {
         if((contents = read_file(file, &length, 0)) == NULL)
          return 1;
-        
+
         if((value = lookup_key(ctx, contents, length, ctx->principle, 
                                ctx->qualifier, ctx->search_value_key)) != NULL)
         {
@@ -249,7 +252,7 @@ int main(int argc, char **argv)
         fprintf(stderr,
                 "BCA: Conflict in file %s: %s.%s.%s = %s already exists.\n",
                 file, ctx->principle, ctx->qualifier, ctx->search_value_key, value);
- 
+
         free(value);
         return 1;
        }
@@ -266,7 +269,7 @@ int main(int argc, char **argv)
 
   case LIST_HOSTS_MODE:
   case LIST_PROJECT_TYPES_MODE:
-     
+
        if((contents = read_file(file, &length, 0)) == NULL)
        {
         return 1;
@@ -381,12 +384,14 @@ int main(int argc, char **argv)
        return code;
        break;
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION#ifndef IN_SINGLE_FILE_DISTRIBUTION
   case GENERATE_GRAPHVIZ_MODE:
        if( ((code = generate_graphviz_mode(ctx)) == 0) &&
            (ctx->verbose> 1) )
         printf("BCA: generate_graphviz_mode() finished\n");
        return code;
        break;
+#endif
 
   case STRING_REPLACE_MODE:
        if( ((code = string_replace(ctx)) == 0) &&
@@ -403,7 +408,7 @@ int main(int argc, char **argv)
        break;
 
   case LIST_COMPONENT_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle, 
+       if((n_items = render_project_component_output_name(ctx, ctx->principle,
                                                           ctx->qualifier, 1, &list, NULL)) < 0)
         return 1;
        for(i=0; i<n_items; i++)
@@ -416,7 +421,7 @@ int main(int argc, char **argv)
        break;
 
   case LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle, 
+       if((n_items = render_project_component_output_name(ctx, ctx->principle,
                                                           ctx->qualifier, 2, &list, NULL)) < 0)
         return 1;
        for(i=0; i<n_items; i++)
@@ -429,7 +434,7 @@ int main(int argc, char **argv)
        break;
 
   case LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle, 
+       if((n_items = render_project_component_output_name(ctx, ctx->principle,
                                                           ctx->qualifier, 3, &list, NULL)) < 0)
         return 1;
        for(i=0; i<n_items; i++)
@@ -441,13 +446,13 @@ int main(int argc, char **argv)
        break;
 
   case LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle, 
+       if((n_items = render_project_component_output_name(ctx, ctx->principle,
                                                           ctx->qualifier, 4, &list, NULL)) < 0)
         return 1;
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
-         printf("%s\n", list[i]); 
+         printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
        break;
@@ -570,10 +575,17 @@ struct bca_context *setup(int argc, char **argv)
   }
 #endif
 
+
   if(strcmp(argv[current_arg], "--generate-graphviz") == 0)
   {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
    handled = 1;
    ctx->mode = GENERATE_GRAPHVIZ_MODE;
+#else
+   fprintf(stderr,
+           "BCA: graphviz plots not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
   }
 
   if(strcmp(argv[current_arg], "--configure") == 0)
@@ -588,8 +600,8 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
    ctx->mode = NEWT_INTERFACE_MODE;
 #else
-   fprintf(stderr, 
-           "BCA: This build configuration adjust was not build with support "
+   fprintf(stderr,
+           "BCA: This build configuration adjust was not built with support "
            "for the newt interface. If you want to use this feature, consider "
            "installing a local copy on this system or somewhere in your $PATH.\n");
    return NULL;

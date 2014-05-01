@@ -250,7 +250,7 @@ int gmake_help(struct bca_context *ctx, FILE *output,
  }
 
  fprintf(output, "\t@echo \"This Makefile was generated with Build Configuration Adjust "
-         "version X\"\n\n\n");
+         "version %s.%s\"\n\n\n", BCA_MAJOR, BCA_MINOR);
 
  return 0;
 }
@@ -2354,7 +2354,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
        }
       } else {
 
-       if(install_names > 3)
+       if(n_install_names > 3)
        {
         fprintf(output, "\tinstall %s %s\n", build_names[3], install_names[3]);
 

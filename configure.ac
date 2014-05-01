@@ -17,7 +17,7 @@ else
 	fi
 fi
 
-dnl perform testing and cache result
+dnl perform testing and save result
 if @<:@ $DO_TEST == 1 @:>@
 then
 	AC_CHECK_FUNC(getcwd, [ HAVE_CWD=1], [ HAVE_CWD=0])
@@ -33,10 +33,7 @@ then
 	fi
 fi
 
-dnl take test results (or cached value) and manipulate build configureation
-if @<:@ $HAVE_CWD == 1 @:>@
-then
-	./bca --host $HOST_IDENTIFIER --smartaddvalue CFLAGS -DHAVE_CWD
-fi
+
+
 
 

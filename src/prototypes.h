@@ -23,6 +23,8 @@
 #ifndef _prototypes_h_
 #define _prototypes_h_
 
+#include "config.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

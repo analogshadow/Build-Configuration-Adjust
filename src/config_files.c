@@ -1843,12 +1843,20 @@ int check_value_inline(struct bca_context *ctx,
  if((value = lookup_key(ctx, contents, length,
                         principle, qualifier, key)) == NULL)
  {
-  value = lookup_key(ctx, contents, length,
-                     principle, "ALL", key);
+  if(strcmp(qualifier, "ALL") != 0)
+   value = lookup_key(ctx, contents, length,
+                      principle, "ALL", key);
  }
 
  if(value == NULL)
-  return -2;
+ {
+  if(ctx->verbose)
+   fprintf(stderr,
+           "BCA: lookup_key() failed for %s.%s.%s\n",
+           ctx->principle, ctx->qualifier, ctx->search_value_key);
+
+  return 0;
+ }
 
  value_length = strlen(value);
 
@@ -1905,14 +1913,6 @@ int check_value(struct bca_context *ctx)
 
  switch(code)
  {
-  case -2:
-       if(ctx->verbose)
-        fprintf(stderr,
-                "BCA: lookup_key() failed for %s.[%s/ALL].%s in file %s\n",
-                ctx->principle, ctx->qualifier, ctx->search_value_key, file);
-       code = 1;
-       break;
-
   case -1:
        code = 1;
        break;
