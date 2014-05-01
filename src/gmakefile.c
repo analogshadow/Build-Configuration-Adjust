@@ -2117,7 +2117,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
      length, index, yes, swapped, n_lib_headers;
  struct host_configuration *tc = NULL;
  char temp[1024], **build_names, *install_headers_dir, *base_filename, *extension,
-      **install_names, *value, **output_names, **lib_headers;
+      **install_names, *value, **output_names, **lib_headers, *install_directory;
  struct component_details cd_d;
 
  if(ctx->verbose > 2)
@@ -2247,6 +2247,18 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
     if(n_install_names > 0)
     {
 
+     if(resolve_component_installation_path(ctx,
+                                            hosts[x],
+                                            cd->project_component_types[y],
+                                            cd->project_components[y],
+                                            &install_directory))
+     {
+      fprintf(stderr,
+              "BCA: resolve_component_installation_path(%s, %s) failed\n",
+              cd->project_component_types[y], cd->project_components[y]);
+      return -1;
+     }
+
      if((n_build_names =
          render_project_component_output_name(ctx, hosts[x],
                                               cd->project_components[y], 2,
@@ -2279,7 +2291,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                install_names[0]);
       else
        fprintf(output, "\tinstall %s %s\n",
-               build_names[0], install_names[0]);
+               build_names[0], install_directory);
 
      } else if(strcmp(cd->project_component_types[y], "CAT") == 0) {
       if(uninstall_version)
@@ -2287,7 +2299,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                install_names[0]);
       else
        fprintf(output, "\tinstall %s %s\n",
-               build_names[0], install_names[0]);
+               build_names[0], install_directory);
 
      } else if(strcmp(cd->project_component_types[y], "MACROEXPAND") == 0) {
       if(uninstall_version)
@@ -2295,7 +2307,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                install_names[0]);
       else
        fprintf(output, "\tinstall %s %s\n",
-               build_names[0], install_names[0]);
+               build_names[0], install_directory);
 
      } else if(strcmp(cd->project_component_types[y], "CUSTOM") == 0) {
       if(uninstall_version)
@@ -2303,7 +2315,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                install_names[0]);
       else
        fprintf(output, "\tinstall %s %s\n",
-               build_names[0], install_names[0]);
+               build_names[0], install_directory);
 
      } else if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0) {
 
@@ -2360,7 +2372,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
        if(n_install_names > 3)
        {
-        fprintf(output, "\tinstall %s %s\n", build_names[3], install_names[3]);
+        fprintf(output, "\tinstall %s %s\n", build_names[3], install_directory);
 
         if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                                 cd->project_component_output_name), ".dll") != 0)
@@ -2383,24 +2395,13 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
       for(i=0; i<n_lib_headers; i++)
       {
-       base_filename = NULL;
-       extension = NULL;
-       if(path_extract(lib_headers[i], &base_filename, &extension))
-       {
-        fprintf(stderr, "BCA: path_extract(%s) failed\n", lib_headers[i]);
-        return 1;
-       }
-
-       snprintf(temp, 1024, "%s/%s.%s",
-                install_headers_dir, base_filename, extension);
-       free(base_filename);
-       free(extension);
-
        if(uninstall_version)
         fprintf(output, "\trm %s\n", temp);
        else
-        fprintf(output, "\tinstall %s %s\n", lib_headers[i], temp);
+        fprintf(output, "\tinstall %s %s\n", lib_headers[i], install_headers_dir);
       }
+
+      /* todo: handle ldconfig? */
 
       if(install_headers_dir != NULL)
        free(install_headers_dir);
@@ -2411,6 +2412,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
      free_string_array(output_names, n_output_names);
      free_string_array(build_names, n_build_names);
      free_string_array(install_names, n_install_names);
+     free(install_directory);
     }
 
     free_host_configuration(ctx, tc);

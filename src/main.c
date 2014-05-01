@@ -34,6 +34,7 @@ void help(void)
  printf("\n                         Build Configuration Adjust\n"
         "This is part of the build system, and not part of the project it builds.\n"
         "\nusage:\n"
+        " --version\n"
         " --showvalue key\n"
         " --setvalue key newvalue\n"
         " --newvalue key newvalue\n"
@@ -127,11 +128,14 @@ int main(int argc, char **argv)
        if(ctx->qualifier == NULL)
         ctx->qualifier = "ALL";
        break;
-
  }
 
  switch(ctx->mode)
  {
+  case VERSION_MODE:
+       printf("%s.%s\n", BCA_MAJOR, BCA_MINOR);
+       break;
+
   case NEW_PROJECT_MODE:
        if((output = fopen(file, "r")) != NULL)
        {
@@ -548,6 +552,12 @@ struct bca_context *setup(int argc, char **argv)
     help();
     return NULL;
    }
+  }
+
+  if(strcmp(argv[current_arg], "--version") == 0)
+  {
+   handled = 1;
+   ctx->mode = VERSION_MODE;
   }
 
   if( (strcmp(argv[current_arg], "-v") == 0) ||
