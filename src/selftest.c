@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -748,31 +748,6 @@ int setup_test(struct bca_context *real_ctx)
   printf("failed\n");
  } else {
   if(test_ctx->mode != NEWT_INTERFACE_MODE)
-  {
-   printf("failed: wrong mode\n");
-   shutdown(test_ctx);
-  } else {
-   if(shutdown(test_ctx))
-   {
-    printf("failed: shutdown() error\n");
-   } else {
-    printf("passed\n");
-   }
-  }
- }
-#endif
-
-#ifndef WITHOUT_MONGOOSE
- printf("test: modemongoose: ");
- test_ctx = NULL;
- argc = 0;
- argv[argc++] = "bca";
- argv[argc++] = "--mongoose-interface";
- if((test_ctx = setup(argc, argv)) == NULL)
- {
-  printf("failed\n");
- } else {
-  if(test_ctx->mode != MONGOOSE_INTERFACE_MODE)
   {
    printf("failed: wrong mode\n");
    shutdown(test_ctx);

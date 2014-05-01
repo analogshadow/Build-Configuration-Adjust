@@ -224,7 +224,9 @@ int render_project_component_output_name(struct bca_context *ctx,
            temp[0] = 0;
            prefix_length = 1;
 
-           if(resolve_component_installation_path(ctx, cd.project_component_types[y],
+           if(resolve_component_installation_path(ctx,
+                                                  host,
+                                                  cd.project_component_types[y],
                                                   cd.project_components[y],
                                                   &component_install_path))
            {

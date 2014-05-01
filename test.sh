@@ -1397,7 +1397,7 @@ swaps_configureerrors() {
 
  #now try a regular configure with a different host. For instance a parallel build
  #in a debug configuration
- CFLAGS=-g try_configure --host DEBUG 
+ CFLAGS=-g try_configure --host DEBUG
  if [ "$ERROR" != "" ]
  then
   return
@@ -1405,7 +1405,7 @@ swaps_configureerrors() {
 
  rm out
  #now that we do have a host named DEBUG, the above swap proceedure should work
- try_configure --swap-ALT DEBUG 
+ try_configure --swap-ALT DEBUG
  if [ "$ERROR" != "" ]
  then
   return
@@ -1465,7 +1465,7 @@ swaps_configureerrors() {
 
  echo "passed" >> ../test.sh-results
  cd ..
-} 
+}
 
 swaps_simple() {
  prepare_environment
@@ -1492,14 +1492,15 @@ swaps_simple() {
          "{\n print_hello();\n return 0;\n}\n" > altmain.c
 
  #for an example we might want to build component ALT on the to be prepared alternative
- #host configuration, DEBUG. 
- CFLAGS=-g try_configure --host DEBUG 
+ #host configuration, DEBUG.
+
+ CFLAGS=-g try_configure --host DEBUG
  if [ "$ERROR" != "" ]
  then
   return
  fi
- 
- try_configure --swap-greetings DEBUG 
+
+ try_configure --swap-greetings DEBUG
  if [ "$ERROR" != "" ]
  then
   return
@@ -1564,10 +1565,10 @@ swaps_simple() {
  echo "passed" >> ../test.sh-results
 
  graphviz_sanity_check concat
- makeclean_check concat 
+ makeclean_check concat
 
  cd ..
-} 
+}
 
 
 #now we need swap tests for the cases:

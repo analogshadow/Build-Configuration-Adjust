@@ -2004,8 +2004,11 @@ int resolve_effective_path_mode(struct bca_context *ctx)
  return result;
 }
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
-                                        char *component, char **path)
+int resolve_component_installation_path(struct bca_context *ctx,
+                                        char *host,
+                                        char *component_type,
+                                        char *component,
+                                        char **path)
 {
  char *avalue, *bvalue = NULL;
  char temp[1024];
@@ -2064,11 +2067,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_PREFIX")) == NULL)
+                          host, component, "INSTALL_PREFIX")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_PREFIX");
+                       host, "ALL", "INSTALL_PREFIX");
   }
   offset = 9;
  }
@@ -2077,11 +2080,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_BIN_DIR")) == NULL)
+                          host, component, "INSTALL_BIN_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_BIN_DIR");
+                       host, "ALL", "INSTALL_BIN_DIR");
   }
   offset = 10;
  }
@@ -2090,11 +2093,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_LIB_DIR")) == NULL)
+                          host, component, "INSTALL_LIB_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_LIB_DIR");
+                       host, "ALL", "INSTALL_LIB_DIR");
   }
   offset = 10;
  }
@@ -2103,11 +2106,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_INCLUDE_DIR")) == NULL)
+                          host, component, "INSTALL_INCLUDE_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_INCLUDE_DIR");
+                       host, "ALL", "INSTALL_INCLUDE_DIR");
   }
   offset = 14;
  }
@@ -2116,11 +2119,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
+                          host, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_PKG_CONFIG_DIR");
+                       host, "ALL", "INSTALL_PKG_CONFIG_DIR");
   }
   offset = 17;
  }
@@ -2129,11 +2132,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
+                          host, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_LOCALE_DATA_DIR");
+                       host, "ALL", "INSTALL_LOCALE_DATA_DIR");
   }
   offset = 18;
  }
@@ -2144,7 +2147,7 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
   {
    fprintf(stderr,
            "BCA: could not resolve %s for host %s\n",
-           avalue, ctx->principle);
+           avalue, host);
    return 1;
   }
 

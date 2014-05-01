@@ -324,8 +324,11 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
 int resolve_effective_path_mode(struct bca_context *ctx);
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
-                                        char *component, char **path);
+int resolve_component_installation_path(struct bca_context *ctx,
+                                        char *host,
+                                        char *component_type,
+                                        char *component,
+                                        char **path);
 
 int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
 

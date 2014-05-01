@@ -49,9 +49,6 @@ void help(void)
         " --build (print & manipulate values from build configuration) (default)\n"
         " --project (print & manipulate values from project configuration)\n"
         " --generate-gmakefile\n"
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --generate-graphviz\n"
-#endif
         " --configure\n"
         " --concatenate file list\n"
         " --replacestrings\n"
@@ -64,18 +61,20 @@ void help(void)
         " --newproject \"project name\"\n"
         " --swap-* host\n"
         " --buildprefix=BUILD_PREFIX\n"
+
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+        " --generate-graphviz\n"
         " --selftest (help debug buildconfigurationadjust itself)\n"
 #endif
+
 #ifndef WITHOUT_LIBNEWT
         " --newt-interface\n"
 #endif
-#ifndef WITHOUT_MONGOOSE
-        " --mongoose-interface\n"
-#endif
+
 #ifdef HAVE_GTK
         " --gtk-interface\n"
 #endif
+
         "\n If you are just trying to run ./configure and have no idea what is going on,\n"
         " some of the autoconf compatibility options are:\n"
         " --prefix=INSTALL_PREFIX\n"
@@ -605,7 +604,7 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
    ctx->mode = GTK_INTERFACE_MODE;
 #else
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: This build configuration adjust was not build with support "
            "for the Gtk+ interface. If you want to use this feature, consider "
            "installing a local copy on this system or somewhere in your $PATH.\n");

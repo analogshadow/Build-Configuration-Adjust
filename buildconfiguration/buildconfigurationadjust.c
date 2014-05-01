@@ -331,8 +331,11 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
 int resolve_effective_path_mode(struct bca_context *ctx);
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
-                                        char *component, char **path);
+int resolve_component_installation_path(struct bca_context *ctx,
+                                        char *host,
+                                        char *component_type,
+                                        char *component,
+                                        char **path);
 
 int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
 
@@ -2415,8 +2418,11 @@ int resolve_effective_path_mode(struct bca_context *ctx)
  return result;
 }
 
-int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
-                                        char *component, char **path)
+int resolve_component_installation_path(struct bca_context *ctx,
+                                        char *host,
+                                        char *component_type,
+                                        char *component,
+                                        char **path)
 {
  char *avalue, *bvalue = NULL;
  char temp[1024];
@@ -2475,11 +2481,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_PREFIX")) == NULL)
+                          host, component, "INSTALL_PREFIX")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_PREFIX");
+                       host, "ALL", "INSTALL_PREFIX");
   }
   offset = 9;
  }
@@ -2488,11 +2494,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_BIN_DIR")) == NULL)
+                          host, component, "INSTALL_BIN_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_BIN_DIR");
+                       host, "ALL", "INSTALL_BIN_DIR");
   }
   offset = 10;
  }
@@ -2501,11 +2507,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_LIB_DIR")) == NULL)
+                          host, component, "INSTALL_LIB_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_LIB_DIR");
+                       host, "ALL", "INSTALL_LIB_DIR");
   }
   offset = 10;
  }
@@ -2514,11 +2520,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_INCLUDE_DIR")) == NULL)
+                          host, component, "INSTALL_INCLUDE_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_INCLUDE_DIR");
+                       host, "ALL", "INSTALL_INCLUDE_DIR");
   }
   offset = 14;
  }
@@ -2527,11 +2533,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
+                          host, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_PKG_CONFIG_DIR");
+                       host, "ALL", "INSTALL_PKG_CONFIG_DIR");
   }
   offset = 17;
  }
@@ -2540,11 +2546,11 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  {
   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
-                          ctx->principle, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
+                          host, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
   {
    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
                        ctx->build_configuration_length,
-                       ctx->principle, "ALL", "INSTALL_LOCALE_DATA_DIR");
+                       host, "ALL", "INSTALL_LOCALE_DATA_DIR");
   }
   offset = 18;
  }
@@ -2555,7 +2561,7 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
   {
    fprintf(stderr,
            "BCA: could not resolve %s for host %s\n",
-           avalue, ctx->principle);
+           avalue, host);
    return 1;
   }
 
@@ -3110,9 +3116,6 @@ void help(void)
         " --build (print & manipulate values from build configuration) (default)\n"
         " --project (print & manipulate values from project configuration)\n"
         " --generate-gmakefile\n"
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --generate-graphviz\n"
-#endif
         " --configure\n"
         " --concatenate file list\n"
         " --replacestrings\n"
@@ -3125,18 +3128,20 @@ void help(void)
         " --newproject \"project name\"\n"
         " --swap-* host\n"
         " --buildprefix=BUILD_PREFIX\n"
+
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+        " --generate-graphviz\n"
         " --selftest (help debug buildconfigurationadjust itself)\n"
 #endif
+
 #ifndef WITHOUT_LIBNEWT
         " --newt-interface\n"
 #endif
-#ifndef WITHOUT_MONGOOSE
-        " --mongoose-interface\n"
-#endif
+
 #ifdef HAVE_GTK
         " --gtk-interface\n"
 #endif
+
         "\n If you are just trying to run ./configure and have no idea what is going on,\n"
         " some of the autoconf compatibility options are:\n"
         " --prefix=INSTALL_PREFIX\n"
@@ -3666,7 +3671,7 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
    ctx->mode = GTK_INTERFACE_MODE;
 #else
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: This build configuration adjust was not build with support "
            "for the Gtk+ interface. If you want to use this feature, consider "
            "installing a local copy on this system or somewhere in your $PATH.\n");
@@ -4428,7 +4433,9 @@ int render_project_component_output_name(struct bca_context *ctx,
            temp[0] = 0;
            prefix_length = 1;
 
-           if(resolve_component_installation_path(ctx, cd.project_component_types[y],
+           if(resolve_component_installation_path(ctx,
+                                                  host,
+                                                  cd.project_component_types[y],
                                                   cd.project_components[y],
                                                   &component_install_path))
            {
@@ -9670,6 +9677,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
  for(x=0; x<n_build_hosts; x++)
  {
+
   if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
   {
    fprintf(stderr,
@@ -9715,7 +9723,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                              cd->project_components[y], 3,
                                              &install_names, NULL)) < 0)
     {
-     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed ([un]install targets)\n");
      return 1;
     }
 

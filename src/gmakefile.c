@@ -2145,6 +2145,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
  for(x=0; x<n_build_hosts; x++)
  {
+
   if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
   {
    fprintf(stderr,
@@ -2190,7 +2191,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                              cd->project_components[y], 3,
                                              &install_names, NULL)) < 0)
     {
-     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed ([un]install targets)\n");
      return 1;
     }
 
