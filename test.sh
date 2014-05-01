@@ -694,11 +694,11 @@ examples_customcommand() {
  cd testing_environment
  ln -sf ../native/bca-canadate ./bca
  ./bca --newproject "Custom Command" &> out
- ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
- ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
- ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
- ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
- ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh >> out 2>&1
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER >> out 2>&1
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation. Abcdef.</p>\n"\
          " </body>\n</html>\n" > documentation.html
@@ -758,16 +758,16 @@ examples_inputtocustom() {
  cd testing_environment
  ln -sf ../native/bca-canadate ./bca
  ./bca --newproject "Input to Custom" &> out
- ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh &>> out
- ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" &>> out
- ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html &>> out
- ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html &>> out
- ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
- ./bca --component documentation2_out --type MACROEXPAND --newvalue NAME documentation2.out &>> out
- ./bca --component documentation2_out --type MACROEXPAND --newvalue FILES documentation2.html.in &>> out
- ./bca --component documentation2 --type CUSTOM --newvalue NAME documentation2.html &>> out
- ./bca --component documentation2 --type CUSTOM --newvalue INPUT documentation2_out &>> out
- ./bca --component documentation2 --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER &>> out
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh >> out 2>&1
+ ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue NAME documentation.html >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue FILES documentation.html >> out 2>&1
+ ./bca --component documentation --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER >> out 2>&1
+ ./bca --component documentation2_out --type MACROEXPAND --newvalue NAME documentation2.out >> out 2>&1
+ ./bca --component documentation2_out --type MACROEXPAND --newvalue FILES documentation2.html.in >> out 2>&1
+ ./bca --component documentation2 --type CUSTOM --newvalue NAME documentation2.html >> out 2>&1
+ ./bca --component documentation2 --type CUSTOM --newvalue INPUT documentation2_out >> out 2>&1
+ ./bca --component documentation2 --type CUSTOM --newvalue DRIVER ASPELL_WRAPPER >> out 2>&1
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation.\n"\
          "   If you think this good, check out page <a href=\"./documentation2.html\">two</a>.</p>\n"\
@@ -897,9 +897,9 @@ examples_customwithnativetool() {
  #with the output name of make_hello_wrapper.sh from the source file
  #make_hello_wrapper.sh.in
 ./bca --component make_hello_wrapper --type MACROEXPAND --newvalue NAME \
- make_hello_wrapper.sh &>> out
+ make_hello_wrapper.sh >> out 2>&1
  ./bca --component make_hello_wrapper --type MACROEXPAND --newvalue FILES \
- "make_hello_wrapper.sh.in" &>> out
+ "make_hello_wrapper.sh.in" >> out 2>&1
 
  #contents of make_hello_world.sh.in
  #The last argument to a custom script will be output name. In this case it
@@ -911,9 +911,9 @@ examples_customwithnativetool() {
 
  #next add a CUSTOM component named generated_hello that will use the created file
  #make_hello_wrapper.sh to do its bidding, [M W,which is to generate a file called generated_hello.c
- ./bca --component generated_hello --type CUSTOM --newvalue NAME generated_hello.c &>> out
- ./bca --component generated_hello --type CUSTOM --newvalue INPUT make_hello &>> out
- ./bca --component generated_hello --type CUSTOM --newvalue DRIVER make_hello_wrapper &>> out
+ ./bca --component generated_hello --type CUSTOM --newvalue NAME generated_hello.c >> out 2>&1
+ ./bca --component generated_hello --type CUSTOM --newvalue INPUT make_hello >> out 2>&1
+ ./bca --component generated_hello --type CUSTOM --newvalue DRIVER make_hello_wrapper >> out 2>&1
 
  #now we want to actually build the tool-generated source file as part of our project.
  ./bca --component special_hello --type BINARY --newvalue NAME special_hello >> out 2>> out
