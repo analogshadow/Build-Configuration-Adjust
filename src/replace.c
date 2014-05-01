@@ -23,13 +23,185 @@
 #include "prototypes.h"
 #endif
 
+int parse_function_parameters(char *string, char ***array, int *array_length)
+{
+ int length, i, mark = -1;
+
+ *array = NULL;
+ *array_length = 0;
+ length = strlen(string);
+
+ if(string[length - 1] != ')')
+ {
+  fprintf(stderr, "BCA: string '%s' should end with a ')'\n", string);
+  return 1;
+ }
+ length -= 1;
+
+ i = 0;
+ while(i< length)
+ {
+  switch(string[i])
+  {
+   case '(':
+        if(mark != -1)
+        {
+         fprintf(stderr, "BCA: string '%s' should not have more than one '('\n", string);
+         free_string_array(*array, *array_length);
+         return 1;
+        }
+        if(add_to_string_array(array, *array_length,
+                               string, i, 0))
+        {
+         fprintf(stderr, "BCA: add_to_string_array() failed\n");
+         return 1;
+        }
+        (*array_length)++;
+        mark = i + 1;
+        break;
+
+  case ',':
+        if(add_to_string_array(array, *array_length,
+                               string + mark, i - mark, 0))
+        {
+         fprintf(stderr, "BCA: add_to_string_array() failed\n");
+         free_string_array(*array, *array_length);
+         return 1;
+        }
+        (*array_length)++;
+
+       mark = i + 1;
+       break;
+
+  }
+
+  i++;
+ }
+
+ if(add_to_string_array(array, *array_length,
+                        string + mark, i - mark, 0))
+ {
+  fprintf(stderr, "BCA: add_to_string_array() failed\n");
+  free_string_array(*array, *array_length);
+  return 1;
+ }
+ (*array_length)++;
+
+ return 0;
+}
+
+char *check_function(struct bca_context *ctx, char *key)
+{
+ char **parameters, *contents, *p, *q, *k, *c, *result;
+ int n_parameters, code, length, i;
+
+ if(parse_function_parameters(key, &parameters, &n_parameters))
+ {
+  fprintf(stderr, "BCA: parse_function_parameters(%s) failed\n", key);
+  return NULL;
+ }
+
+ if(ctx->verbose > 1)
+ {
+  fprintf(stderr, "BCA: trying CHECK(");
+  for(i=1; i<n_parameters; i++)
+  {
+   fprintf(stderr, "%s", parameters[i]);
+   if(i + 1 < n_parameters)
+    fprintf(stderr, ",");
+  }
+  fprintf(stderr, ")\n");
+ }
+  /* 0) CHECK
+    1) BUILD | PROJECT
+    2) CURRENT | HOSTNAME
+    3) COMPONENT | ALL
+    4) KEY
+    5) CHECK-VALUE
+ */
+
+ if(n_parameters != 6)
+ {
+  fprintf(stderr, "BCA: CHECK() macro function expects 5 parameters, not %d\n", n_parameters - 1);
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[1], "BUILD") == 0)
+ {
+
+  if(ctx->build_configuration_contents == NULL)
+  {
+   if((ctx->build_configuration_contents =
+       read_file("./buildconfiguration/buildconfiguration",
+                 &(ctx->build_configuration_length), 0)) == NULL)
+   {
+    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->build_configuration_contents;
+  length = ctx->build_configuration_length;
+
+ } else if(strcmp(parameters[1], "PROJECT") == 0) {
+
+  if(ctx->project_configuration_contents == NULL)
+  {
+   if((ctx->project_configuration_contents =
+        read_file("./buildconfiguration/projectconfiguration",
+                  &(ctx->project_configuration_length), 0)) == NULL)
+   {
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->project_configuration_contents;
+  length = ctx->project_configuration_length;
+
+ } else {
+  fprintf(stderr, "BCA: CHECK() first parameters should be BUILD or PROJECT\n");
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[2], "CURRENT") == 0)
+ {
+  p = ctx->principle;
+ } else {
+  p = parameters[2];
+ }
+ q = parameters[3];
+ k = parameters[4];
+ c = parameters[5];
+
+ if((code = check_value_inline(ctx, contents, length,
+                               p, q, k, c)) < 0)
+ {
+  fprintf(stderr, "BCA: check_function(%s): check_value_inline() failed\n", key);
+  return NULL;
+ }
+
+ free_string_array(parameters, n_parameters);
+ if((result = malloc(3)) == NULL)
+ {
+  fprintf(stderr, "BCA: malloc(3) failed\n");
+  return NULL;
+ }
+
+ snprintf(result, 3, "%d", code);
+ return result;
+}
+
 char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 {
  char *value, a[256], b[256], c[256], **list = NULL, **withouts = NULL;
- int mode = 0, n_dots = 0, dots[2], length, i, n_items = 0, n_withouts = 0, 
+ int mode = 0, n_dots = 0, dots[2], length, i, n_items = 0, n_withouts = 0,
      edition, allocation_size;
 
-/*package config, project & build config, targets, withouts, disables, versions, 
+/*package config, project & build config, targets, withouts, disables, versions,
   paths, build name, date, tests?
 */
 
@@ -47,10 +219,15 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   return strdup(value);
  }
 
+ if(strncmp(key, "CHECK(", 6) == 0)
+ {
+  return check_function(ctx, key);
+ }
+
  if(strncmp(key, "BCA.BUILDIR", 11) == 0)
  {
 #ifdef HAVE_CWD
-  return strdup(ctx->cwd); 
+  return strdup(ctx->cwd);
 #else
   fprintf(stderr, "BCA: fixme, I've been built without cwd() and need that for @BCA.BUILDDIR@\n");
   return NULL;
@@ -66,8 +243,8 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 
   if(ctx->build_configuration_contents == NULL)
   {
-   if((ctx->build_configuration_contents = 
-       read_file("./buildconfiguration/buildconfiguration", 
+   if((ctx->build_configuration_contents =
+       read_file("./buildconfiguration/buildconfiguration",
                  &(ctx->build_configuration_length), 0)) == NULL)
    {
     fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
@@ -75,8 +252,8 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    }
   }
 
-  value = lookup_key(ctx, ctx->build_configuration_contents, 
-                     ctx->build_configuration_length, 
+  value = lookup_key(ctx, ctx->build_configuration_contents,
+                     ctx->build_configuration_length,
                      ctx->principle, a, "MACROS");
 
   if(value == NULL)
@@ -86,9 +263,9 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
     if(ctx->verbose > 1)
      fprintf(stderr, "BCA: no %s.%s.%s\n", ctx->principle, a, "MACROS");
    }
-   
-   value = lookup_key(ctx, ctx->build_configuration_contents, 
-                      ctx->build_configuration_length, 
+
+   value = lookup_key(ctx, ctx->build_configuration_contents,
+                      ctx->build_configuration_length,
                       ctx->principle, a, "MACROS");
 
    if(value == NULL)
@@ -110,11 +287,11 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   }
 
   if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                         ctx->build_configuration_length, 
+                         ctx->build_configuration_length,
                          ctx->principle, a, "WITHOUTS")) == NULL)
   {
    if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                          ctx->build_configuration_length, 
+                          ctx->build_configuration_length,
                           ctx->principle, "ALL", "WITHOUTS")) == NULL)
    {
     if(ctx->verbose)
@@ -216,7 +393,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    return NULL;
   memcpy(b, key + dots[0] + 1, length);
   b[length] = 0;
- 
+
   i = -1;
   sscanf(b, "%d", &i);
   if(i < 0)

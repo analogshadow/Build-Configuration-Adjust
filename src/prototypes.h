@@ -179,6 +179,8 @@ int self_test(struct bca_context *ctx);
 int string_replace(struct bca_context *ctx);
 
 /* conversions.c -------------------------------- */
+char *lib_file_name_to_link_name(const char *file_name);
+
 char *without_string_to_without_macro(struct bca_context *ctx, char *in);
 
 int render_project_component_output_name(struct bca_context *ctx,
@@ -251,6 +253,11 @@ int modify_file(struct bca_context *ctx, char *filename,
 int add_value(struct bca_context *ctx);
 
 int pull_value(struct bca_context *ctx);
+
+int check_value_inline(struct bca_context *ctx,
+                       char *contents, int length,
+                       char *principle, char *qualifier,
+                       char *key, char *check_value);
 
 int check_value(struct bca_context *ctx);
 
@@ -359,7 +366,8 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
 int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  char **hosts, int n_build_hosts,
-                                 struct component_details *cd);
+                                 struct component_details *cd,
+                                 int uninstall_version);
 
 /* graphviz.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,

@@ -85,7 +85,7 @@ int split_strings(struct bca_context *ctx, char *source, int length,
     }
 
     memcpy(string, source + start + 1, substring_length);
-    string[substring_length] = 0;  
+    string[substring_length] = 0;
     array[x++] = string;
    }
 
@@ -240,8 +240,8 @@ int path_extract(char *full_path, char **base_file_name, char **extension)
    {
     fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
     return 1;
-   } 
-   memcpy(*extension, full_path + period_position + 1, extension_length); 
+   }
+   memcpy(*extension, full_path + period_position + 1, extension_length);
    (*extension)[extension_length] = 0;
   }
  }
@@ -282,22 +282,22 @@ char *read_file(char *name, int *length, int silent_test)
  int allocation_size;
  char *contents;
  FILE *f;
- 
+
  if((f = fopen(name, "r")) == NULL)
  {
   if(silent_test == 0)
-   fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));  
+   fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));
   return NULL;
  }
 
  if(fseek(f, 0, SEEK_END))
  {
-  fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));  
+  fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));
   fclose(f);
   return NULL;
  }
 
- if((file_length = ftell(f)) < 0) 
+ if((file_length = ftell(f)) < 0)
  {
   fprintf(stderr, "BCA: ftell(%s) failed", name);
   fclose(f);
@@ -306,7 +306,7 @@ char *read_file(char *name, int *length, int silent_test)
 
  if(fseek(f, 0, SEEK_SET))
  {
-  fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));  
+  fprintf(stderr, "BCA: %s %s\n", name, strerror(errno));
   fclose(f);
   return NULL;
  }
@@ -319,7 +319,7 @@ char *read_file(char *name, int *length, int silent_test)
   fclose(f);
   return NULL;
  }
- 
+
  if((read_length = fread(contents, 1, file_length, f)) < file_length)
  {
   fprintf(stderr, "BCA: fread() returned %d instead of %d",
@@ -388,7 +388,7 @@ int find_line(char *buffer, int buffer_length, int *start, int *end, int *line_l
  return 1;
 }
 
-int add_to_string_array(char ***array, int array_size, 
+int add_to_string_array(char ***array, int array_size,
                         char *string, int string_length,
                         int prevent_duplicates)
 {
@@ -402,9 +402,9 @@ int add_to_string_array(char ***array, int array_size,
   {
    if( ( (*array)[i] == NULL) || (string == NULL) )
    {
-    if((*array)[i] != NULL) 
+    if((*array)[i] != NULL)
      return 1;
-    if(string != NULL) 
+    if(string != NULL)
      return 1;
    } else {
     if(strcmp(string, (*array)[i]) == 0)
@@ -429,7 +429,7 @@ int add_to_string_array(char ***array, int array_size,
   perror("BCA: realloc()");
   return -1;
  }
-   
+
  *array = new_ptr;
 
  if(string != NULL)

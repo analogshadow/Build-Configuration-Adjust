@@ -1,0 +1,11 @@
+#ifndef _config_h_
+#define _config_h_
+
+#define BCA_MAJOR @BCA.PROJECT.NONE.NONE.MAJOR@
+#define BCA_MINOR @BCA.PROJECT.NONE.NONE.MINOR@
+
+#if @CHECK(BUILD,CURRENT,ALL,TESTRESULTS,HAVE_CWD)@
+#define HAVE_CWD
+#endif
+
+#endif

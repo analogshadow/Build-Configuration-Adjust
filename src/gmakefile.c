@@ -179,8 +179,8 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
      array_length++;
     }
 
-    if((n_names = 
-        render_project_component_output_name(ctx, hosts[x], 
+    if((n_names =
+        render_project_component_output_name(ctx, hosts[x],
                                              cd->project_components[y], 2, &names, NULL)) < 0)
     {
      fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
@@ -212,9 +212,9 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
  fprintf(output, "clean :\n\trm -f ");
  for(x=0; x<n_build_hosts; x++)
  {
-  fprintf(output, "$(%s-clean-targets) ", hosts[x]); 
+  fprintf(output, "$(%s-clean-targets) ", hosts[x]);
  }
- fprintf(output, "\n\n");
+ fprintf(output, "\n\n\n");
 
  free_string_array(array, array_length);
 
@@ -222,7 +222,7 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
 }
 
 /* make help */
-int gmake_help(struct bca_context *ctx, FILE *output, 
+int gmake_help(struct bca_context *ctx, FILE *output,
                       char **hosts, int n_build_hosts,
                       struct component_details *cd)
 {
@@ -246,17 +246,17 @@ int gmake_help(struct bca_context *ctx, FILE *output,
 
  for(x=0; x<n_build_hosts; x++)
  {
-  fprintf(output, "\t@echo \" %s\"\n", hosts[x]); 
+  fprintf(output, "\t@echo \" %s\"\n", hosts[x]);
  }
 
  fprintf(output, "\t@echo \"This Makefile was generated with Build Configuration Adjust "
-         "version X\"\n\n");
+         "version X\"\n\n\n");
 
  return 0;
 }
 
 /* "make all" calls each host, but you can do make specific-host */
-int generate_gmake_host_components(struct bca_context *ctx, FILE *output, 
+int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
                                    char **hosts, int n_hosts,
                                    struct component_details *cd)
 {
@@ -265,7 +265,7 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_gmake_host_components()\n");
- 
+
  fprintf(output, "# here we define which components get built for each host\n");
  for(x=0; x<n_hosts; x++)
  {
@@ -312,18 +312,18 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
    {
     if(swapped == 0)
     {
-     if((n_names = 
-         render_project_component_output_name(ctx, hosts[x], 
-                                              cd->project_components[y], 
+     if((n_names =
+         render_project_component_output_name(ctx, hosts[x],
+                                              cd->project_components[y],
                                               2, &names, NULL)) < 1)
      {
       fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
       return 1;
      }
     } else {
-     if((n_names = 
-         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i], 
-                                              cd->project_components[y], 
+     if((n_names =
+         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
+                                              cd->project_components[y],
                                               2, &names, NULL)) < 1)
      {
       fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
@@ -336,20 +336,21 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
      fprintf(output, "%s ", names[z]);
     }
     free_string_array(names, n_names);
-   } 
+   }
   }
 
   fprintf(output, "\n");
  }
+ fprintf(output, "\n");
 
  return 0;
 }
 
 /* both source files that first go to object files before linking (ie .c),
    and sources that compile and link in one step (ie .cs) will us these
-   "compile flags". 
+   "compile flags".
  */
-int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output, 
+int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
                                           struct component_details *cd,
                                           struct host_configuration *tc)
 {
@@ -388,7 +389,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
    to create source files for other types. See the test examples.enerateddeps
    for an example.
 
-   Chaining of multiple layers can also be done. ie a conCATenation of MACROEXPANDS. 
+   Chaining of multiple layers can also be done. ie a conCATenation of MACROEXPANDS.
    (that needs a test).
 
    The other allowed use is a CUSTOM component may have a BINARY compoent as
@@ -430,7 +431,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   if(handled == 0)
   {
    /* this should have been discovered by now, but check again */
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
            cd->project_component, cd->host, cd->inputs[i]);
    return 1;
@@ -469,7 +470,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
    fprintf(stderr,
            "BCA: I don't know what to do with input component %s of type %s "
            "for component %s of type %s on host %s.\n",
-           cd->inputs[i], cd->project_component_types[x], 
+           cd->inputs[i], cd->project_component_types[x],
            cd->project_component, cd->project_component_type, cd->host);
    return 1;
   }
@@ -503,21 +504,21 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     /* Do the actual adding of the ouptut name to .FILES. At this point,
        base names and extensions have already been expanded for the other
        .FILES, so these need to be added here. */
-    if(add_to_string_array(&(cd->file_names), cd->n_file_names, 
+    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
                            temp, -1, 0))
     {
      fprintf(stderr, "BCA: add_to_string_array() failed\n");
      return 1;
     }
 
-    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names, 
+    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
                            base_file_name, -1, 0))
     {
      fprintf(stderr, "BCA: add_to_string_array() failed\n");
      return 1;
     }
 
-    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names, 
+    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
                            extension, -1, 0))
     {
      fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -534,7 +535,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     */
    if(strcmp(extension, "h") == 0)
    {
-    if(add_to_string_array(&(cd->file_deps), cd->n_file_deps, 
+    if(add_to_string_array(&(cd->file_deps), cd->n_file_deps,
                            temp, -1, 0))
     {
      fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -548,7 +549,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     {
      if(temp[y] == '/')
       break;
-    
+
      temp[y--] = 0;
     }
 
@@ -575,11 +576,11 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
 
    if(handled == 0)
    {
-    fprintf(stderr, 
+    fprintf(stderr,
             "BCA: I don't know what to do with input component %s of type %s "
            "for component %s of type %s on host %s, that is yielding an "
            "output file with the extension '%s'.\n",
-           cd->inputs[i], cd->project_component_types[x], 
+           cd->inputs[i], cd->project_component_types[x],
            cd->project_component, cd->project_component_type,
            cd->host, extension);
     return 1;
@@ -593,7 +594,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
  return 0;
 }
 
-int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,  
+int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
                                                struct component_details *cd,
                                                struct host_configuration *tc,
                                                char *output_file_name,
@@ -603,12 +604,12 @@ int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
 
  for(i=0; i<cd->n_file_names; i++)
  {
- 
+
   if(strcmp(cd->file_extensions[i], "c") == 0)
   {
-   fprintf(output, 
+   fprintf(output,
            "# finish me: should define howto build %s as part of python "
-           "module %s for host %s\n", 
+           "module %s for host %s\n",
            cd->file_names[i], cd->project_component, cd->host);
   } else {
    fprintf(stderr, "I don't know how to build a python module from file \"%s\".\n",
@@ -657,8 +658,8 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
  driver_component = i;
  if(yes == 0)
  {
-  fprintf(stderr, 
-          "BCA: CUSTOM.%s.DRIVER = %s does not seem to be a MACROEXPAND project component\n", 
+  fprintf(stderr,
+          "BCA: CUSTOM.%s.DRIVER = %s does not seem to be a MACROEXPAND project component\n",
           cd->project_component, value);
   return 1;
  }
@@ -666,7 +667,7 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
 
  if( (cd->file_names == NULL) && (cd->n_inputs == 0) )
  {
-  fprintf(stderr, "BCA: CUSTOM component \"%s\", does not seem to have .INPUT or .FILES\n", 
+  fprintf(stderr, "BCA: CUSTOM component \"%s\", does not seem to have .INPUT or .FILES\n",
           cd->project_component);
   return 1;
  }
@@ -694,10 +695,10 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
 
  fprintf(output, "%s/%s\n", tc->build_prefix, cd->project_output_names[driver_component]);
 
- fprintf(output, "\tchmod +x %s/%s\n", 
+ fprintf(output, "\tchmod +x %s/%s\n",
          tc->build_prefix, cd->project_output_names[driver_component]);
 
- fprintf(output, "\t%s/%s ", 
+ fprintf(output, "\t%s/%s ",
          tc->build_prefix, cd->project_output_names[driver_component]);
 
  for(j=0; j<cd->n_file_names; j++)
@@ -722,7 +723,7 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
  return 0;
 }
 
-int generate_gmake_host_component_macroexpand(struct bca_context *ctx,  
+int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
                                               struct component_details *cd,
                                               char *output_file_name,
                                               FILE *output)
@@ -731,7 +732,7 @@ int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
 
  fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
          output_file_name, output_file_name);
- 
+
  for(i=0; i<cd->n_file_names; i++)
  {
   fprintf(output, "%s ", cd->file_names[i]);
@@ -741,7 +742,7 @@ int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
 
  if(cd->n_file_names < 1)
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: MACROEXPAND component %s has no source files. Did you use .INPUT or .FILES?\n",
           cd->project_component);
   return 1;
@@ -752,12 +753,12 @@ int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
   fprintf(output, "%s ", cd->file_names[i]);
  }
 
- fprintf(output, "> %s\n\n", output_file_name);
+ fprintf(output, "> %s\n", output_file_name);
 
  return 0;
 }
 
-int generate_gmake_host_component_concatenate(struct bca_context *ctx,  
+int generate_gmake_host_component_concatenate(struct bca_context *ctx,
                                               struct component_details *cd,
                                               char *output_file_name,
                                               FILE *output)
@@ -766,7 +767,7 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
 
  fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
          output_file_name, output_file_name);
- 
+
  for(i=0; i<cd->n_file_names; i++)
  {
   fprintf(output, "%s ", cd->file_names[i]);
@@ -792,7 +793,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
  char **names = NULL;
 
  /* any component type may have a FILE_DEPENDS key */
- fprintf(output, "\n# dependencies and build rules for %s-%s\n",
+ fprintf(output, "# dependencies and build rules for %s-%s\n",
          cd->host, cd->project_component);
 
  fprintf(output, "%s-FILE_DEPENDENCIES = ", output_file_name);
@@ -807,9 +808,9 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
   fprintf(output, "%s ", cd->lib_headers[i]);
  }
 
- /* look through the list of build configuration dependecies, and for the ones that are 
-    from the internal deps list from the project configurtation, add the .pc 
-    file as file dependency. 
+ /* look through the list of build configuration dependecies, and for the ones that are
+    from the internal deps list from the project configurtation, add the .pc
+    file as file dependency.
  */
 
  for(y=0; y < cd->n_dependencies; y++)
@@ -833,7 +834,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
 
     if(strcmp(cd->project_component_types[x], "SHAREDLIBRARY"))
     {
-     fprintf(stderr, 
+     fprintf(stderr,
              "BCA: project component \"%s\" has an internal dependency on component \"%s\" which "
              "has an unknown dependency relationship. i.e. type \"%s\" is not a library\n",
              cd->project_component, cd->project_components[x], cd->project_component_types[x]);
@@ -842,7 +843,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
 
     if(swapped == 0)
     {
-     if((n_names = 
+     if((n_names =
          render_project_component_output_name(ctx, cd->host, cd->project_components[x],
                                               2, &names, NULL)) < 2)
      {
@@ -850,8 +851,8 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
       return 1;
      }
     } else {
-     if((n_names = 
-         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i], 
+     if((n_names =
+         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
                                               cd->project_components[x],
                                               2, &names, NULL)) < 2)
      {
@@ -872,7 +873,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
  return 0;
 }
 
-int object_from_c_file(struct bca_context *ctx,  
+int object_from_c_file(struct bca_context *ctx,
                        struct component_details *cd,
                        struct host_configuration *tc,
                        char *source_file_base_name,
@@ -886,11 +887,11 @@ int object_from_c_file(struct bca_context *ctx,
 
  memset(&cd_d, 0, sizeof(struct component_details));
 
- snprintf(temp, 1024, "%s/obj/%s-%s%s", 
-          tc->build_prefix, cd->project_component, 
+ snprintf(temp, 1024, "%s/obj/%s-%s%s",
+          tc->build_prefix, cd->project_component,
           source_file_base_name, tc->obj_suffix);
 
- fprintf(output, 
+ fprintf(output,
          "%s : %s $(%s-FILE_DEPENDENCIES)\n",
          temp, source_file_name, output_file_name);
 
@@ -920,7 +921,7 @@ int object_from_c_file(struct bca_context *ctx,
    {
     if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
     {
-     resolve_component_version(ctx, ctx->project_configuration_contents, 
+     resolve_component_version(ctx, ctx->project_configuration_contents,
                                ctx->project_configuration_length, &cd_d,
                                "SHAREDLIBRARY", cd->project_components[x]);
      fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
@@ -934,7 +935,7 @@ int object_from_c_file(struct bca_context *ctx,
     fprintf(output, "%s ", cd->dependencies[y]);
   }
 
-  fprintf(output, "` ");     
+  fprintf(output, "` ");
  }
 
  for(y=0; y< cd->n_include_dirs; y++)
@@ -960,15 +961,15 @@ int object_from_c_file(struct bca_context *ctx,
 int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                             struct component_details *cd,
                                             struct host_configuration *tc,
-                                            char **build_file_names,
-                                            int n_build_file_names,
+                                            char *pkg_file_name,
                                             char **output_file_names,
                                             int n_output_file_names,
-                                            FILE *output)
+                                            FILE *output,
+                                            int installed_version)
 {
- int x, i, yes;
+ int x, i, yes, length;
  struct component_details cd_d;
- char *build_prefix, *package_name = NULL, *package_description = NULL;
+ char *build_prefix, *package_name = NULL, *package_description = NULL, *link_name;
 
 /*
    Idea / question:
@@ -1004,25 +1005,36 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                   cd->project_component,
                                   "DESCRIPTION");
 
- build_prefix = tc->build_prefix;
- if(strncmp(build_prefix, "./", 2) == 0)
-  build_prefix += 2;
+ if(installed_version)
+ {
+  fprintf(output, "\techo \"prefix=%s\" > %s\n",
+          tc->install_prefix, pkg_file_name);
 
- fprintf(output, "%s : %s\n",
-         build_file_names[1], build_file_names[0]);
+ } else {
+  build_prefix = tc->build_prefix;
+  if(strncmp(build_prefix, "./", 2) == 0)
+   build_prefix += 2;
 
- fprintf(output, "\trm -f %s\n", build_file_names[1]);
-
- fprintf(output, "\techo \"prefix=%s/%s\" >> %s\n",
+  fprintf(output, "\techo \"prefix=%s/%s\" > %s\n",
 #ifdef HAVE_CWD
-         ctx->cwd,
+          ctx->cwd,
 #else
-         "`pwd`",
+          "`pwd`",
 #endif
-         build_prefix, build_file_names[1]);
+          build_prefix, pkg_file_name);
+ }
 
- fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", build_file_names[1]);
- fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", build_file_names[1]);
+ fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", pkg_file_name);
+
+ if(installed_version)
+ {
+  /* need to make sure this matches the installation dir. or maybe this
+     should just be the installation dir? */
+  fprintf(output, "\techo 'libdir=$${prefix}/lib' >> %s\n", pkg_file_name);
+ } else {
+  fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", pkg_file_name);
+ }
+
  if(cd->n_include_dirs > 0)
  {
   if(strncmp(cd->include_dirs[0], "./", 2) == 0)
@@ -1033,22 +1045,26 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
 #else
            "`pwd`",
 #endif
-           cd->include_dirs[0] + 2, build_file_names[1]);
+           cd->include_dirs[0] + 2, pkg_file_name);
   } else {
-   fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], build_file_names[1]);
+   fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], pkg_file_name);
   }
  }
  fprintf(output, "\techo 'Name: %s' >> %s\n",
-         package_name, build_file_names[1]);
+         package_name, pkg_file_name);
+
  if(package_description == NULL)
   fprintf(output, "\techo 'Description: (set me with SHAREDLIBRARY.%s.DESCRIPTION)' >> %s\n",
-          cd->project_component, build_file_names[1]);
+          cd->project_component, pkg_file_name);
  else
   fprintf(output, "\techo 'Description: %s' >> %s\n",
-          package_description, build_file_names[1]);
+          package_description, pkg_file_name);
+
  fprintf(output, "\techo 'Version: %s.%s' >> %s\n",
-         cd->major, cd->minor, build_file_names[1]);
+         cd->major, cd->minor, pkg_file_name);
+
  fprintf(output, "\techo 'Requires: ");
+
  for(i=0; i < cd->n_dependencies; i++)
  {
   yes = 0;
@@ -1059,7 +1075,7 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
    {
     resolve_component_version(ctx, ctx->project_configuration_contents,
                               ctx->project_configuration_length, &cd_d,
-                               "SHAREDLIBRARY", cd->project_components[x]);
+                              "SHAREDLIBRARY", cd->project_components[x]);
 
     fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
     yes = 1;
@@ -1072,14 +1088,26 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
    fprintf(output, "%s ", cd->dependencies[i]);
  }
 
- fprintf(output, "' >> %s\n", build_file_names[1]);
+ fprintf(output, "' >> %s\n", pkg_file_name);
 
- fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
+ if(installed_version)
+ {
+  if((link_name = lib_file_name_to_link_name(output_file_names[0])) == NULL)
+  {
+   fprintf(stderr, "BCA: lib_file_name_to_link_name(%s) failed\n", output_file_names[0]);
+   return 1;
+  }
+
+  fprintf(output, "\techo 'Libs: -L$${libdir} -l%s", link_name);
+  free(link_name);
+ } else {
+  fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
+ }
 
  if(tc->ldflags != NULL)
   fprintf(output, " %s", tc->ldflags);
 
- fprintf(output, "' >> %s\n", build_file_names[1]);
+ fprintf(output, "' >> %s\n", pkg_file_name);
 
  fprintf(output, "\techo 'Cflags:");
 
@@ -1089,13 +1117,20 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
  if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
   return 1;
 
- fprintf(output, "' >> %s\n", build_file_names[1]);
+ fprintf(output, "' >> %s\n", pkg_file_name);
 
  /* add unversioned symlink */
- fprintf(output, "\tcd %s; ln -sf %s-%s.pc %s.pc",
-         tc->build_prefix, cd->project_component_output_name,
-         cd->major, cd->project_component_output_name);
+ if(installed_version)
+ {
+  fprintf(output, "\tcd %s; ln -sf %s %s.pc\n",
+          tc->install_pkg_config_dir, output_file_names[1],
+          cd->project_component_output_name);
 
+ } else {
+  fprintf(output, "\tcd %s; ln -sf %s %s.pc\n",
+          tc->build_prefix, output_file_names[1],
+          cd->project_component_output_name);
+ }
 
  if(package_description != NULL)
   free(package_description);
@@ -1142,7 +1177,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
                          output))
    {
     fprintf(stderr,
-            "BCA: object_from_c_file(%s.%s.%s) failed\n", 
+            "BCA: object_from_c_file(%s.%s.%s) failed\n",
             cd->project_component_type, cd->host, cd->project_component);
     return 1;
    }
@@ -1165,7 +1200,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
 
  for(i=0; i < cd->n_file_names; i++)
  {
-  fprintf(output, "%s/obj/%s-%s", 
+  fprintf(output, "%s/obj/%s-%s",
           tc->build_prefix, cd->project_component, cd->file_base_names[i]);
 
   fprintf(output, "%s ", tc->obj_suffix);
@@ -1199,7 +1234,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
 
     if(swapped == 0)
     {
-     if((n_dependency_build_filenames = 
+     if((n_dependency_build_filenames =
          render_project_component_output_name(ctx, cd->host, cd->project_components[x],
                                               2, &dependency_build_filenames, NULL)) < 2)
      {
@@ -1207,7 +1242,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
       return 1;
      }
     } else {
-     if((n_dependency_build_filenames = 
+     if((n_dependency_build_filenames =
          render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
                                               cd->project_components[x],
                                               2, &dependency_build_filenames, NULL)) < 2)
@@ -1258,7 +1293,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  /* add shared libary switches */
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
-  if(contains_string(tc->cc, -1, "mingw", -1)) 
+  if(contains_string(tc->cc, -1, "mingw", -1))
   {
    if(n_build_file_names < 3)
    {
@@ -1267,7 +1302,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
    }
    fprintf(output, " -Wl,--out-implib,%s", build_file_names[2]);
   } else {
-   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type, 
+   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                            cd->project_component_output_name), ".dll") == 0)
    {
     /* cygwin */
@@ -1284,14 +1319,14 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                           cd->project_component_output_name), ".dylib") == 0)
   {
-   fprintf(output, " -compatibility_version %s.%s -install_name %s", 
+   fprintf(output, " -compatibility_version %s.%s -install_name %s",
            cd->major, cd->minor, build_file_names[0]);
   }
 
   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                           cd->project_component_output_name), ".so") == 0)
   {
-   fprintf(output, " -Wl,-soname,%s", 
+   fprintf(output, " -Wl,-soname,%s",
            output_file_names[0]);
   }
 
@@ -1323,7 +1358,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
    {
     if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
     {
-     resolve_component_version(ctx, ctx->project_configuration_contents, 
+     resolve_component_version(ctx, ctx->project_configuration_contents,
                                ctx->project_configuration_length, &cd_d,
                                "SHAREDLIBRARY", cd->project_components[x]);
 
@@ -1348,7 +1383,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
   if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
                                           cd->project_component_output_name), ".dll") != 0)
   {
-   fprintf(output, "\tcd %s; ln -sf %s %s\n", 
+   fprintf(output, "\tcd %s; ln -sf %s %s\n",
            tc->build_prefix, output_file_names[3], output_file_names[0]);
   }
  }
@@ -1357,15 +1392,18 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  /* lastly the .pc file if needed */
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
+
+  fprintf(output, "%s : %s\n",
+          build_file_names[1], build_file_names[0]);
+
   if(generate_host_component_pkg_config_file(ctx, cd, tc,
-                                             build_file_names,
-                                             n_build_file_names,
+                                             build_file_names[1],
                                              output_file_names,
                                              n_output_file_names,
-                                             output))
+                                             output, 0))
   {
    fprintf(stderr,
-           "BCA: generate_host_component_pkg_config_file(%s.%s.%s) failed\n", 
+           "BCA: generate_host_component_pkg_config_file(%s.%s.%s) failed\n",
            cd->project_component_type, cd->host, cd->project_component);
    return 1;
   }
@@ -1376,7 +1414,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  return 0;
 }
 
-int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *output, 
+int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *output,
                                              struct component_details *cd)
 {
  char **names;
@@ -1399,7 +1437,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   return 1;
  }
 
- if((n_names = 
+ if((n_names =
      render_project_component_output_name(ctx, cd->host, cd->project_component,
                                           2, &names, NULL)) < 0)
  {
@@ -1409,8 +1447,8 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
  if(generate_host_component_target_dependencies(ctx, cd, names[0], output))
  {
-  fprintf(stderr, 
-          "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n", 
+  fprintf(stderr,
+          "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
           cd->host, cd->project_component);
   return 1;
  }
@@ -1421,12 +1459,12 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
  {
   if(generate_gmake_host_component_concatenate(ctx, cd, names[0], output))
   {
-   fprintf(stderr, 
-           "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n", 
+   fprintf(stderr,
+           "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
            cd->host, cd->project_component);
    return 1;
   }
- 
+
   handled = 1;
  }
 
@@ -1462,7 +1500,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   if(generate_gmake_host_component_pythonmodule(ctx, cd, tc, names[0], output))
   {
    fprintf(stderr,
-           "BCA: generate_gmake_host_component_pythonmodule(%s.%s) failed\n", 
+           "BCA: generate_gmake_host_component_pythonmodule(%s.%s) failed\n",
            cd->host, cd->project_component);
 
    return 1;
@@ -1477,7 +1515,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   if(generate_gmake_host_component_bins_and_libs(ctx, cd, tc, names, n_names, output))
   {
    fprintf(stderr,
-           "BCA: generate_gmake_host_component_bin_and_libs(%s.%s.%s) failed\n", 
+           "BCA: generate_gmake_host_component_bin_and_libs(%s.%s.%s) failed\n",
            cd->project_component_type, cd->host, cd->project_component);
    return 1;
   }
@@ -1492,7 +1530,7 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
  if(handled == 0)
  {
-  fprintf(stderr, 
+  fprintf(stderr,
           "BCA: I don't know what to do with component type %s. "
           "I should not have made it here.\n ",
           cd->project_component_type);
@@ -1657,7 +1695,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
  {
   fprintf(output, "%s ", hosts[host_i]);
  }
- fprintf(output, "\n\n");
+ fprintf(output, "\n\n\n");
 
  if(gmake_help(ctx, output, hosts, n_hosts, &cd))
  {
@@ -1671,7 +1709,13 @@ int generate_gmakefile_mode(struct bca_context *ctx)
   return 1;
  }
 
- if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, &cd))
+ if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, &cd, 0))
+ {
+  fclose(output);
+  return 1;
+ }
+
+ if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, &cd, 1))
  {
   fclose(output);
   return 1;
@@ -2058,19 +2102,19 @@ int generate_gmakefile_mode(struct bca_context *ctx)
  return 0;
 }
 
-
 int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  char **hosts, int n_build_hosts,
-                                 struct component_details *cd)
+                                 struct component_details *cd,
+                                 int uninstall_version)
 {
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_gmake_install_rules()\n");
 
  int x, y, n_build_names, n_install_names, n_output_names, i,
-     length, index, yes;
- struct host_configuration *tc;
- char temp[512], **extensions = NULL, **build_names,
-      **install_names, *value, **output_names;
+     length, index, yes, swapped, n_lib_headers;
+ struct host_configuration *tc = NULL;
+ char temp[1024], **build_names, *install_headers_dir, *base_filename, *extension,
+      **install_names, *value, **output_names, **lib_headers;
  struct component_details cd_d;
 
  if(ctx->verbose > 2)
@@ -2078,11 +2122,21 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
  memset(&cd_d, 0, sizeof(struct component_details));
 
- fprintf(output, "install : ");
+ if(uninstall_version)
+ {
+  fprintf(output, "# uninstall rules\n");
+  fprintf(output, "uninstall : ");
+ } else {
+  fprintf(output, "# install rules\n");
+  fprintf(output, "install : ");
+ }
 
  for(x=0; x<n_build_hosts; x++)
  {
-  fprintf(output, "%s-intstall", hosts[x]);
+  if(uninstall_version)
+   fprintf(output, "%s-unintstall", hosts[x]);
+  else
+   fprintf(output, "%s-intstall", hosts[x]);
  }
  fprintf(output, "\n\n");
 
@@ -2095,384 +2149,273 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
    return 1;
   }
 
+  if(engage_build_configuration_swaps_for_host(ctx, hosts[x]))
+  {
+   fclose(output);
+   return 1;
+  }
+
   if(list_project_components(ctx, cd))
   {
    fprintf(stderr, "BCA: list_project_components() failed\n");
    return 1;
   }
 
-  fprintf(output, "%s-intstall: ", hosts[x]);
+  if(uninstall_version)
+   fprintf(output, "%s-unintstall: ", hosts[x]);
+  else
+   fprintf(output, "%s-intstall: ", hosts[x]);
 
   for(y=0; y < cd->n_components; y++)
   {
-   fprintf(output, "%s-%s-install ", hosts[x], cd->project_components[y]);
-  }
-  fprintf(output, "\n");
- }
- fprintf(output, "\n");
-
- return 0;
-
-/*
-  for(y=0; y < cd->n_components; y++)
-  {
-   cd->project_component = cd->project_components[y];
-   cd->project_component_type = cd->project_component_types[y];
-   cd->host = hosts[x];
-
-   if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+   swapped = 0;
+   i = 0;
+   while(i<ctx->n_swaps)
    {
-    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
-    return 1;
-   }
-
-   if(resolve_component_dependencies(ctx, cd))
-   {
-    return 1;
-   }
-
-   if((n_output_names =
-       render_project_component_output_name(ctx, hosts[x],
-                                            cd->project_components[y], 1,
-                                            &output_names, NULL)) < 0)
-   {
-    fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
-    return 1;
-   }
-
-   if((n_build_names =
-       render_project_component_output_name(ctx, hosts[x],
-                                            cd->project_components[y], 2,
-                                            &build_names, NULL)) < 0)
-   {
-    fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
-    return 1;
-   }
-
-   n_install_names = render_project_component_output_name(ctx, hosts[x],
-                                                          cd->project_components[y], 3,
-                                                          &install_names, &extensions);
-   for(i=0; i<n_install_names; i++)
-   {
-    yes = 1;
-
-    if(install_names[i][0] == 0)
-     yes = 0;
-
-    if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0)
+    if(strcmp(cd->project_components[y], ctx->swapped_components[i]) == 0)
     {
-     if(i == 1)
-      yes = 0;
+     swapped = 1;
+     break;
+    }
+    i++;
+   }
 
-     if(strcmp(extensions[0], ".so") == 0)
-      if(i == 0)
-       yes = 0;
+   if(swapped == 0)
+   {
+    if((n_install_names =
+        render_project_component_output_name(ctx, hosts[x],
+                                             cd->project_components[y], 3,
+                                             &install_names, NULL)) < 0)
+    {
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     return 1;
     }
 
-    if(yes)
+    if(n_install_names > 0)
     {
+     if(uninstall_version)
+      fprintf(output, "%s-%s-uninstall ", hosts[x], cd->project_components[y]);
+     else
+      fprintf(output, "%s-%s-install ", hosts[x], cd->project_components[y]);
+     free_string_array(install_names, n_install_names);
+    }
+   }
+
+  }
+  fprintf(output, "\n\n");
+
+  for(y=0; y < cd->n_components; y++)
+  {
+   swapped = 0;
+   i = 0;
+   while(i<ctx->n_swaps)
+   {
+    if(strcmp(cd->project_components[y], ctx->swapped_components[i]) == 0)
+    {
+     swapped = 1;
+     break;
+    }
+    i++;
+   }
+
+   if(swapped == 0)
+   {
+    cd->project_component = cd->project_components[y];
+    cd->project_component_type = cd->project_component_types[y];
+    cd->project_component_output_name = cd->project_output_names[y];
+    cd->host = hosts[x];
+
+    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+    {
+     fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
+     return 1;
+    }
+
+    if((n_install_names =
+        render_project_component_output_name(ctx, hosts[x],
+                                             cd->project_components[y], 3,
+                                             &install_names, NULL)) < 0)
+    {
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     return 1;
+    }
+
+    if(n_install_names > 0)
+    {
+
+     if((n_build_names =
+         render_project_component_output_name(ctx, hosts[x],
+                                              cd->project_components[y], 2,
+                                              &build_names, NULL)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+      return 1;
+     }
+
+     if((n_output_names =
+         render_project_component_output_name(ctx, hosts[x],
+                                              cd->project_components[y], 1,
+                                              &output_names, NULL)) < 0)
+     {
+      fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+      return 1;
+     }
+
+     if(uninstall_version)
+      fprintf(output, "%s-%s-uninstall :\n",
+              hosts[x], cd->project_components[y]);
+     else
+     fprintf(output, "%s-%s-install : %s-%s\n",
+             hosts[x], cd->project_components[y], hosts[x], cd->project_components[y]);
+
      if(strcmp(cd->project_component_types[y], "BINARY") == 0)
-      fprintf(output, "\tinstall --group root --owner root --mode=rwxr-xr-x %s %s\n",
-              build_names[i], install_names[i]);
-
-     if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0)
-      fprintf(output, "\tinstall --group root --owner root --mode=rwxr-xr-x %s %s\n",
-              build_names[i], install_names[i]);
-    }
-   }
-
-   if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0)
-   {
-    if(strcmp(extensions[0], ".so") == 0)
-    {
-     fprintf(output, "\tcd %s; ln -s %s %s\n",
-             tc->install_lib_dir, install_names[3], install_names[0]);
-    }
-
-    if(resolve_component_version(ctx, ctx->project_configuration_contents,
-                                 ctx->project_configuration_length,
-                                 cd, cd->project_component_types[y],
-                                 cd->project_components[y]))
-    {
-     fprintf(stderr, "BCA: resolve_component_version() failed\n");
-     return 1;
-    }
-
-    fprintf(output, "\trm -f %s\n", install_names[1]);
-/*
-    /* derive prefix */
-/*
-    length = strlen(tc->install_lib_dir);
-    index = length;
-    while(index > -1)
-    {
-     if(tc->install_lib_dir[index] == '/')
      {
-      index++;
-      break;
-     }
-     index--;
-    }
-    memcpy(temp, tc->install_lib_dir, index);
-    temp[index] = 0;
+      if(uninstall_version)
+       fprintf(output, "\trm %s\n",
+               install_names[0]);
+      else
+       fprintf(output, "\tinstall %s %s\n",
+               build_names[0], install_names[0]);
 
-    fprintf(output, "\techo \"prefix=%s\" >> %s\n", temp, install_names[1]);
-    fprintf(output, "\techo 'exec_prefix=$${prefix}' >> %s\n", install_names[1]);
-    fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", install_names[1]);
-    fprintf(output, "\techo 'includedir=%s/%s-%s' >> %s\n",
-            tc->install_include_dir, cd->project_output_names[y], cd->major, install_names[1]);
-    fprintf(output, "\techo 'Name: %s' >> %s\n", cd->project_component, install_names[1]);
-    fprintf(output, "\techo 'Description: %s' >> %s\n", cd->project_component, install_names[1]);
-    fprintf(output, "\techo 'Version: %s.%s' >> %s\n", cd->major, cd->minor, install_names[1]);
-    fprintf(output, "\techo 'Requires: ");
-    for(i=0; i < cd->n_dependencies; i++)
-    {
-     yes = 0;
-     index = 0;
-     while(index < cd->n_components)
-     {
-      if(strcmp(cd->dependencies[i], cd->project_components[index]) == 0)
+     } else if(strcmp(cd->project_component_types[y], "CAT") == 0) {
+      if(uninstall_version)
+       fprintf(output, "\trm %s\n",
+               install_names[0]);
+      else
+       fprintf(output, "\tinstall %s %s\n",
+               build_names[0], install_names[0]);
+
+     } else if(strcmp(cd->project_component_types[y], "MACROEXPAND") == 0) {
+      if(uninstall_version)
+       fprintf(output, "\trm %s\n",
+               install_names[0]);
+      else
+       fprintf(output, "\tinstall %s %s\n",
+               build_names[0], install_names[0]);
+
+     } else if(strcmp(cd->project_component_types[y], "CUSTOM") == 0) {
+      if(uninstall_version)
+       fprintf(output, "\trm %s\n",
+               install_names[0]);
+      else
+       fprintf(output, "\tinstall %s %s\n",
+               build_names[0], install_names[0]);
+
+     } else if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0) {
+
+      if(resolve_component_version(ctx,
+                                   ctx->project_configuration_contents,
+                                   ctx->project_configuration_length, cd,
+                                   "SHAREDLIBRARY", cd->project_components[y]))
       {
-       resolve_component_version(ctx, ctx->project_configuration_contents,
-                                 ctx->project_configuration_length, &cd_d,
-                                 "SHAREDLIBRARY", cd->project_components[index]);
-
-       fprintf(output, "%s-%s", cd->project_output_names[index], cd_d.major);
-       yes = 1;
-       break;
+       fprintf(stderr, "BCA: resolve_component_version() failed\n");
+       return 1;
       }
-      index++;
-     }
 
-     if(yes == 0)
-      fprintf(output, "%s ", cd->dependencies[i]);
-    }
-
-    fprintf(output, "' >> %s\n", install_names[1]);
-
-    if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                            cd->project_component_output_name), ".so") == 0)
-    {
-     fprintf(output, "\techo 'Libs: $${libdir}/%s", output_names[0]);
-    }
-
-    if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                            cd->project_component_output_name), ".dylib") == 0)
-    {
-     fprintf(output, "\techo 'Libs: $${libdir}/%s", output_names[0]);
-    }
-
-    if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
-                                            cd->project_component_output_name), ".dll") == 0)
-    {
-     fprintf(output, "\techo 'Libs: -L$${libdir} -l%s-%s.%s",
-             cd->project_output_names[y], cd->major, cd->minor);
-    }
-
-    if(tc->ldflags != NULL)
-     fprintf(output, " %s", tc->ldflags);
-
-    fprintf(output, "' >> %s\n", install_names[1]);
-
-    fprintf(output, "\techo 'Cflags: ");
-
-    if(cd->n_include_dirs > 0)
-     fprintf(output, " -I$${includedir} ");
-
-    if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
-     return 1;
-
-    fprintf(output, "' >> %s\n", install_names[1]);
-    fprintf(output, "\tchown root:root %s\n", install_names[1]);
-    fprintf(output, "\tchmod 755 %s\n", install_names[1]);
-
-    if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                           ctx->project_configuration_length,
-                           cd->project_component_types[y],
-                           cd->project_components[y], "LIB_HEADERS")) != NULL)
-    {
-
-     if(split_strings(ctx, value, -1, &(cd->n_lib_headers), &(cd->lib_headers)))
-     {
-      fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
-      fclose(output);
-      return 1;
-     }
-
-     for(i=0; i<cd->n_lib_headers; i++)
-     {
-      length = strlen(cd->lib_headers[i]);
-      index = length;
-      while(index > -1)
+      n_lib_headers = 0;
+      lib_headers = NULL;
+      install_headers_dir = NULL;
+      if((value = lookup_key(ctx,
+                             ctx->project_configuration_contents,
+                             ctx->project_configuration_length,
+                             cd->project_component_types[y],
+                             cd->project_components[y],
+                             "LIB_HEADERS")) != NULL)
       {
-       if(cd->lib_headers[i][index] == '/')
+       if(split_strings(ctx, value, -1, &n_lib_headers, &lib_headers))
        {
-        index++;
-        break;
+        fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+        return 1;
        }
-       index--;
+
+       if((install_headers_dir =
+            lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       hosts[x], cd->project_components[y], "INSTALL_INCLUDE_DIR")) == NULL)
+       {
+        if((install_headers_dir =
+            lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       hosts[x], "ALL", "INSTALL_INCLUDE_DIR")) == NULL)
+        {
+         fprintf(stderr, "BCA: I need a value for %s.[%s/ALL].INSTALL_INCLUDE_DIR\n",
+                 hosts[x], cd->project_components[y]);
+         return 1;
+        }
+       }
       }
-      fprintf(output, "\tinstall --group root --owner root %s %s/%s-%s/%s\n",
-              cd->lib_headers[i], tc->install_include_dir, cd->project_output_names[y],
-              cd->major, cd->lib_headers[i] + index);
+
+      if(uninstall_version)
+      {
+       for(i=0; i<n_install_names; i++)
+       {
+        if(install_names[i][0] != 0)
+         fprintf(output, "\trm %s\n", install_names[i]);
+       }
+      } else {
+
+       if(install_names > 3)
+       {
+        fprintf(output, "\tinstall %s %s\n", build_names[3], install_names[3]);
+
+        if(strcmp(component_type_file_extension(ctx, tc, cd->project_component_type,
+                                                cd->project_component_output_name), ".dll") != 0)
+        {
+         fprintf(output, "\tcd %s; ln -sf %s %s\n",
+                 tc->install_lib_dir, output_names[3], output_names[0]);
+        }
+       }
+
+       if(generate_host_component_pkg_config_file(ctx, cd, tc,
+                                                  install_names[1],
+                                                  output_names, n_output_names,
+                                                  output, 1))
+       {
+        fprintf(stderr, "BCA: generate_host_component_pkg_config_file() failed\n");
+        return 1;
+       }
+
+      }
+
+      for(i=0; i<n_lib_headers; i++)
+      {
+       base_filename = NULL;
+       extension = NULL;
+       if(path_extract(lib_headers[i], &base_filename, &extension))
+       {
+        fprintf(stderr, "BCA: path_extract(%s) failed\n", lib_headers[i]);
+        return 1;
+       }
+
+       snprintf(temp, 1024, "%s/%s.%s",
+                install_headers_dir, base_filename, extension);
+       free(base_filename);
+       free(extension);
+
+       if(uninstall_version)
+        fprintf(output, "\trm %s\n", temp);
+       else
+        fprintf(output, "\tinstall %s %s\n", lib_headers[i], temp);
+      }
+
+      if(install_headers_dir != NULL)
+       free(install_headers_dir);
+      free_string_array(lib_headers, n_lib_headers);
      }
+
+     fprintf(output, "\n");
+     free_string_array(output_names, n_output_names);
+     free_string_array(build_names, n_build_names);
+     free_string_array(install_names, n_install_names);
     }
 
-    free_string_array(cd->lib_headers, cd->n_lib_headers);
-    cd->n_lib_headers = 0;
-    cd->lib_headers = NULL;
+    free_host_configuration(ctx, tc);
    }
-
-   if(strcmp(cd->project_component_types[y], "PYTHONMODULE") == 0)
-   {
-    snprintf(temp, 512, "%s/%s-setup.py",
-             tc->build_prefix, cd->project_output_names[y]);
-
-    fprintf(output, "\trm -f %s\n", temp);
-    fprintf(output, "\techo \"from distutils.core import setup\" >> %s\n", temp);
-
-    fprintf(output, "#\t%s %s install\n", tc->python, temp);
-   }
-
-   if(cd->n_dependencies > 0)
-   {
-    free_string_array(cd->dependencies, cd->n_dependencies);
-    cd->dependencies = NULL;
-    cd->n_dependencies = 0;
-   }
-
-   free_string_array(output_names, n_output_names);
-   free_string_array(build_names, n_build_names);
-   free_string_array(install_names, n_install_names);
-   free_string_array(extensions, n_install_names);
-   free_host_configuration(ctx, tc);
-   extensions = NULL;
-   build_names = NULL;
-   install_names = NULL;
-   n_build_names = n_install_names = 0;
   }
 
-  fprintf(output, "\n\n");
  }
 
-
-
- fprintf(output, "uninstall : \n");
- for(x=0; x<n_build_hosts; x++)
- {
-  if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
-  {
-   fprintf(stderr, "BCA: engage_build_configuration_disables_for_host(%s) failed\n", hosts[x]);
-   return 1;
-  }
-
-  if(list_project_components(ctx, cd))
-  {
-   fprintf(stderr, "BCA: list_project_components() failed\n");
-   return 1;
-  }
-
-  for(y=0; y < cd->n_components; y++)
-  {
-   cd->project_component = cd->project_components[y];
-   cd->project_component_type = cd->project_component_types[y];
-   cd->host = hosts[x];
-
-   if(strcmp(cd->project_component_types[y], "BUILDBINARY") == 0)
-    continue;
-
-   if((tc = resolve_host_configuration(ctx, cd)) == NULL)
-   {
-    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
-     return 1;
-   }
-
-   if((n_build_names =
-       render_project_component_output_name(ctx, hosts[x],
-                                            cd->project_components[y], 2,
-                                            &build_names, NULL)) < 0)
-   {
-    fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
-    return 1;
-   }
-
-   if((n_install_names =
-       render_project_component_output_name(ctx, hosts[x],
-                                            cd->project_components[y], 3,
-                                            &install_names, NULL)) != n_build_names)
-   {
-    fprintf(stderr, "BCA: render_project_component_ouput_name() failed. "
-            "install names != build names\n");
-    return 1;
-   }
-
-   for(i=0; i<n_build_names; i++)
-   {
-    yes = 1;
-
-    if(install_names[i][0] == 0)
-     yes = 0;
-
-    if(yes)
-     fprintf(output, "\trm -f %s\n", install_names[i]);
-   }
-
-   if(strcmp(cd->project_component_types[y], "SHAREDLIBRARY") == 0)
-   {
-    if(resolve_component_version(ctx, ctx->project_configuration_contents,
-                                 ctx->project_configuration_length,
-                                 cd, cd->project_component_types[y],
-                                 cd->project_components[y]))
-    {
-     fprintf(stderr, "BCA: resolve_component_version() failed\n");
-     return 1;
-    }
-
-    if((value = lookup_key(ctx, ctx->project_configuration_contents,
-                           ctx->project_configuration_length,
-                           cd->project_component_types[y],
-                           cd->project_components[y], "LIB_HEADERS")) != NULL)
-    {
-
-     if(split_strings(ctx, value, -1, &(cd->n_lib_headers), &(cd->lib_headers)))
-     {
-      fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
-      fclose(output);
-      return 1;
-     }
-
-     for(i=0; i<cd->n_lib_headers; i++)
-     {
-      length = strlen(cd->lib_headers[i]);
-      index = length;
-      while(index > -1)
-      {
-       if(cd->lib_headers[i][index] == '/')
-       {
-        index++;
-        break;
-       }
-       index--;
-      }
-      fprintf(output, "\trm -f %s\\%s\n",
-              tc->install_include_dir, cd->lib_headers[i] + index);
-     }
-    }
-
-    free_string_array(cd->lib_headers, cd->n_lib_headers);
-    cd->n_lib_headers = 0;
-    cd->lib_headers = NULL;
-   }
-   free_string_array(build_names, n_build_names);
-   free_string_array(install_names, n_install_names);
-   free_host_configuration(ctx, tc);
-  }
-
-  fprintf(output, "\n\n");
- }
-*/
+ fprintf(output, "\n");
  return 0;
 }
-
-
 

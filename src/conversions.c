@@ -27,7 +27,7 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
                                     char *project_component_type,
                                     char *project_component_output_name)
 {
- int x, length;
+ int x;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: component_type_file_extension()\n");
@@ -46,7 +46,6 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
 
  if(strcmp(project_component_type, "CUSTOM") == 0)
  {
-  length = strlen(project_component_type);
   x = 0;
   while(x > 0)
   {
@@ -133,8 +132,8 @@ int render_project_component_output_name(struct bca_context *ctx,
                                          char *host, char *component, int edition,
                                          char ***array_ptr, char ***extensions)
 {
- char **hosts, *extension, temp[1024], **names = NULL, *component_install_path, *e;
- int n_hosts, x, y, handled, matched, n_names = 0, code,
+ char **hosts, *extension, temp[1024], **names = NULL, *component_install_path;
+ int n_hosts, x, y, handled, n_names = 0, code,
      prefix_length, import, effective_path_mode;
  struct component_details cd;
  struct host_configuration *tc;
@@ -224,84 +223,25 @@ int render_project_component_output_name(struct bca_context *ctx,
       case 3: /* install output name */
            temp[0] = 0;
            prefix_length = 1;
-           matched = 0;
 
            if(resolve_component_installation_path(ctx, cd.project_component_types[y],
                                                   cd.project_components[y],
-                                                  &component_install_path) == 0)
-           {
-            matched = 1;
-            if(component_install_path == NULL)
-            {
-             /* component has been manually specifed to not be installed */
-             return 0;
-            }
-            prefix_length = snprintf(temp, 1024, "%s/", component_install_path);
-           }
-
-           if((matched == 0) &&
-              strcmp(cd.project_component_types[y], "BINARY") == 0)
-           {
-            prefix_length = snprintf(temp, 1024, "%s/", tc->install_bin_dir);
-            matched = 1;
-           }
-
-           if((matched == 0) &&
-              strcmp(cd.project_component_types[y], "SHAREDLIBRARY") == 0)
-           {
-            prefix_length = snprintf(temp, 1024, "%s/", tc->install_lib_dir);
-            matched = 1;
-           }
-
-           if((matched == 0) &&
-              strcmp(cd.project_component_types[y], "MACROEXPAND") == 0)
-           {
-            prefix_length = snprintf(temp, 1024, "%s/", tc->install_prefix);
-            fprintf(stderr,
-                    "BCA: NOTE: I need a way to know if MACROEXPAND component \"%s\" needs"
-                    " to be installed\n", cd.project_components[y]);
-            matched = 1;
-           }
-
-           if((matched == 0) &&
-              strcmp(cd.project_component_types[y], "CAT") == 0)
-           {
-            prefix_length = snprintf(temp, 1024, "%s/", tc->install_prefix);
-            fprintf(stderr,
-                    "BCA: NOTE: I need a way to know if CAT component \"%s\" needs"
-                    " to be installed\n", cd.project_components[y]);
-            matched = 1;
-           }
-
-           if((matched == 0) &&
-              (strcmp(cd.project_component_types[y], "CUSTOM") == 0) )
-           {
-            e = NULL;
-            if(path_extract(cd.project_output_names[y], NULL, &e))
-            {
-             return 1;
-            }
-
-            /* try to go with extension */
-            if(strcmp(e, "html") == 0)
-            {
-             prefix_length = snprintf(temp, 1024, "[fix me: should be documentation directory]");
-             matched = 1;
-            }
-
-            free(e);
-            e = NULL;
-           }
-
-           if(matched == 0)
+                                                  &component_install_path))
            {
             fprintf(stderr,
-                    "BCA: render_project_component_name(): "
-                    "I'm not sure what (if any) install location for a component of type "
-                    "%s will be.\n",
-                    cd.project_component_types[y]);
-           return -1;
+                    "BCA: resolve_component_installation_path(%s, %s) failed\n",
+                    cd.project_component_types[y], cd.project_components[y]);
+            return -1;
            }
+
+           if(component_install_path == NULL)
+           {
+            /* component has been manually specifed to not be installed */
+            return 0;
+           }
+           prefix_length = snprintf(temp, 1024, "%s/", component_install_path);
+           free(component_install_path);
+           component_install_path = NULL;
            break;
 
       case 4: /* effective output name */
@@ -708,4 +648,40 @@ char *without_string_to_without_macro(struct bca_context *ctx, char *in)
  return out;
 }
 
+char *lib_file_name_to_link_name(const char *file_name)
+{
+ char *lib_name, *extension;
+ int length;
 
+ /* todo: make this better */
+
+ if(path_extract(file_name, &lib_name, &extension))
+ {
+  fprintf(stderr, "BCA: path_extract(%s) failed\n", file_name);
+  return NULL;
+ }
+
+ length = strlen(lib_name);
+
+ if(length > 3)
+ {
+  if(strcmp(lib_name + length - 3, ".so") == 0)
+  {
+   lib_name[length - 3] = 0;
+   length -= 3;
+  }
+ }
+
+ if(length > 3)
+ {
+  if(strncmp(lib_name, "lib", 3) == 0)
+  {
+   memmove(lib_name, lib_name + 3, length - 3);
+   length -= 3;
+   lib_name[length] = 0;
+  }
+ }
+
+ free(extension);
+ return lib_name;
+}

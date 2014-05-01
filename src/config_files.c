@@ -838,11 +838,11 @@ int list_project_components(struct bca_context *ctx,
 
      if(ok == 0)
      {
-      fprintf(stderr, 
+      fprintf(stderr,
               "BCA: component name is a reserved word, %s.%s.%s\n",
               type, component, key);
       return 1;
-     } 
+     }
 
      cd->n_components++;
     }
@@ -876,7 +876,7 @@ int list_project_components(struct bca_context *ctx,
     cd->project_component_types[cd->n_components] = string;
 
 
-    if((cd->project_output_names[cd->n_components] = 
+    if((cd->project_output_names[cd->n_components] =
         lookup_key(ctx, ctx->project_configuration_contents,
                    ctx->project_configuration_length, type, component, "NAME")) == NULL)
     {
@@ -1002,7 +1002,7 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
 }
 
 char *resolve_build_host_variable(struct bca_context *ctx,
-                                  char *host, 
+                                  char *host,
                                   char *project_component,
                                   char *key)
 {
@@ -1015,10 +1015,10 @@ char *resolve_build_host_variable(struct bca_context *ctx,
   project_component = "ALL";
 
  if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length, 
+                        ctx->build_configuration_length,
                         host, project_component, key)) == NULL)
  {
-  value = lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length, 
+  value = lookup_key(ctx, ctx->build_configuration_contents, ctx->build_configuration_length,
                      host, "ALL", key);
  }
 
@@ -1232,7 +1232,7 @@ int resolve_component_dependencies(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: Found the following dependencies for component \"%s\" on host \"%s\" (%d): ", 
+  printf("BCA: Found the following dependencies for component \"%s\" on host \"%s\" (%d): ",
          cd->project_component, cd->host, cd->n_dependencies);
 
   for(i=0; i < cd->n_dependencies; i++)
@@ -1380,7 +1380,7 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
 
   if(i == component_index)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: resolve_component_input_dependencies(): project "
            "component %s apears to list itself as an INPUT element\n",
            cd->project_components[component_index]);
@@ -1832,10 +1832,53 @@ int pull_value(struct bca_context *ctx)
  return 0;
 }
 
+int check_value_inline(struct bca_context *ctx,
+                       char *contents, int length,
+                       char *principle, char *qualifier,
+                       char *key, char *check_value)
+{
+ char *value, **values = NULL;
+ int i, value_length, n_values = 0, checked = 0;
+
+ if((value = lookup_key(ctx, contents, length,
+                        principle, qualifier, key)) == NULL)
+ {
+  value = lookup_key(ctx, contents, length,
+                     principle, "ALL", key);
+ }
+
+ if(value == NULL)
+  return -2;
+
+ value_length = strlen(value);
+
+ if(split_strings(ctx, value, value_length, &n_values, &values))
+ {
+  fprintf(stderr, "BCA: split_string() failed on %s\n", value);
+  return -1;
+ }
+
+ i=0;
+ while(i<n_values)
+ {
+  if(strcmp(values[i], check_value) == 0)
+  {
+   checked = 1;
+   break;
+  }
+  i++;
+ }
+
+ free_string_array(values, n_values);
+ free(value);
+
+ return checked;
+}
+
 int check_value(struct bca_context *ctx)
 {
- char *contents, *file, **values, *value, *q;
- int length, n_values, i, value_length;
+ char *contents, *file;
+ int code, length;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: check_value()\n");
@@ -1856,64 +1899,43 @@ int check_value(struct bca_context *ctx)
   return 1;
  }
 
- q = ctx->qualifier;
- if((value = lookup_key(ctx, contents, length, ctx->principle,
-                        ctx->qualifier, ctx->search_value_key)) == NULL)
- {
-  if(ctx->verbose)
-   fprintf(stderr,
-           "BCA: lookup_key() failed for %s.%s.%s in file %s\n",
-           ctx->principle, ctx->qualifier, ctx->search_value_key, file);
+ code = check_value_inline(ctx, contents, length,
+                           ctx->principle, ctx->qualifier, ctx->search_value_key,
+                           ctx->new_value_string);
 
-  if(strcmp(ctx->qualifier, "ALL") != 0)
-  {
-   if((value = lookup_key(ctx, contents, length, ctx->principle,
-                          "ALL", ctx->search_value_key)) == NULL)
-   {
-    if(ctx->verbose)
-     fprintf(stderr,
-             "BCA: lookup_key() failed for %s.%s.%s in file %s\n",
-             ctx->principle, "ALL", ctx->search_value_key, file);
-    return 0;
-   }
-   q = "ALL";
-  } else {
-   return 0;
-  }
+ switch(code)
+ {
+  case -2:
+       if(ctx->verbose)
+        fprintf(stderr,
+                "BCA: lookup_key() failed for %s.[%s/ALL].%s in file %s\n",
+                ctx->principle, ctx->qualifier, ctx->search_value_key, file);
+       code = 1;
+       break;
+
+  case -1:
+       code = 1;
+       break;
+
+  case 0:
+       if(ctx->verbose)
+        fprintf(stderr, "BCA: '%s' not found in %s.[%s/ALL].%s. Returning 3\n",
+                ctx->new_value_string, ctx->principle, ctx->qualifier, ctx->search_value_key);
+
+       code = 3;
+       break;
+
+  case 1:
+       if(ctx->verbose)
+        fprintf(stderr,
+                "BCA: '%s' found in %s.[%s/ALL].%s. Returning 2.\n",
+                ctx->new_value_string, ctx->principle, ctx->qualifier, ctx->search_value_key);
+       code = 2;
+       break;
  }
 
- value_length = strlen(value);
-
- if(split_strings(ctx, value, value_length, &n_values, &values))
- {
-  fprintf(stderr, "BCA: split_string() failed on %s\n", value);
-  return 1;
- }
-
- for(i=0; i<n_values; i++)
- {
-  if(strcmp(values[i], ctx->new_value_string) == 0)
-  {
-   if(ctx->verbose)
-    fprintf(stderr,
-            "BCA: '%s' found in %s.%s.%s = '%s'. Returning 2.\n",
-            ctx->new_value_string, ctx->principle, q, ctx->search_value_key, value);
-
-   free_string_array(values, n_values);
-   free(value);
-   free(contents);
-   return 2;
-  }
- }
-
- if(ctx->verbose)
-  fprintf(stderr, "BCA: '%s' not found in %s.%s.%s. Returning 3\n",
-          ctx->new_value_string, ctx->principle, ctx->qualifier, ctx->search_value_key);
-
- free_string_array(values, n_values);
- free(value);
  free(contents);
- return 3;
+ return code;
 }
 
 int resolve_project_name(struct bca_context *ctx)
@@ -1924,8 +1946,8 @@ int resolve_project_name(struct bca_context *ctx)
  if(ctx->project_name != NULL)
   free(ctx->project_name);
 
- if((ctx->project_name = 
-     lookup_key(ctx, ctx->project_configuration_contents, ctx->project_configuration_length, 
+ if((ctx->project_name =
+     lookup_key(ctx, ctx->project_configuration_contents, ctx->project_configuration_length,
                 "NONE", "NONE", "PROJECT_NAME")) == NULL)
   return 1;
 
@@ -1985,9 +2007,9 @@ int resolve_effective_path_mode(struct bca_context *ctx)
 int resolve_component_installation_path(struct bca_context *ctx, char *component_type,
                                         char *component, char **path)
 {
- char *avalue, *bvalue;
+ char *avalue, *bvalue = NULL;
  char temp[1024];
- int offset;
+ int offset = 0;
 
  if(ctx->project_configuration_contents == NULL)
  {
@@ -2018,108 +2040,121 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
                       component_type, "ALL", "INSTALL_PATH");
  }
 
- if(avalue != NULL)
+ if(avalue == NULL)
  {
-  if(strcmp(avalue, "NONE") == 0)
+  /* if component install path was not given fallback to defaults based
+     on component type */
+  if(strcmp(component_type, "BINARY") == 0)
   {
-   *path = NULL;
-  }
-
-  if(strncmp(avalue, "${PREFIX}", 9) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_PREFIX")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_PREFIX");
-   }
-   offset = 9;
-  }
-
-  if(strncmp(avalue, "${BIN_DIR}", 10) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_BIN_DIR")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_BIN_DIR");
-   }
-   offset = 10;
-  }
-
-  if(strncmp(avalue, "${LIB_DIR}", 10) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_LIB_DIR")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_LIB_DIR");
-   }
-   offset = 10;
-  }
-
-  if(strncmp(avalue, "${INCLUDE_DIR}", 14) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_INCLUDE_DIR")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_INCLUDE_DIR");
-   }
-   offset = 14;
-  }
-
-  if(strncmp(avalue, "${PKG_CONFIG_DIR}", 17) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_PKG_CONFIG_DIR");
-   }
-   offset = 17;
-  }
-
-  if(strncmp(avalue, "${LOCALE_DATA_DIR}", 18) == 0)
-  {
-   if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           ctx->principle, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
-   {
-    bvalue = lookup_key(ctx, ctx->build_configuration_contents,
-                        ctx->build_configuration_length,
-                        ctx->principle, "ALL", "INSTALL_LOCALE_DATA_DIR");
-   }
-   offset = 18;
-  }
-
-  if(bvalue != NULL)
-  {
-   snprintf(temp, 1024, "%s%s", bvalue, avalue + offset);
-   *path = strdup(temp);
-   free(bvalue);
+   avalue = strdup("${BIN_DIR}");
+  } else if(strcmp(component_type, "SHAREDLIBRARY") == 0) {
+   avalue = strdup("${LIB_DIR}");
   } else {
+   avalue = strdup("NONE");
+  }
+ }
+
+ /* now resolve the build configuration specific install location vars */
+ if(strcmp(avalue, "NONE") == 0)
+ {
+  *path = NULL;
+ }
+
+ if(strncmp(avalue, "${PREFIX}", 9) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_PREFIX")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_PREFIX");
+  }
+  offset = 9;
+ }
+
+ if(strncmp(avalue, "${BIN_DIR}", 10) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_BIN_DIR")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_BIN_DIR");
+  }
+  offset = 10;
+ }
+
+ if(strncmp(avalue, "${LIB_DIR}", 10) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_LIB_DIR")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_LIB_DIR");
+  }
+  offset = 10;
+ }
+
+ if(strncmp(avalue, "${INCLUDE_DIR}", 14) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_INCLUDE_DIR")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_INCLUDE_DIR");
+  }
+  offset = 14;
+ }
+
+ if(strncmp(avalue, "${PKG_CONFIG_DIR}", 17) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_PKG_CONFIG_DIR")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_PKG_CONFIG_DIR");
+  }
+  offset = 17;
+ }
+
+ if(strncmp(avalue, "${LOCALE_DATA_DIR}", 18) == 0)
+ {
+  if((bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                          ctx->build_configuration_length,
+                          ctx->principle, component, "INSTALL_LOCALE_DATA_DIR")) == NULL)
+  {
+   bvalue = lookup_key(ctx, ctx->build_configuration_contents,
+                       ctx->build_configuration_length,
+                       ctx->principle, "ALL", "INSTALL_LOCALE_DATA_DIR");
+  }
+  offset = 18;
+ }
+
+ if(bvalue == NULL)
+ {
+  if(strcmp(avalue, "NONE") != 0)
+  {
    fprintf(stderr,
-           "BCA: resolve_component_installation_path(): component %s INSTALL_PATH %s failed.\n",
-           component, avalue);
+           "BCA: could not resolve %s for host %s\n",
+           avalue, ctx->principle);
    return 1;
   }
 
-  free(avalue);
   return 0;
  }
 
- return 1;
+ snprintf(temp, 1024, "%s%s", bvalue, avalue + offset);
+ *path = strdup(temp);
+ free(bvalue);
+ free(avalue);
+ return 0;
 }
-
 

@@ -1,4 +1,6 @@
 NONE.NONE.PROJECT_NAME = "Build Configuration Adjust"
+NONE.NONE.MAJOR = 0
+NONE.NONE.MINOR = 2
 CAT.dist_c.NAME = buildconfigurationadjust-single-file-distribution.c
 CAT.dist_c.FILES = "./src/sfdstub.c ./src/prototypes.h ./src/config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/gmakefile.c ./src/graphviz.c"
 BINARY.main.NAME = bca-canadate
@@ -7,3 +9,5 @@ BINARY.main.FILE_DEPENDS = ./src/prototypes.h
 BINARY.main.OPT_EXT_DEPENDS = "libnewt mongoose gtk+-2.0"
 BINARY.sfdb.NAME = bca-sfd
 BINARY.sfdb.INPUT = dist_c
+MACROEXPAND.config_h.FILES = "./src/config.h.in"
+MACROEXPAND.config_h.NAME = config.h
