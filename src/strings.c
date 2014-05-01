@@ -199,7 +199,7 @@ int contains_string(char *source, int source_length, char *search, int search_le
  return 0;
 }
 
-int path_extract(char *full_path, char **base_file_name, char **extension)
+int path_extract(const char *full_path, char **base_file_name, char **extension)
 {
  int allocation_size, full_path_length, base_file_name_length, extension_length,
      index, period_position = -1, slash_position = -1;

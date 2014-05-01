@@ -8,4 +8,6 @@
 #define HAVE_CWD
 #endif
 
+@BCA.MACROS.main@
+
 #endif

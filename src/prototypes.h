@@ -23,7 +23,9 @@
 #ifndef _prototypes_h_
 #define _prototypes_h_
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -217,7 +219,7 @@ int add_to_string_array(char ***array, int array_size,
 
 int free_string_array(char **array, int n_elements);  // selftested
 
-int path_extract(char *full_path, char **base_file_name, char **extension);  // selftested
+int path_extract(const char *full_path, char **base_file_name, char **extension);  // selftested
 
 char *read_file(char *name, int *length, int silent_test);  // selftested
 
@@ -327,6 +329,8 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
 
 int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
 
+int is_project_using_config_h(struct bca_context *ctx);
+
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx,
                          struct component_details *cd);
@@ -388,11 +392,6 @@ int graphviz_string_clean(struct bca_context *ctx,
 /* newt.c --------------------------------------- */
 #ifndef WITHOUT_LIBNEWT
 int newt_interface(struct bca_context *ctx);
-#endif
-
-/* www.c ---------------------------------------- */
-#ifndef WITHOUT_MONGOOSE
-int mongoose_interface(struct bca_context *ctx);
 #endif
 
 /* gtk.c ---------------------------------------- */

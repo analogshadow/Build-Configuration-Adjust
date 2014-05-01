@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -18,6 +18,8 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#include "config.h"
 
 #ifndef WITHOUT_GTK__2_0
 #include "prototypes.h"

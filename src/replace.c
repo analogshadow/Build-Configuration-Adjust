@@ -197,7 +197,7 @@ char *check_function(struct bca_context *ctx, char *key)
 
 char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 {
- char *value, a[256], b[256], c[256], **list = NULL, **withouts = NULL;
+ char *value, a[256], b[256], c[256], **list = NULL, **withouts = NULL, *without_macro;
  int mode = 0, n_dots = 0, dots[2], length, i, n_items = 0, n_withouts = 0,
      edition, allocation_size;
 
@@ -266,7 +266,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 
    value = lookup_key(ctx, ctx->build_configuration_contents,
                       ctx->build_configuration_length,
-                      ctx->principle, a, "MACROS");
+                      ctx->principle, "ALL", "MACROS");
 
    if(value == NULL)
    {
@@ -339,10 +339,16 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 
   for(i=0; i < n_withouts; i++)
   {
-   length += snprintf(value + length, allocation_size - length,
-                      "#define WITHOUT_%s\n", withouts[i]);
+   if((without_macro = without_string_to_without_macro(ctx, withouts[i])) != NULL)
+   {
+    length += snprintf(value + length, allocation_size - length,
+                       "#define WITHOUT_%s\n", without_macro);
+    free(without_macro);
+    without_macro = NULL;
+   } else {
+    fprintf(stderr, "BCA: without_string_to_without_macro(%s) failed\n", withouts[i]);
+   }
   }
-  length += snprintf(value + length, allocation_size - length, "\n");
 
   free_string_array(withouts, n_withouts);
   free_string_array(list, n_items);

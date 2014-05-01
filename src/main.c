@@ -197,14 +197,14 @@ int main(int argc, char **argv)
        break;
 
   case SET_VALUE_MODE:
-       /* special case: if the new value is the same, then we don't want to update the 
+       /* special case: if the new value is the same, then we don't want to update the
           build configuration file's modified time. */
        if(ctx->manipulation_type == MANIPULATE_BUILD_CONFIGURATION)
        {
         if((contents = read_file(file, &length, 0)) == NULL)
          return 1;
 
-        if((value = lookup_key(ctx, contents, length, ctx->principle, 
+        if((value = lookup_key(ctx, contents, length, ctx->principle,
                                ctx->qualifier, ctx->search_value_key)) != NULL)
         {
          code = strcmp(value, ctx->new_value_string);
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
         }
        }
 
-       if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+       if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                       ctx->search_value_key, ctx->new_value_string))
        {
         fprintf(stderr, "BCA: modify_file() failed\n");
@@ -231,7 +231,7 @@ int main(int argc, char **argv)
        break;
 
   case REMOVE_VALUE_MODE:
-       if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+       if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                       ctx->search_value_key, NULL))
        {
         fprintf(stderr, "BCA: modify_file() failed\n");
@@ -246,7 +246,7 @@ int main(int argc, char **argv)
        {
         return 1;
        }
-       if((value = lookup_key(ctx, contents, length, ctx->principle, 
+       if((value = lookup_key(ctx, contents, length, ctx->principle,
                               ctx->qualifier, ctx->search_value_key)) != NULL)
        {
         fprintf(stderr,
@@ -257,7 +257,7 @@ int main(int argc, char **argv)
         return 1;
        }
 
-       if(modify_file(ctx, file, ctx->principle, ctx->qualifier, 
+       if(modify_file(ctx, file, ctx->principle, ctx->qualifier,
                       ctx->search_value_key, ctx->new_value_string))
        {
         fprintf(stderr, "BCA: modify_file() failed\n");
@@ -290,8 +290,8 @@ int main(int argc, char **argv)
        break;
 
   case LIST_PROJECT_COMPONENTS_MODE:
-       if((ctx->project_configuration_contents = 
-        read_file("./buildconfiguration/projectconfiguration", 
+       if((ctx->project_configuration_contents =
+        read_file("./buildconfiguration/projectconfiguration",
                   &(ctx->project_configuration_length), 0)) == NULL)
        {
         return 1;
@@ -384,7 +384,7 @@ int main(int argc, char **argv)
        return code;
        break;
 
-#ifndef IN_SINGLE_FILE_DISTRIBUTION#ifndef IN_SINGLE_FILE_DISTRIBUTION
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
   case GENERATE_GRAPHVIZ_MODE:
        if( ((code = generate_graphviz_mode(ctx)) == 0) &&
            (ctx->verbose> 1) )
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
 
   case STRING_REPLACE_MODE:
        if( ((code = string_replace(ctx)) == 0) &&
-           (ctx->verbose > 1) ) 
+           (ctx->verbose > 1) )
         fprintf(stderr, "BCA: string_replace() finished\n");
        return code;
        break;
@@ -414,7 +414,7 @@ int main(int argc, char **argv)
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
-         printf("%s\n", list[i]); 
+         printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
        return 0;
@@ -427,7 +427,7 @@ int main(int argc, char **argv)
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
-         printf("%s\n", list[i]); 
+         printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
        return 0;
@@ -440,7 +440,7 @@ int main(int argc, char **argv)
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
-         printf("%s\n", list[i]); 
+         printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
        break;
@@ -472,15 +472,6 @@ int main(int argc, char **argv)
        if( ((code = newt_interface(ctx)) == 0) &&
            (ctx->verbose > 1))
         fprintf(stderr, "BCA: newt_interface() finished\n");
-       return code;
-       break;
-#endif
-
-#ifndef WITHOUT_MONGOOSE
-  case MONGOOSE_INTERFACE_MODE:
-       if( ((code = mongoose_interface(ctx)) == 0) &&
-           (ctx->verbose > 1))
-        fprintf(stderr, "BCA: mongoose_interfaace() finished\n");
        return code;
        break;
 #endif
@@ -603,20 +594,6 @@ struct bca_context *setup(int argc, char **argv)
    fprintf(stderr,
            "BCA: This build configuration adjust was not built with support "
            "for the newt interface. If you want to use this feature, consider "
-           "installing a local copy on this system or somewhere in your $PATH.\n");
-   return NULL;
-#endif
-  }
-
-  if(strcmp(argv[current_arg], "--mongoose-interface") == 0)
-  {
-#ifndef WITHOUT_MONGOOSE
-   handled = 1;
-   ctx->mode = MONGOOSE_INTERFACE_MODE;
-#else
-   fprintf(stderr, 
-           "BCA: This build configuration adjust was not build with support "
-           "for the mongoose interface. If you want to use this feature, consider "
            "installing a local copy on this system or somewhere in your $PATH.\n");
    return NULL;
 #endif

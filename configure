@@ -3,16 +3,16 @@
 # This is the ./configure wrapper script for Build Configuration Adjust (bca)
 # see http://bca.stoverenterprises.com for more informaiton.
 #
-# Customization to this script is usually done by adding a file ./configure-extra. 
+# Customization to this script is usually done by adding a file ./configure-extra.
 # The documentation for this wrapper script specifically, is this wrapper script. It should
 # be self explainitory, but if not let me know. - C. Thomas Stover
-# 
+#
 #
 #
 # GPLv3
 #
 #    Build Configuration Adjust, a source configuration and Makefile
-#    generation tool. Copyright © 2012,2013 Stover Enterprises, LLC
+#    generation tool. Copyright © 2012,2013,2014 Stover Enterprises, LLC
 #    (an Alabama Limited Liability Corporation), All rights reserved.
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@
 
 if [ "$1" = "--clean" ]
 then
-	echo "configure: cleaning any build and configuration state..."
+	echo "configure: cleaning any build and configuration state:"
 
 	#remove directories
 	if [ -f "./bca" ]
@@ -114,7 +114,7 @@ then
 		else
 #this needs to error out if the link is to bca-canadate or bca-sfdb because those get kill by make clean
 			echo "configure: soft linking ./bca to $PATHBCA"
-			ln -s $PATHBCA ./bca 
+			ln -s $PATHBCA ./bca
 		fi
 	fi
 else

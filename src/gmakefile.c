@@ -1,4 +1,4 @@
-/* GPLv3
+/* GPLv36
 
     Build Configuration Adjust, a source configuration and Makefile
     generation tool. Copyright © 2012-2014 Stover Enterprises, LLC
@@ -361,6 +361,9 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
  {
   fprintf(output, "%s ", tc->cflags);
  }
+
+ if(is_project_using_config_h(ctx) == 0)
+  return 0;
 
  for(i=0; i < cd->n_withouts; i++)
  {
@@ -2134,9 +2137,9 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
  for(x=0; x<n_build_hosts; x++)
  {
   if(uninstall_version)
-   fprintf(output, "%s-unintstall", hosts[x]);
+   fprintf(output, "%s-unintstall ", hosts[x]);
   else
-   fprintf(output, "%s-intstall", hosts[x]);
+   fprintf(output, "%s-intstall ", hosts[x]);
  }
  fprintf(output, "\n\n");
 

@@ -151,10 +151,10 @@ int output_modifications(struct bca_context *ctx, FILE *output,
  for(i=0; i<n_records; i++)
  {
   handled[i] = 0;
- } 
+ }
 
  while(iterate_key_primitives(ctx, contents, length, &end,
-                              NULL, NULL, NULL, 
+                              NULL, NULL, NULL,
                               o_principle, o_component, o_key, NULL))
  {
   o_value = lookup_key(ctx, contents, length, o_principle, o_component, o_key);
@@ -398,7 +398,7 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     {
      file[end] = 0;
      fprintf(stderr,
-             "BCA: left of '=' not in the format TARGET.COMPONENT.KEY on the line \"%s\"\n",
+             "BCA: left of '=' not in the format PRINCIPLE.QUALIFIER.KEY on the line \"%s\"\n",
              file + start);
      exit(1);
     }
@@ -517,7 +517,7 @@ int list_component_external_dependencies(struct bca_context *ctx,
 
   *list = NULL;
   *n_elements = 0;
-  return 0; 
+  return 0;
  }
 
  if(split_strings(ctx, value, -1, n_elements, list))
@@ -2156,5 +2156,27 @@ int resolve_component_installation_path(struct bca_context *ctx, char *component
  free(bvalue);
  free(avalue);
  return 0;
+}
+
+int is_project_using_config_h(struct bca_context *ctx)
+{
+ char *value = NULL;
+ int config_h = 0;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: is_project_using_config_h()\n");
+
+ value = lookup_key(ctx,
+                    ctx->build_configuration_contents,
+                    ctx->build_configuration_length,
+                    "*", "*", "config.h");
+
+ if(value != NULL)
+ {
+  config_h = 1;
+  free(value);
+ }
+
+ return config_h;
 }
 
