@@ -376,7 +376,7 @@ int setup_test(struct bca_context *real_ctx)
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->new_value_string, "tacofao") != 0) {
   printf("failed: wrong value data\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
   printf("failed: shutdown() error\n");
  } else {
@@ -421,7 +421,7 @@ int setup_test(struct bca_context *real_ctx)
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->new_value_string, "tacofao") != 0) {
   printf("failed: wrong value data\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
   printf("failed: shutdown() error\n");
  } else {
@@ -445,7 +445,7 @@ int setup_test(struct bca_context *real_ctx)
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->new_value_string, "tacofao") != 0) {
   printf("failed: wrong value data\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
   printf("failed: shutdown() error\n");
  } else {
@@ -469,7 +469,7 @@ int setup_test(struct bca_context *real_ctx)
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->new_value_string, "tacofao") != 0) {
   printf("failed: wrong value data\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
   printf("failed: shutdown() error\n");
  } else {
@@ -493,7 +493,7 @@ int setup_test(struct bca_context *real_ctx)
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->new_value_string, "tacofao") != 0) {
   printf("failed: wrong value data\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
   printf("failed: shutdown() error\n");
  } else {
@@ -698,7 +698,7 @@ int setup_test(struct bca_context *real_ctx)
   printf("failed\n");
  } else if(test_ctx->n_withouts != 4) {
   printf("failed: wrong n_withouts value\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if( (strcmp(test_ctx->without_strings[0], "alpha") != 0) ||
             (strcmp(test_ctx->without_strings[1], "beta") != 0) ||
             (strcmp(test_ctx->without_strings[2], "gama") != 0) ||
@@ -724,7 +724,7 @@ int setup_test(struct bca_context *real_ctx)
   printf("failed\n");
  } else if(test_ctx->n_disables != 4) {
   printf("failed: wrong n_disables value\n");
-  shutdown(test_ctx);  
+  shutdown(test_ctx);
  } else if( (strcmp(test_ctx->disabled_components[0], "alpha") != 0) ||
             (strcmp(test_ctx->disabled_components[1], "beta") != 0) ||
             (strcmp(test_ctx->disabled_components[2], "gama") != 0) ||
@@ -1188,7 +1188,7 @@ int string_test(struct bca_context *real_ctx)
 }
 
 /* see that both left and right are logically the same */
-int compare_config_files(struct bca_context *ctx, 
+int compare_config_files(struct bca_context *ctx,
                          char *left_file, int left_length,
                          char *right_file, int right_length)
 {
@@ -1199,16 +1199,16 @@ int compare_config_files(struct bca_context *ctx,
  n_records = 0;
  left_records = NULL;
  offset = -1;
- while(iterate_key_primitives(ctx, left_file, left_length, &offset, NULL, NULL, NULL, 
+ while(iterate_key_primitives(ctx, left_file, left_length, &offset, NULL, NULL, NULL,
                               principle, component, key, &equals_pos))
  {
-  if((left_value = lookup_key(ctx, left_file, left_length, 
+  if((left_value = lookup_key(ctx, left_file, left_length,
                               principle, component, key)) == NULL)
   {
    return -1;
   }
 
-  if((right_value = lookup_key(ctx, right_file, right_length, 
+  if((right_value = lookup_key(ctx, right_file, right_length,
                                principle, component, key)) == NULL)
   {
    free(left_value);
@@ -1236,7 +1236,7 @@ int compare_config_files(struct bca_context *ctx,
  }
 
  /* now we need to see that there are not any records in right file that are not in left file */
- while(iterate_key_primitives(ctx, left_file, left_length, &offset, NULL, NULL, NULL, 
+ while(iterate_key_primitives(ctx, left_file, left_length, &offset, NULL, NULL, NULL,
                               principle, component, key, &equals_pos))
  {
   snprintf(temp, 772, "%s.%s.%s", principle, component, key);
@@ -1257,8 +1257,8 @@ int config_files_test(struct bca_context *real_ctx)
 {
  int offset, equals_pos, file_length, n_elements, in_length, code;
  char principle[256], component[256], key[256], *file, *out, **array,
-      **principle_modifications, **component_modifications, **key_modifications, 
-      **value_modifications, *in_file, *left_value, *right_value;
+      **principle_modifications, **component_modifications, **key_modifications,
+      **value_modifications, *in_file, *right_value;
  FILE *output;
  struct component_details cd;
 
@@ -1281,7 +1281,7 @@ int config_files_test(struct bca_context *real_ctx)
  printf("test: iterkeyprimsunfiltered: ");
  offset = -1;
  if(iterate_key_primitives(real_ctx, file, file_length, &offset,
-                           NULL, NULL, NULL, 
+                           NULL, NULL, NULL,
                            principle, component, key, &equals_pos) == 0)
  {
   printf("failed\n");
@@ -1291,7 +1291,7 @@ int config_files_test(struct bca_context *real_ctx)
             (strncmp(file + equals_pos + 2, "tacos", 5) != 0) ) {
   printf("failed: first record not what was expected\n");
  } else if (iterate_key_primitives(real_ctx, file, file_length, &offset,
-                                   NULL, NULL, NULL, 
+                                   NULL, NULL, NULL,
                                    principle, component, key, &equals_pos) == 0) {
   printf("failed\n");
  } else if( (strcmp(principle, "alpha") != 0) ||
@@ -1306,7 +1306,7 @@ int config_files_test(struct bca_context *real_ctx)
  printf("test: iterkeyprimsfilterp: ");
  offset = -1;
  if(iterate_key_primitives(real_ctx, file, file_length, &offset,
-                           "beta", NULL, NULL, 
+                           "beta", NULL, NULL,
                            principle, component, key, &equals_pos) == 0)
  {
   printf("failed\n");
@@ -1316,7 +1316,7 @@ int config_files_test(struct bca_context *real_ctx)
             (strncmp(file + equals_pos + 2, "birds", 5) != 0) ) {
   printf("failed: first record not what was expected\n");
  } else if (iterate_key_primitives(real_ctx, file, file_length, &offset,
-                                   "beta", NULL, NULL, 
+                                   "beta", NULL, NULL,
                                    principle, component, key, &equals_pos) == 0) {
   printf("failed\n");
  } else if( (strcmp(principle, "beta") != 0) ||
@@ -1331,7 +1331,7 @@ int config_files_test(struct bca_context *real_ctx)
  printf("test: iterkeyprimsfilterc: ");
  offset = -1;
  if(iterate_key_primitives(real_ctx, file, file_length, &offset,
-                           NULL, "purple", NULL, 
+                           NULL, "purple", NULL,
                            principle, component, key, &equals_pos) == 0)
  {
   printf("failed\n");
@@ -1341,7 +1341,7 @@ int config_files_test(struct bca_context *real_ctx)
             (strncmp(file + equals_pos + 2, "pizza", 5) != 0) ) {
   printf("failed: first record not what was expected\n");
  } else if (iterate_key_primitives(real_ctx, file, file_length, &offset,
-                                   NULL, "purple", NULL, 
+                                   NULL, "purple", NULL,
                                    principle, component, key, &equals_pos) == 0) {
   printf("failed\n");
  } else if( (strcmp(principle, "gama") != 0) ||
@@ -1356,7 +1356,7 @@ int config_files_test(struct bca_context *real_ctx)
  printf("test: iterkeyprimsfilterk: ");
  offset = -1;
  if(iterate_key_primitives(real_ctx, file, file_length, &offset,
-                           NULL, NULL, "two", 
+                           NULL, NULL, "two",
                            principle, component, key, &equals_pos) == 0)
  {
   printf("failed\n");
@@ -1366,7 +1366,7 @@ int config_files_test(struct bca_context *real_ctx)
             (strncmp(file + equals_pos + 2, "rats", 4) != 0) ) {
   printf("failed: first record not what was expected\n");
  } else if (iterate_key_primitives(real_ctx, file, file_length, &offset,
-                                   NULL, NULL, "two", 
+                                   NULL, NULL, "two",
                                    principle, component, key, &equals_pos) == 0) {
   printf("failed\n");
  } else if( (strcmp(principle, "delta") != 0) ||
@@ -1381,7 +1381,7 @@ int config_files_test(struct bca_context *real_ctx)
  printf("test: iterkeyprimsfilterall: ");
  offset = -1;
  if(iterate_key_primitives(real_ctx, file, file_length, &offset,
-                           "beta", "white", "six", 
+                           "beta", "white", "six",
                            principle, component, key, &equals_pos) == 0)
  {
   printf("failed\n");
@@ -1391,7 +1391,7 @@ int config_files_test(struct bca_context *real_ctx)
             (strncmp(file + equals_pos + 2, "birds", 5) != 0) ) {
   printf("failed: first record not what was expected\n");
  } else if (iterate_key_primitives(real_ctx, file, file_length, &offset,
-                                   NULL, NULL, "two", 
+                                   NULL, NULL, "two",
                                    principle, component, key, &equals_pos) == 0) {
   printf("failed\n");
  } else {
@@ -1517,7 +1517,7 @@ int config_files_test(struct bca_context *real_ctx)
    fclose(output);
    if ((in_file = read_file("./selftestfile", &in_length, 1)) == NULL) {
     printf("failed: read_file()\n");
-   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length, 
+   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length,
                                          "gama", "purple", "ten")) == NULL)  {
     printf("failed: lookup of first modified record failed\n");
    } else if (strcmp(right_value, "burger") != 0) {
@@ -1525,7 +1525,7 @@ int config_files_test(struct bca_context *real_ctx)
    } else {
     free(right_value);
     right_value = NULL;
-    if((right_value = lookup_key(real_ctx, in_file, in_length, 
+    if((right_value = lookup_key(real_ctx, in_file, in_length,
                                  "delta", "black", "two")) == NULL) {
      printf("failed: lookup of second modified record failed\n");
     } else if (strcmp(right_value, "curtain") != 0) {
@@ -1533,7 +1533,7 @@ int config_files_test(struct bca_context *real_ctx)
     } else {
      free(right_value);
      right_value = NULL;
-     if((right_value = lookup_key(real_ctx, in_file, in_length, 
+     if((right_value = lookup_key(real_ctx, in_file, in_length,
                                   "beta", "white", "six")) == NULL) {
       printf("failed: lookup of unmodified record failed\n");
      } else if (strcmp(right_value, "birds") != 0) {
@@ -1593,10 +1593,10 @@ int config_files_test(struct bca_context *real_ctx)
    fclose(output);
    if ((in_file = read_file("./selftestfile", &in_length, 1)) == NULL) {
     printf("failed: read_file()\n");
-   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length, 
+   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length,
                                          "alpha", "green", "two")) != NULL)  {
     printf("failed: lookup of first removed record should have failed\n");
-   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length, 
+   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length,
                                         "gama", "blue", "eleven")) != NULL) {
     printf("failed: lookup of second removed record should have failed\n");
    } else {
@@ -1652,7 +1652,7 @@ int config_files_test(struct bca_context *real_ctx)
    fclose(output);
    if ((in_file = read_file("./selftestfile", &in_length, 1)) == NULL) {
     printf("failed: read_file()\n");
-   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length, 
+   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length,
                                          "pi", "purple", "ten")) == NULL)  {
     printf("failed: lookup of first appended record failed\n");
    } else if (strcmp(right_value, "burger") != 0) {
@@ -1660,7 +1660,7 @@ int config_files_test(struct bca_context *real_ctx)
    } else {
     free(right_value);
     right_value = NULL;
-    if((right_value = lookup_key(real_ctx, in_file, in_length, 
+    if((right_value = lookup_key(real_ctx, in_file, in_length,
                                  "omega", "black", "two")) == NULL) {
      printf("failed: lookup of second appended record failed\n");
     } else if (strcmp(right_value, "curtain") != 0) {
@@ -1668,7 +1668,7 @@ int config_files_test(struct bca_context *real_ctx)
     } else {
      free(right_value);
      right_value = NULL;
-     if((right_value = lookup_key(real_ctx, in_file, in_length, 
+     if((right_value = lookup_key(real_ctx, in_file, in_length,
                                   "beta", "white", "six")) == NULL) {
       printf("failed: lookup of unmodified record failed\n");
      } else if (strcmp(right_value, "birds") != 0) {
@@ -1733,7 +1733,7 @@ int config_files_test(struct bca_context *real_ctx)
    fclose(output);
    if ((in_file = read_file("./selftestfile", &in_length, 1)) == NULL) {
     printf("failed: read_file()\n");
-   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length, 
+   } else if ( (right_value = lookup_key(real_ctx, in_file, in_length,
                                          "gama", "purple", "ten")) == NULL)  {
     printf("failed: lookup of modified record failed\n");
    } else if (strcmp(right_value, "burger") != 0) {
@@ -1741,7 +1741,7 @@ int config_files_test(struct bca_context *real_ctx)
    } else {
     free(right_value);
     right_value = NULL;
-    if((right_value = lookup_key(real_ctx, in_file, in_length, 
+    if((right_value = lookup_key(real_ctx, in_file, in_length,
                                  "omega", "black", "two")) == NULL) {
      printf("failed: lookup of appended record failed\n");
     } else if (strcmp(right_value, "curtain") != 0) {
@@ -1749,7 +1749,7 @@ int config_files_test(struct bca_context *real_ctx)
     } else {
      free(right_value);
      right_value = NULL;
-     if((right_value = lookup_key(real_ctx, in_file, in_length, 
+     if((right_value = lookup_key(real_ctx, in_file, in_length,
                                   "beta", "white", "six")) == NULL) {
       printf("failed: lookup of unmodified record failed\n");
      } else if (strcmp(right_value, "birds") != 0) {

@@ -111,15 +111,17 @@ int component_pkg_config_path(struct bca_context *ctx,
 
 /* make clean logic */
 int gmake_clean_rules(struct bca_context *ctx, FILE *output,
-                      char **hosts, int n_build_hosts,
-                      struct component_details *cd)
+                      char **hosts, int n_build_hosts)
 {
  int x, y, array_length = 0, n_names, i, swapped;
  struct host_configuration *tc;
  char temp[512], **array = NULL, **names;
+ struct component_details cd_s, *cd = &cd_s;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: gmake_clean_rules()\n");
+
+ memset(cd, 0, sizeof(struct component_details));
 
  fprintf(output, "# cleaning rules\n");
 
@@ -223,8 +225,7 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
 
 /* make help */
 int gmake_help(struct bca_context *ctx, FILE *output,
-                      char **hosts, int n_build_hosts,
-                      struct component_details *cd)
+               char **hosts, int n_build_hosts)
 {
  int x;
 
@@ -257,11 +258,13 @@ int gmake_help(struct bca_context *ctx, FILE *output,
 
 /* "make all" calls each host, but you can do make specific-host */
 int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
-                                   char **hosts, int n_hosts,
-                                   struct component_details *cd)
+                                   char **hosts, int n_hosts)
 {
  int x, y, z, n_names, yes, i, swapped;
  char **names;
+ struct component_details cd_s, *cd = &cd_s;
+
+ memset(cd, 0, sizeof(struct component_details));
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_gmake_host_components()\n");
@@ -970,7 +973,7 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                             FILE *output,
                                             int installed_version)
 {
- int x, i, yes, length;
+ int x, i, yes;
  struct component_details cd_d;
  char *build_prefix, *package_name = NULL, *package_description = NULL, *link_name;
 
@@ -1700,31 +1703,37 @@ int generate_gmakefile_mode(struct bca_context *ctx)
  }
  fprintf(output, "\n\n\n");
 
- if(gmake_help(ctx, output, hosts, n_hosts, &cd))
+ if(gmake_help(ctx, output, hosts, n_hosts))
  {
   fclose(output);
   return 1;
  }
 
- if(gmake_clean_rules(ctx, output, hosts, n_hosts, &cd))
+ if(gmake_clean_rules(ctx, output, hosts, n_hosts))
  {
   fclose(output);
   return 1;
  }
 
- if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, &cd, 0))
+ if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, 0))
  {
   fclose(output);
   return 1;
  }
 
- if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, &cd, 1))
+ if(generate_gmake_install_rules(ctx, output, hosts, n_hosts, 1))
  {
   fclose(output);
   return 1;
  }
 
- if(generate_gmake_host_components(ctx, output, hosts, n_hosts, &cd))
+ if(generate_create_tarball_rules(ctx, output))
+ {
+  fclose(output);
+  return 1;
+ }
+
+ if(generate_gmake_host_components(ctx, output, hosts, n_hosts))
  {
   fclose(output);
   return 1;
@@ -1934,7 +1943,6 @@ int generate_gmakefile_mode(struct bca_context *ctx)
     }
    }
 
-
    /* WITHOUTS --------------------------------- */
    if((value = lookup_key(ctx, ctx->build_configuration_contents,
                           ctx->build_configuration_length,
@@ -2100,25 +2108,20 @@ int generate_gmakefile_mode(struct bca_context *ctx)
   fprintf(output, "\n");
  }
 
-
  fclose(output);
  return 0;
 }
 
 int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  char **hosts, int n_build_hosts,
-                                 struct component_details *cd,
                                  int uninstall_version)
 {
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: generate_gmake_install_rules()\n");
-
- int x, y, n_build_names, n_install_names, n_output_names, i,
-     length, index, yes, swapped, n_lib_headers;
+ int x, y, i, j, n_build_names, n_install_names, n_output_names,
+     swapped, n_lib_headers;
  struct host_configuration *tc = NULL;
- char temp[1024], **build_names, *install_headers_dir, *base_filename, *extension,
+ char temp[1024], **build_names, *install_headers_dir,
       **install_names, *value, **output_names, **lib_headers, *install_directory;
- struct component_details cd_d;
+ struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: gmake_install_rules()\n");
@@ -2396,9 +2399,22 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
       for(i=0; i<n_lib_headers; i++)
       {
        if(uninstall_version)
+       {
+        j = strlen(lib_headers[i]);
+        while(j > 0)
+        {
+         if(lib_headers[i][j] == '/')
+         {
+          j++;
+          break;
+         }
+         j--;
+        }
+        snprintf(temp, 1024, "%s/%s", install_headers_dir, lib_headers[i] + j);
         fprintf(output, "\trm %s\n", temp);
-       else
+       } else {
         fprintf(output, "\tinstall %s %s\n", lib_headers[i], install_headers_dir);
+       }
       }
 
       /* todo: handle ldconfig? */
@@ -2422,6 +2438,113 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
  }
 
  fprintf(output, "\n");
+ return 0;
+}
+
+int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
+{
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: generate_create_tarball_rules()\n");
+
+ int x, y, n_strings, n_files, z;
+ struct host_configuration *tc = NULL;
+ char temp[1024], subdir[512], *value, **strings, **files;
+ struct component_details cd_d, *cd = &cd_d;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: gmake_install_rules()\n");
+
+ memset(&cd_d, 0, sizeof(struct component_details));
+
+ if(list_project_components(ctx, cd))
+ {
+  fprintf(stderr, "BCA: list_project_components() failed\n");
+  return 1;
+ }
+
+ files = NULL;
+ n_files = 0;
+
+ if(add_to_string_array(&files, n_files,
+                        "./buildconfiguration/projectconfiguration", -1, 0))
+ {
+  fprintf(stderr, "BCA: add_to_string_array() failed\n");
+  return 1;
+ }
+ n_files++;
+
+ for(y=0; y < cd->n_components; y++)
+ {
+  strings = NULL;
+  n_strings = 0;
+
+  if((value = lookup_key(ctx,
+                         ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         "*", cd->project_components[y], "FILES")) != NULL)
+  {
+   if(split_strings(ctx, value, -1,
+                    &n_strings, &strings))
+   {
+    fprintf(stderr, "BCA: split_string(%s) failed\n", value);
+    return 1;
+   }
+
+   for(x=0; x<n_strings; x++)
+   {
+    if(add_to_string_array(&files, n_files, strings[x], -1, 1) == 0)
+     n_files++;
+
+   }
+
+   free_string_array(strings, n_strings);
+   free(value);
+  }
+ }
+
+ fprintf(output, "#source distribution tarball creation\n");
+
+ fprintf(output, "tar : ");
+ for(x=0; x<n_files; x++)
+ {
+  fprintf(output, "%s ", files[x]);
+ }
+ fprintf(output, "\n");
+
+ snprintf(temp, 1024, "name.m.n");
+ fprintf(output, "\tmkdir %s\n", temp);
+
+ for(x=0; x<n_files; x++)
+ {
+/*
+  z = strlen(files[x]);
+  if(z > 512)
+  {
+   fprintf(stderr, "BCA: file name %s too long\n", files[x]);
+   return 1;
+  }
+  while(z > 0)
+  {
+   if(files[x][z] == '/')
+   {
+    z++;
+    break;
+   }
+   z--;
+  }
+  memcpy(subdir, files[x] + 1, z - 1);
+  subdir[z - 1] = 0;
+
+  fprintf(output, "\tcp --parents %s ./%s%s\n", files[x], temp, subdir);
+*/
+  fprintf(output, "\tcp --parents %s ./%s\n", files[x], temp, temp);
+ }
+
+ fprintf(output, "\ttar -pczf %s.tar.gz ./%s\n", temp, temp);
+
+ free_string_array(files, n_files);
+ fprintf(output, "\n\n");
+
  return 0;
 }
 

@@ -364,8 +364,7 @@ int append_host_configuration(struct bca_context *ctx,
 int generate_gmakefile_mode(struct bca_context *ctx);
 
 int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
-                                   char **hosts, int n_hosts,
-                                   struct component_details *cd);
+                                   char **hosts, int n_hosts);
 
 int generate_gmake_clean_rules(struct bca_context *ctx, FILE *output,
                                char **hosts, int n_hosts,
@@ -376,8 +375,9 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
 int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  char **hosts, int n_build_hosts,
-                                 struct component_details *cd,
                                  int uninstall_version);
+
+int generate_create_tarball_rules(struct bca_context *ctx, FILE *output);
 
 /* graphviz.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,

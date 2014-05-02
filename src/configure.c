@@ -22,6 +22,7 @@
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "prototypes.h"
 #endif
+#include <unistd.h>
 
 char temp[1024];
 int temp_length;
@@ -410,6 +411,8 @@ int test_package_exist_helper(char *command,
 
  if(WEXITSTATUS(code) == 0)
   return 0;
+
+ return 1;
 }
 
 int test_package_exist(struct bca_context *ctx,

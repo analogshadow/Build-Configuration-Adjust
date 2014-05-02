@@ -626,7 +626,7 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
 {
  char *value, **hosts = NULL, *disables;
  char principle[256], component[256], key[256];
- int host_length, n_hosts = 0, i, ok, end = -1;
+ int n_hosts = 0, i, ok, end = -1;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: engage_build_configuration_swaps_for_host(%s)\n", host);
@@ -647,8 +647,6 @@ int engage_build_configuration_swaps_for_host(struct bca_context *ctx, char *hos
  {
   fprintf(stderr, "BCA: list_unique_principles() failed.\n");
  }
-
- host_length = strlen(host);
 
  while(iterate_key_primitives(ctx, ctx->build_configuration_contents,
                               ctx->build_configuration_length, &end,
