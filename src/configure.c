@@ -115,10 +115,13 @@ int is_file_of_type_used(struct bca_context *ctx,
    j=0;
    while(j < cd->n_file_names)
    {
-    if(strcmp(cd->file_extensions[j], type_extension) == 0)
+    if(cd->file_extensions[j] != NULL)
     {
-     yes = 1;
-     break;
+     if(strcmp(cd->file_extensions[j], type_extension) == 0)
+     {
+      yes = 1;
+      break;
+     }
     }
 
     j++;

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+BCA=$2
+CONFIGURE=$1
+SFD=$3
+OUT=$4
+
+$BCA --file-to-C-source $CONFIGURE > $OUT
+cp $SFD bca_sfd.c
+$BCA --file-to-C-source bca_sfd.c >> $OUT
+rm bca_sfd.c

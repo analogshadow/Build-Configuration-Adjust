@@ -51,8 +51,6 @@ void help(void)
         " --project (print & manipulate values from project configuration)\n"
         " --generate-gmakefile\n"
         " --configure\n"
-        " --concatenate file list\n"
-        " --replacestrings\n"
         " --listbuildhosts\n"
         " --listprojectcomponents\n"
         " --componentoutputnames\n"
@@ -62,9 +60,14 @@ void help(void)
         " --newproject \"project name\"\n"
         " --swap-* host\n"
         " --buildprefix=BUILD_PREFIX\n"
-
+        "\n"
+        " --concatenate file list\n"
+        " --replacestrings\n"
+        " --file-to-C-source input-file\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
         " --generate-graphviz\n"
+        " --output-configure\n"
+        " --output-buildconfigurationadjust.c\n"
         " --selftest (help debug buildconfigurationadjust itself)\n"
 #endif
 
@@ -132,6 +135,32 @@ int main(int argc, char **argv)
 
  switch(ctx->mode)
  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  case OUTPUT_CONFIGURE_MODE:
+       if(__configure_length !=
+          fwrite(__configure, 1, __configure_length, stdout))
+       {
+        fprintf(stderr, "BCA: fwrite() failed\n");
+        return 1;
+       }
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: fwrite() wrote %d bytes\n", __configure_length);
+       return 0;
+       break;
+
+  case OUTPUT_BCASFD_MODE:
+       if(bca_sfd_c_length !=
+          fwrite(bca_sfd_c, 1, bca_sfd_c_length, stdout))
+       {
+        fprintf(stderr, "BCA: fwrite() failed\n");
+        return 1;
+       }
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: fwrite() wrote %d bytes\n", bca_sfd_c_length);
+       return 0;
+       break;
+#endif
+
   case VERSION_MODE:
        printf("%s.%s\n", BCA_MAJOR, BCA_MINOR);
        break;
@@ -157,6 +186,8 @@ int main(int argc, char **argv)
         return 1;
        }
        fclose(output);
+       if(ctx->verbose > 0)
+        fprintf(stderr, "BCA: project %s created\n", ctx->new_value_string);
        return 0;
        break;
 
@@ -196,7 +227,7 @@ int main(int argc, char **argv)
 
        free(value);
        if(ctx->verbose > 1)
-        printf("BCA: SHOW_VALUE_MODE finished\n");
+        fprintf(stderr, "BCA: SHOW_VALUE_MODE finished\n");
        break;
 
   case SET_VALUE_MODE:
@@ -230,7 +261,7 @@ int main(int argc, char **argv)
         return 1;
        }
        if(ctx->verbose > 1)
-        printf("BCA: SET_VALUE_MODE finished\n");
+        fprintf(stderr, "BCA: SET_VALUE_MODE finished\n");
        break;
 
   case REMOVE_VALUE_MODE:
@@ -241,8 +272,9 @@ int main(int argc, char **argv)
         return 1;
        }
        if(ctx->verbose > 1)
-        printf("BCA: REMOVE_VALUE_MODE finished\n");
+        fprintf(stderr, "BCA: REMOVE_VALUE_MODE finished\n");
        break;
+
 
   case NEW_COMPONENT_MODE:
        if((contents = read_file(file, &length, 0)) == NULL)
@@ -267,12 +299,11 @@ int main(int argc, char **argv)
         return 1;
        }
        if(ctx->verbose > 1)
-        printf("BCA: NEW_COMPONENT_MODE finished\n");
+        fprintf(stderr, "BCA: NEW_COMPONENT_MODE finished\n");
        break;
 
   case LIST_HOSTS_MODE:
   case LIST_PROJECT_TYPES_MODE:
-
        if((contents = read_file(file, &length, 0)) == NULL)
        {
         return 1;
@@ -289,6 +320,8 @@ int main(int argc, char **argv)
        {
         printf("%s\n", list[i]);
        }
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: list_unique_principles() finished\n");
        return code;
        break;
 
@@ -311,6 +344,9 @@ int main(int argc, char **argv)
         printf("%s\n", cd.project_components[i]);
        }
 
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: list_project_components() finished\n");
+
        return 0;
        break;
 
@@ -318,7 +354,7 @@ int main(int argc, char **argv)
        if((code = check_value(ctx)) != 1)
        {
         if(ctx->verbose > 1)
-         printf("BCA: check_value() finished\n");
+         fprintf(stderr, "BCA: check_value() finished\n");
        } else {
         fprintf(stderr, "BCA: check_value() failed.\n");
        }
@@ -329,7 +365,7 @@ int main(int argc, char **argv)
        if((code = add_value(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         printf("BCA: add_value() finished\n");
+         fprintf(stderr, "BCA: add_value() finished\n");
        } else {
         fprintf(stderr, "BCA: add_value() failed.\n");
        }
@@ -340,7 +376,7 @@ int main(int argc, char **argv)
        if((code = smart_add_value(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         printf("BCA: smart_add_value() finished\n");
+         fprintf(stderr, "BCA: smart_add_value() finished\n");
        } else {
         fprintf(stderr, "BCA: smart_add_value() failed.\n");
        }
@@ -351,7 +387,7 @@ int main(int argc, char **argv)
        if((code = smart_pull_value(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         printf("BCA: smart_pull_value() finished\n");
+         fprintf(stderr, "BCA: smart_pull_value() finished\n");
        } else {
         fprintf(stderr, "BCA: smart_pull_value() failed.\n");
        }
@@ -362,7 +398,7 @@ int main(int argc, char **argv)
        if((code = pull_value(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         printf("BCA: pull_value() finished\n");
+         fprintf(stderr, "BCA: pull_value() finished\n");
        } else {
         fprintf(stderr, "BCA: pull_value() failed.\n");
        }
@@ -373,102 +409,160 @@ int main(int argc, char **argv)
        if((code = configure(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         printf("BCA: configure() finished\n");
+         fprintf(stderr, "BCA: configure() finished\n");
        } else {
-        fprintf(stderr, "BCA: configure failed.\n");
+        fprintf(stderr, "BCA: configure() failed\n");
        }
        return code;
        break;
 
   case GENERATE_GMAKEFILE_MODE:
-       if( ((code = generate_gmakefile_mode(ctx)) == 0) &&
-           (ctx->verbose > 1) )
-        printf("BCA: generate_gmakefile_mode() finished\n");
+       if((code = generate_gmakefile_mode(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: generate_gmakefile_mode() finished\n");
+       } else {
+        fprintf(stderr, "BCA: generate_gmakefile_mode() failed\n");
+       }
        return code;
        break;
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
   case GENERATE_GRAPHVIZ_MODE:
-       if( ((code = generate_graphviz_mode(ctx)) == 0) &&
-           (ctx->verbose> 1) )
-        printf("BCA: generate_graphviz_mode() finished\n");
+       if((code = generate_graphviz_mode(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: generate_graphviz_mode() finished\n");
+       } else {
+        fprintf(stderr, "BCA: generate_graphviz_mode() failed\n");
+       }
        return code;
+       break;
+
+  case SELF_TEST_MODE:
+       return self_test(ctx);
        break;
 #endif
 
+  case FILE_TO_C_SOURCE_MODE:
+       if((code = file_to_C_source(ctx, ctx->install_prefix)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: file_to_C_source() finished\n");
+       } else {
+        fprintf(stderr, "BCA: file_to_C_source() failed\n");
+       }
+       return code;
+       break;
+
   case STRING_REPLACE_MODE:
-       if( ((code = string_replace(ctx)) == 0) &&
-           (ctx->verbose > 1) )
-        fprintf(stderr, "BCA: string_replace() finished\n");
+       if((code = string_replace(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: string_replace() finished\n");
+       } else {
+        fprintf(stderr, "BCA: string_replace() failed\n");
+       }
        return code;
        break;
 
   case CONCATENATE_MODE:
-       if( ((code = concatenate(ctx, argc, argv)) == 0) &&
-           (ctx->verbose > 1))
+       if((code = concatenate(ctx, argc, argv)) == 0)
+       {
+        if(ctx->verbose > 1)
         fprintf(stderr, "BCA: concatenate() finished\n");
+       } else {
+        fprintf(stderr, "BCA: concatenate() failed\n");
+       }
        return code;
        break;
 
   case LIST_COMPONENT_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle,
-                                                          ctx->qualifier, 1, &list, NULL)) < 0)
+       if((n_items =
+        render_project_component_output_name(ctx, ctx->principle,
+                                             ctx->qualifier, 1, &list, NULL)) < 0)
+       {
+        fprintf(stderr,
+                "BCA: render_project_component_output_name(%s, %s, 1) failed\n",
+                ctx->principle, ctx->qualifier);
         return 1;
+       }
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
          printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
        return 0;
        break;
 
   case LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle,
-                                                          ctx->qualifier, 2, &list, NULL)) < 0)
+       if((n_items =
+           render_project_component_output_name(ctx, ctx->principle,
+                                                ctx->qualifier, 2, &list, NULL)) < 0)
+       {
+        fprintf(stderr,
+                "BCA: render_project_component_output_name(%s, %s, 2) failed\n",
+                ctx->principle, ctx->qualifier);
         return 1;
+       }
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
          printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
        return 0;
        break;
 
   case LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle,
-                                                          ctx->qualifier, 3, &list, NULL)) < 0)
+       if((n_items =
+           render_project_component_output_name(ctx, ctx->principle,
+                                                ctx->qualifier, 3, &list, NULL)) < 0)
+       {
+        fprintf(stderr,
+                "BCA: render_project_component_output_name(%s, %s, 3) failed\n",
+                ctx->principle, ctx->qualifier);
         return 1;
+       }
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
          printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
        break;
 
   case LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE:
-       if((n_items = render_project_component_output_name(ctx, ctx->principle,
-                                                          ctx->qualifier, 4, &list, NULL)) < 0)
+       if((n_items =
+           render_project_component_output_name(ctx, ctx->principle,
+                                                ctx->qualifier, 4, &list, NULL)) < 0)
+       {
+        fprintf(stderr,
+                "BCA: render_project_component_output_name(%s, %s, 4) failed\n",
+                ctx->principle, ctx->qualifier);
         return 1;
+       }
        for(i=0; i<n_items; i++)
        {
         if(list[i][0] != 0)
          printf("%s\n", list[i]);
        }
        free_string_array(list, n_items);
+       if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
        break;
 
   case SHORT_HELP_MODE:
        return short_help_mode(ctx);
        break;
 
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-  case SELF_TEST_MODE:
-       return self_test(ctx);
-       break;
-#endif
 
 #ifndef WITHOUT_LIBNEWT
   case NEWT_INTERFACE_MODE:
@@ -575,7 +669,6 @@ struct bca_context *setup(int argc, char **argv)
   }
 #endif
 
-
   if(strcmp(argv[current_arg], "--generate-graphviz") == 0)
   {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
@@ -585,6 +678,30 @@ struct bca_context *setup(int argc, char **argv)
    fprintf(stderr,
            "BCA: graphviz plots not available in single file distribution, "
            "please install bca on this system instead.\n");
+#endif
+  }
+
+  if(strcmp(argv[current_arg], "--output-configure") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+   ctx->mode = OUTPUT_CONFIGURE_MODE;
+#else
+   fprintf(stderr,
+           "BCA: --output-configure not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
+  }
+
+  if(strcmp(argv[current_arg], "--output-buildconfigurationadjust.c") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+   ctx->mode = OUTPUT_BCASFD_MODE;
+#else
+   fprintf(stderr,
+           "BCA: --output-buildconfigurationadjust.c not available in single "
+           "file distribution, please install bca on this system instead.\n");
 #endif
   }
 
@@ -606,6 +723,19 @@ struct bca_context *setup(int argc, char **argv)
            "installing a local copy on this system or somewhere in your $PATH.\n");
    return NULL;
 #endif
+  }
+
+  if(strcmp(argv[current_arg], "--file-to-C-source") == 0)
+  {
+   handled = 1;
+   if(current_arg + 1 > argc)
+   {
+    fprintf(stderr, "BCA: --file-to-C-source a file name\n");
+    return NULL;
+   }
+
+   ctx->install_prefix = argv[++current_arg];
+   ctx->mode = FILE_TO_C_SOURCE_MODE;
   }
 
   if(strcmp(argv[current_arg], "--gtk-interface") == 0)

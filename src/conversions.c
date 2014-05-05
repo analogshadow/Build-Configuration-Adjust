@@ -687,3 +687,76 @@ char *lib_file_name_to_link_name(const char *file_name)
  free(extension);
  return lib_name;
 }
+
+char *file_name_to_array_name(char *file_name)
+{
+ char *array_name;
+ int i, length = strlen(file_name);
+
+ if((array_name = (char *) malloc(length + 1)) == NULL)
+ {
+  fprintf(stderr, "BCA: mallac(%d) failed\n", length + 1);
+  return NULL;
+ }
+
+ for(i=0; i<length; i++)
+ {
+  if(isalpha(file_name[i]))
+   array_name[i] = file_name[i];
+  else
+   array_name[i] = '_';
+ }
+ array_name[i] = 0;
+
+ return array_name;
+}
+
+int file_to_C_source(struct bca_context *ctx, char *file_name)
+{
+ char *contents, *array_name;
+ int length, n_cols = 0, index = 0;
+
+ if(ctx->verbose > 0)
+  fprintf(stderr, "BCA: file_to_c_source()\n");
+
+ if((array_name = file_name_to_array_name(file_name)) == NULL)
+ {
+  fprintf(stderr, "BCA: file_name_to_array_name(%s) failed\n", file_name);
+  return 1;
+ }
+
+ if((contents = read_file(file_name, &length, 0)) == NULL)
+ {
+  fprintf(stderr, "BCA: read_file(%s) failed\n", file_name);
+  free(array_name);
+  return 1;
+ }
+
+ fprintf(stdout, "const int %s_length = %d;\n",
+         array_name, length);
+
+ fprintf(stdout, "const char %s[%d] = \n{\n ",
+         array_name, length);
+
+ while(index < length)
+ {
+  if(n_cols == 13)
+  {
+   fprintf(stdout, "\n ");
+   n_cols = 0;
+  }
+
+  fprintf(stdout, "0x%x", (unsigned char) contents[index]);
+
+  n_cols++;
+  index++;
+
+  if(index < length)
+  fprintf(stdout, ", ");
+ }
+ fprintf(stdout, "\n};\n\n");
+
+ free(array_name);
+ free(contents);
+ return 0;
+}

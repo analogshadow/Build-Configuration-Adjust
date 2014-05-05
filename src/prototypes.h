@@ -53,9 +53,9 @@
 #define CONFIGURE_MODE 30
 #define GENERATE_GMAKEFILE_MODE 40
 #define CONCATENATE_MODE 50
+#define FILE_TO_C_SOURCE_MODE 51
 #define GENERATE_GRAPHVIZ_MODE 60
 #define NEWT_INTERFACE_MODE 70
-#define MONGOOSE_INTERFACE_MODE 71
 #define GTK_INTERFACE_MODE 72
 #define LIST_HOSTS_MODE 80
 #define LIST_PROJECT_TYPES_MODE 81
@@ -67,6 +67,9 @@
 #define LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE 87
 #define SELF_TEST_MODE 99
 #define VERSION_MODE 100
+
+#define OUTPUT_CONFIGURE_MODE 110
+#define OUTPUT_BCASFD_MODE 111
 
 #define MANIPULATE_PROJECT_CONFIGURATION   3
 #define MANIPULATE_BUILD_CONFIGURATION     4
@@ -199,6 +202,10 @@ char *build_prefix_from_host_prefix(struct bca_context *ctx);
 char *component_type_file_extension(struct bca_context *ctx, struct host_configuration *tc,
                                     char *project_component_type,
                                     char *project_component_output_name);
+
+int file_to_C_source(struct bca_context *ctx, char *file_name);
+
+char *file_name_to_array_name(char *file_name);
 
 /* main.c --------------------------------------- */
 struct bca_context *setup(int argc, char **argv);  // selftested
@@ -402,6 +409,13 @@ int newt_interface(struct bca_context *ctx);
 #ifdef HAVE_GTK
 int gtk_interface(struct bca_context *ctx);
 #endif
+
+/* embedded_files.c ----------------------------- */
+extern const int __configure_length;
+extern const char __configure[];
+
+extern const int bca_sfd_c_length;
+extern const char bca_sfd_c[];
 
 #endif
 

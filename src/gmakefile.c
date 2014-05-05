@@ -242,7 +242,9 @@ int gmake_help(struct bca_context *ctx, FILE *output,
  fprintf(output, "\t@echo \" install \"\n");
  fprintf(output, "\t@echo \" uninstall \"\n");
  fprintf(output, "\t@echo \" help - print this message\"\n");
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
  fprintf(output, "\t@echo \" tar - create source tarball\"\n");
+#endif
  fprintf(output, "\t@echo \" all - default target (builds all of the below)\"\n");
 
  for(x=0; x<n_build_hosts; x++)
@@ -399,16 +401,14 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
    (that needs a test).
 
    The other allowed use is a CUSTOM component may have a BINARY compoent as
-   an INPUT. This simply creates a makefile dependency. The idea is the the .DRIVER
-   script would make use of said BINARY.
-
+   an INPUT. The idea is the the .DRIVER script would make use of said BINARY.
  */
 int derive_file_dependencies_from_inputs(struct bca_context *ctx,
                                          struct host_configuration *tc,
                                          struct component_details *cd)
 {
- int i, x, y, handled, valid_input, add_file_name;
- char temp[1024], *base_file_name, *extension;
+ int i, x, y, handled, valid_input, process_file_name, add_temp_to_files, n_output_names;
+ char temp[1024], *base_file_name, *extension, **output_names;
 
  if(cd->n_file_names == 0)
  {
@@ -444,31 +444,74 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   }
 
   valid_input = 0;
-  add_file_name = 0;
+  process_file_name = 0;
 
   if(strcmp(cd->project_component_types[x], "CUSTOM") == 0)
   {
    valid_input = 1;
-   add_file_name = 1;
+   process_file_name = 1;
   }
 
   if(strcmp(cd->project_component_types[x], "CAT") == 0)
   {
    valid_input = 1;
-   add_file_name = 1;
+   process_file_name = 1;
   }
 
   if(strcmp(cd->project_component_types[x], "MACROEXPAND") == 0)
   {
    valid_input = 1;
-   add_file_name = 1;
+   process_file_name = 1;
   }
 
   if(strcmp(cd->project_component_type, "CUSTOM") == 0)
-
   {
    if(strcmp(cd->project_component_types[x], "BINARY") == 0)
+   {
     valid_input = 1;
+
+    n_output_names = render_project_component_output_name(ctx,
+                                                          cd->host,
+                                                          cd->project_components[x], 2,
+                                                          &output_names, NULL);
+    if(n_output_names < 0)
+    {
+     fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
+                           output_names[0], -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(path_extract(output_names[0], &base_file_name, &extension))
+    {
+     fprintf(stderr, "BCA: path_extract(%s) failed\n", temp);
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
+                           base_file_name, 0, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
+                           extension, 0, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_names++;
+
+    free(base_file_name);
+    free(extension);
+   }
   }
 
   if(valid_input == 0)
@@ -481,58 +524,37 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
    return 1;
   }
 
-  if(add_file_name)
+  if(process_file_name)
   {
    handled = 0;
+   add_temp_to_files = 0;
 
-
-   /*  Normally for binary files, etc we want to use render_project_component_output_name()
-       to yield the correct file name for the host. Although here, we are only talking
-       about generate source files.
-    */
    snprintf(temp, 1024, "%s/%s",
             tc->build_prefix, cd->project_output_names[x]);
 
    if(path_extract(temp, &base_file_name, &extension))
    {
+    fprintf(stderr, "BCA: path_extract(%s) failed\n", temp);
     return 1;
    }
 
    /* this needs to be updated everytime new file types are added, this really
       should be an array that is shared everywhere.
       We could skip this check since later when the component target rules get
-      generated, a file type with an unkown corse of action will be reported,
+      generated, a file type with an unknown corse of action will be reported,
       but we wont know that it was from an .INPUT and we wont get to deal with
       header files specially here.
    */
    if(strcmp(extension, "c") == 0)
    {
-    /* Do the actual adding of the ouptut name to .FILES. At this point,
-       base names and extensions have already been expanded for the other
-       .FILES, so these need to be added here. */
-    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
-                           temp, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
-                           base_file_name, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
-                           extension, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    cd->n_file_names++;
     handled = 1;
+    add_temp_to_files = 1;
+   }
+
+   if(strcmp(extension, "cpp") == 0)
+   {
+    handled = 1;
+    add_temp_to_files = 1;
    }
 
    /*  If the input is a header file, then add it to the .FILE_DEPS since
@@ -570,15 +592,56 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
    }
 
    /* the text processing types can of course work with any file extension */
-   if(strcmp(cd->project_component_type, "CAT") == 0)
+   if((handled == 0) &&
+      (strcmp(cd->project_component_type, "CAT") == 0) )
+   {
     handled = 1;
+    add_temp_to_files = 1;
+   }
 
-   if(strcmp(cd->project_component_type, "MACROEXPAND") == 0)
+   if((handled == 0) &&
+      (strcmp(cd->project_component_type, "MACROEXPAND") == 0) )
+   {
     handled = 1;
+    add_temp_to_files = 1;
+   }
 
    /* along the same lines CUSTOM types could be doing anything */
-   if(strcmp(cd->project_component_type, "CUSTOM") == 0)
+   if((handled == 0) &&
+      (strcmp(cd->project_component_type, "CUSTOM") == 0) )
+   {
     handled = 1;
+    add_temp_to_files = 1;
+   }
+
+   if(add_temp_to_files)
+   {
+    /* Do the actual adding of the ouptut name to .FILES. At this point,
+       base names and extensions have already been expanded for the other
+       .FILES, so these need to be added here. */
+    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
+                           temp, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
+                           base_file_name, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
+                           extension, -1, 0))
+    {
+     fprintf(stderr, "BCA: add_to_string_array() failed\n");
+     return 1;
+    }
+
+    cd->n_file_names++;
+   }
 
    if(handled == 0)
    {
@@ -710,19 +773,6 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
  for(j=0; j<cd->n_file_names; j++)
  {
   fprintf(output, "%s ", cd->file_names[j]);
- }
-
- for(i=0; i<cd->n_inputs; i++)
- {
-  j=0;
-  while(j<cd->n_components)
-  {
-   if(strcmp(cd->project_components[j], cd->inputs[i]) == 0)
-    break;
-   j++;
-  }
-
-  fprintf(output, "%s/%s ", tc->build_prefix, cd->project_output_names[j]);
  }
 
  fprintf(output, "%s\n\n", output_file_name);
@@ -2443,18 +2493,31 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 {
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: generate_create_tarball_rules()\n");
-
- int x, y, n_strings, n_files, z;
- struct host_configuration *tc = NULL;
- char temp[1024], subdir[512], *value, **strings, **files;
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+ int x, y, n_strings, n_files;
+ char temp[1024], *value, **strings, **files, *major, *minor;
  struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: gmake_install_rules()\n");
+  fprintf(stderr, "BCA: generate_create_tarball_rules()\n");
 
  memset(&cd_d, 0, sizeof(struct component_details));
+
+ if((major = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        "NONE", "NONE", "MAJOR")) == NULL)
+ {
+  major = strdup("0");
+ }
+
+ if((minor = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        "NONE", "NONE", "MINOR")) == NULL)
+ {
+  minor = strdup("0");
+ }
 
  if(list_project_components(ctx, cd))
  {
@@ -2511,7 +2574,9 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
  }
  fprintf(output, "\n");
 
- snprintf(temp, 1024, "name.m.n");
+ snprintf(temp, 1024, "name.%s.%s", major, minor);
+ free(major);
+ free(minor);
  fprintf(output, "\tmkdir %s\n", temp);
 
  for(x=0; x<n_files; x++)
@@ -2537,14 +2602,21 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 
   fprintf(output, "\tcp --parents %s ./%s%s\n", files[x], temp, subdir);
 */
-  fprintf(output, "\tcp --parents %s ./%s\n", files[x], temp, temp);
+  fprintf(output, "\tcp --parents %s ./%s\n", files[x], temp);
  }
 
+ fprintf(output, "\t./bca --output-configure > ./%s/configure\n", temp);
+ fprintf(output, "\tchmod +x ./%s/configure\n", temp);
+ fprintf(output,
+         "\t./bca --output-buildconfigurationadjust.c > ./%s/buildconfiguration/buildconfigurationadjust.c\n",
+         temp);
  fprintf(output, "\ttar -pczf %s.tar.gz ./%s\n", temp, temp);
 
  free_string_array(files, n_files);
  fprintf(output, "\n\n");
-
+#else
+ fprintf(output, "#source distribution tarball creation support is not in single file distribution\n");
+#endif
  return 0;
 }
 

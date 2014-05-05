@@ -195,6 +195,45 @@ char *check_function(struct bca_context *ctx, char *key)
  return result;
 }
 
+char *file_to_C_source_function(struct bca_context *ctx, char *key)
+{
+ char **parameters, *contents;
+ int n_parameters, i;
+
+ if(parse_function_parameters(key, &parameters, &n_parameters))
+ {
+  fprintf(stderr, "BCA: parse_function_parameters(%s) failed\n", key);
+  return NULL;
+ }
+
+ if(ctx->verbose > 1)
+ {
+  fprintf(stderr, "BCA: trying FILE_TO_C_SOURCE(");
+  for(i=1; i<n_parameters; i++)
+  {
+   fprintf(stderr, "%s", parameters[i]);
+   if(i + 1 < n_parameters)
+    fprintf(stderr, ",");
+  }
+  fprintf(stderr, ")\n");
+ }
+
+ if(n_parameters != 2)
+ {
+  fprintf(stderr, "BCA: FILE_TO_C_SOURCE() needs a file name\n");
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(file_to_C_source(ctx, parameters[1]) != 0)
+ {
+  fprintf(stderr, "BCA: file_to_C_source() failed\n");
+  return NULL;
+ }
+
+ return strdup("");
+}
+
 char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 {
  char *value, a[256], b[256], c[256], **list = NULL, **withouts = NULL, *without_macro;
@@ -222,6 +261,11 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
  if(strncmp(key, "CHECK(", 6) == 0)
  {
   return check_function(ctx, key);
+ }
+
+ if(strncmp(key, "FILE_TO_C_SOURCE(", 17) == 0)
+ {
+  return file_to_C_source_function(ctx, key);
  }
 
  if(strncmp(key, "BCA.BUILDIR", 11) == 0)

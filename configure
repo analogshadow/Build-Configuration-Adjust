@@ -81,6 +81,13 @@ then
 		fi
 	fi
 
+	if [ -f "./test.sh-results" ]
+	then
+		echo "configure: removing test.sh-results"
+		rm -f bca
+	fi
+
+
 	echo "configure: done."
 	exit 0
 fi
