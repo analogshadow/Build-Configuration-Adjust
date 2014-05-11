@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 
-BCA=$2
 CONFIGURE=$1
+BCA=$2
 SFD=$3
 OUT=$4
 

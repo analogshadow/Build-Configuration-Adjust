@@ -2494,8 +2494,8 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
- int x, y, n_strings, n_files;
- char temp[1024], *value, **strings, **files, *major, *minor;
+ int x, y, z, n_strings, n_files;
+ char temp[512], subdir[512], *value, **strings, **files, *major, *minor;
  struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
@@ -2557,7 +2557,6 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
    {
     if(add_to_string_array(&files, n_files, strings[x], -1, 1) == 0)
      n_files++;
-
    }
 
    free_string_array(strings, n_strings);
@@ -2574,20 +2573,54 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
  }
  fprintf(output, "\n");
 
- snprintf(temp, 1024, "name.%s.%s", major, minor);
+ snprintf(temp, 512, "name.%s.%s", major, minor);
  free(major);
  free(minor);
- fprintf(output, "\tmkdir %s\n", temp);
 
+ /* mkdir lines */
+ strings = NULL;
+ n_strings = 0;
  for(x=0; x<n_files; x++)
  {
-/*
   z = strlen(files[x]);
   if(z > 512)
   {
    fprintf(stderr, "BCA: file name %s too long\n", files[x]);
    return 1;
   }
+
+  while(z > 0)
+  {
+   if(files[x][z] == '/')
+   {
+    z++;
+    break;
+   }
+   z--;
+  }
+  if(z > 2)
+  {
+   memcpy(subdir, files[x] + 1, z - 1);
+   subdir[z - 1] = 0;
+
+   if(add_to_string_array(&strings, n_strings, subdir, z, 1) == 0)
+    n_strings++;
+  }
+ }
+
+ for(x=0; x<n_strings; x++)
+ {
+  fprintf(output, "\tmkdir -p ./%s%s\n", temp, strings[x]);
+ }
+ free_string_array(strings, n_strings);
+ strings = NULL;
+ n_strings = 0;
+
+ /*cp lines */
+ for(x=0; x<n_files; x++)
+ {
+  z = strlen(files[x]);
+
   while(z > 0)
   {
    if(files[x][z] == '/')
@@ -2600,9 +2633,7 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
   memcpy(subdir, files[x] + 1, z - 1);
   subdir[z - 1] = 0;
 
-  fprintf(output, "\tcp --parents %s ./%s%s\n", files[x], temp, subdir);
-*/
-  fprintf(output, "\tcp --parents %s ./%s\n", files[x], temp);
+  fprintf(output, "\tcp %s ./%s%s\n", files[x], temp, subdir);
  }
 
  fprintf(output, "\t./bca --output-configure > ./%s/configure\n", temp);

@@ -702,7 +702,7 @@ examples_customcommand() {
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
          " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to some great documentation. Abcdef.</p>\n"\
          " </body>\n</html>\n" > documentation.html
- echo -e "#!/bin/bash\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
+ echo -e "#!/bin/sh\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
          "if  [ \"\$WORDS\" != \"\" ]\n"\
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
@@ -775,7 +775,7 @@ examples_inputtocustom() {
   echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
           " </head>\n <body>\n  <h1>Introduction</h1>\n  <p>Welcome to page 2. \n"\
           " </body>\n</html>\n" > documentation2.html.in
- echo -e "#!/bin/bash\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
+ echo -e "#!/bin/sh\nWORDS=\`aspell --mode=sgml --encoding=utf-8 list < \$1\`\n"\
          "if  	[ \"\$WORDS\" != \"\" ]\n"\
          "then\n	echo \"misspelled words in \$1:\"\n	echo \$WORDS\n	exit 1\n"\
          "else\n	cat \$1 > \$2\n	exit 0\nfi\n" > aspell_script.sh.in
@@ -906,7 +906,7 @@ examples_customwithnativetool() {
  #should be argv[2] referenced as $2 in bash.
  #We also see how to know what the build output name of the make_hello
  #utility will be.
- echo '#!/bin/bash' >> make_hello_wrapper.sh.in
+ echo '#!/bin/sh' >> make_hello_wrapper.sh.in
  echo '@BCA.BUILDOUTPUTNAME.make_hello[0]@ > $2' >> make_hello_wrapper.sh.in
 
  #next add a CUSTOM component named generated_hello that will use the created file
