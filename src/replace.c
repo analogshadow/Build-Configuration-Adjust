@@ -338,8 +338,9 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
                           ctx->build_configuration_length,
                           ctx->principle, "ALL", "WITHOUTS")) == NULL)
    {
-    if(ctx->verbose)
-     printf("BCA: Could not find %s.%s.WITHOUTS\n", ctx->principle, a);
+    fprintf(stderr,
+            "BCA: WARNING: Could not find %s.[%s|ALL].WITHOUTS as needed for @%s@. Are you sure you mean component name \"%s\"?\n",
+            ctx->principle, a, key, a);
    }
   }
 
@@ -373,6 +374,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
    return NULL;
   }
+  value[0] = 0;
 
   length = 0;
   for(i=0; i<n_items; i++)

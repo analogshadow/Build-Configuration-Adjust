@@ -2168,9 +2168,9 @@ int is_project_using_config_h(struct bca_context *ctx)
   fprintf(stderr, "BCA: is_project_using_config_h()\n");
 
  value = lookup_key(ctx,
-                    ctx->build_configuration_contents,
-                    ctx->build_configuration_length,
-                    "*", "*", "config.h");
+                    ctx->project_configuration_contents,
+                    ctx->project_configuration_length,
+                    "*", "config_h", "NAME");
 
  if(value != NULL)
  {

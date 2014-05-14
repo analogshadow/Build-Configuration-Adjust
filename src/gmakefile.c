@@ -367,7 +367,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
   fprintf(output, "%s ", tc->cflags);
  }
 
- if(is_project_using_config_h(ctx) == 0)
+ if(is_project_using_config_h(ctx))
   return 0;
 
  for(i=0; i < cd->n_withouts; i++)
