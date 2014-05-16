@@ -2563,7 +2563,6 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
    free(value);
   }
  }
-
  fprintf(output, "#source distribution tarball creation\n");
 
  fprintf(output, "tar : ");
@@ -2630,10 +2629,15 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
    }
    z--;
   }
-  memcpy(subdir, files[x] + 1, z - 1);
-  subdir[z - 1] = 0;
 
-  fprintf(output, "\tcp %s ./%s%s\n", files[x], temp, subdir);
+  if(z > 0)
+  {
+   memcpy(subdir, files[x] + 1, z - 1);
+   subdir[z - 1] = 0;
+   fprintf(output, "\tcp %s ./%s%s\n", files[x], temp, subdir);
+  } else {
+   fprintf(output, "\tcp %s ./%s/\n", files[x], temp);
+  }
  }
 
  fprintf(output, "\t./bca --output-configure > ./%s/configure\n", temp);

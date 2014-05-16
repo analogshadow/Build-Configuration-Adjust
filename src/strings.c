@@ -73,7 +73,6 @@ int split_strings(struct bca_context *ctx, char *source, int length,
 
    if(pass == 1)
    {
-
     substring_length = (index - start) - 1;
 
     allocation_size = substring_length + 1;
