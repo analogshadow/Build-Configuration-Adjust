@@ -105,6 +105,10 @@ then
 	   echo "configure: using existing ./bca."
 	else
 		PATHBCA=`which bca`
+		if [ $? != 0 ]
+                then
+			PATHBCA=""
+		fi
 		if [ "$PATHBCA" = "" ]
 		then
 			echo "configure: ./bca is not present, specified by environment variable BCA, or in our PATH."

@@ -608,7 +608,9 @@ struct bca_context *setup(int argc, char **argv)
  struct bca_context *ctx;
  struct component_details cd;
  int allocation_size, current_arg = 1, handled, i;
-
+#ifdef HAVE_CWD
+ size_t cwd_size = 0;
+#endif
  allocation_size = sizeof(struct bca_context);
  if((ctx = (struct bca_context *) malloc(allocation_size)) == NULL)
  {
@@ -622,7 +624,8 @@ struct bca_context *setup(int argc, char **argv)
  memset(&cd, 0, sizeof(struct component_details));
 
 #ifdef HAVE_CWD
- ctx->cwd = getcwd(NULL, 0);
+ cwd_size = pathconf(".", _PC_PATH_MAX);
+ ctx->cwd = getcwd(NULL, cwd_size);
 #endif
 
 #ifdef HAVE_GTK

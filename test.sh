@@ -715,12 +715,13 @@ examples_customcommand() {
  fi 
 
  $MAKE -f Makefile.bca >> out 2>> out
- if [ $? == 0 ]
+ if [ $? = 0 ]
  then
   ERROR="failed: make should have errored out"
   echo $ERROR >> ../test.sh-results
   echo "test.sh: $ERROR on test ${suite}.${test}:" >&2
   cat out >&2
+  return
  fi
 
  echo -e "<html>\n <head>\n  <meata http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"/>\n"\
@@ -884,12 +885,12 @@ examples_customwithnativetool() {
  echo "#include <stdio.h>" > make_hello.c
  echo "int main(void)" >> make_hello.c
  echo "{" >> make_hello.c
- echo ' printf("#include <stdio.h>\n");' >> make_hello.c
- echo ' printf("int main(void)\n");' >> make_hello.c
- echo ' printf("{\n");' >> make_hello.c
- echo ' printf(" printf(\"hello world\\n\");\n");' >> make_hello.c
- echo ' printf(" return 0;\n");' >> make_hello.c
- echo ' printf("}\n");' >> make_hello.c
+ echo ' printf("#include <stdio.h>\\n");' >> make_hello.c
+ echo ' printf("int main(void)\\n");' >> make_hello.c
+ echo ' printf("{\\n");' >> make_hello.c
+ echo ' printf(" printf(\"hello world\\\\n\");\\n");' >> make_hello.c
+ echo ' printf(" return 0;\\n");' >> make_hello.c
+ echo ' printf("}\\n");' >> make_hello.c
  echo ' return 0;' >> make_hello.c
  echo '}' >> make_hello.c
 
@@ -1581,8 +1582,12 @@ swaps=(configureerrors simple)
 #script starts here------------------------------------------------
 suites=(configurewrapper autoconfsupport examples enablelogic swaps)
 
+if [ "$MAKE" = "" ]
+then
+	MAKE=make
+fi
 BASEDIR=`pwd`
-MAKE=make
+
 NATIVEBINSUFFIX=""
 
 if [ "$1" == "--help" ]
