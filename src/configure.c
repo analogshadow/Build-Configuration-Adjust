@@ -82,143 +82,116 @@ int is_file_of_type_used(struct bca_context *ctx,
  {
   printf("BCA: Looking for a project file for an enabled component with extension '%s'.\n",
          type_extension);
-  fflush(stdout);
  }
 
-//this needs to be commented. has some mysteries. needs to considered disables
-
- /* first consider the FILES of a component */
+ /* iterate over non-disabled components */
  for(i=0; i < cd->n_components; i++)
  {
   skip = 0;
-
-  if(cd->project_component != NULL)
-   if(strcmp(cd->project_component, cd->project_components[i]) != 0)
-    skip = 1;
-
-  if(strcmp(cd->project_component_types[i], "CAT") == 0)
-   skip = 1;
-
-  if(skip == 0)
+  for(j=0; j < ctx->n_disables; j++)
   {
-   if(cd->n_file_names > 0)
+   if(strcmp(cd->project_components[i], ctx->disabled_components[j]) == 0)
    {
-    pre_loaded = 1;
-   } else {
-    if(resolve_component_file_dependencies(ctx, cd, i))
+    skip = 1;
+    break;
+   }
+  }
+
+  if(skip)
+   continue;
+
+  /* CAT components don't count here */
+  if(strcmp(cd->project_component_types[i], "CAT") == 0)
+   continue;
+
+  /* first consider the .FILES of a component */
+  if(resolve_component_file_dependencies(ctx, cd, i))
+  {
+   return -1;
+  }
+
+  for(j=0; j < cd->n_file_names; j++)
+  {
+   if(cd->file_extensions[j] != NULL)
+   {
+    if(strcmp(cd->file_extensions[j], type_extension) == 0)
     {
-     return -1;
+     if(ctx->verbose)
+      fprintf(stderr, "BCA: File %s satisfies condition to find a *.%s file.\n",
+              cd->file_names[j], type_extension);
+     yes = 1;
+     break;
     }
-    pre_loaded = 0;
+   }
+  }
+
+  if(cd->n_file_names > 0)
+  {
+   free_string_array(cd->file_names, cd->n_file_names);
+   free_string_array(cd->file_base_names, cd->n_file_names);
+   free_string_array(cd->file_extensions, cd->n_file_names);
+  }
+  cd->n_file_names = 0;
+
+  if(yes)
+   return 1;
+
+  /* now consider the .INPUT */
+  if(resolve_component_input_dependencies(ctx, cd, i))
+  {
+   return -1;
+  }
+
+  for(j=0; j < cd->n_inputs; j++)
+  {
+   handled = 0;
+   x = 0;
+
+   /* this test is done in multiple places when the opertunity comes up */
+   while(x < cd->n_components)
+   {
+    if(strcmp(cd->inputs[j], cd->project_components[x]) == 0)
+    {
+     handled = 1;
+     break;
+    }
+    x++;
    }
 
-   j=0;
-   while(j < cd->n_file_names)
+   if(handled == 0)
    {
-    if(cd->file_extensions[j] != NULL)
-    {
-     if(strcmp(cd->file_extensions[j], type_extension) == 0)
-     {
-      yes = 1;
-      break;
-     }
-    }
-
-    j++;
+    fprintf(stderr,
+            "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+            cd->project_component, cd->host, cd->inputs[j]);
+    return 1;
    }
 
-   if(yes)
+   if(path_extract(cd->project_output_names[j], NULL, &extension))
+   {
+    return 1;
+   }
+
+   if(strcmp(extension, type_extension) == 0)
    {
     if(ctx->verbose)
-     fprintf(stderr, "BCA: File %s satisfies condition to find a *.%s file.\n",
-             cd->file_names[j], type_extension);
+     fprintf(stderr, "BCA: %s -> %s satisfies condition to find a *.%s file.\n",
+             cd->inputs[j], cd->project_output_names[j], type_extension);
+
+    yes = 1;
    }
 
-   if(pre_loaded == 0)
-   {
-    if(cd->n_file_names > 0)
-    {
-     free_string_array(cd->file_names, cd->n_file_names);
-     free_string_array(cd->file_base_names, cd->n_file_names);
-     free_string_array(cd->file_extensions, cd->n_file_names);
-    }
-    cd->n_file_names = 0;
-   }
-
-   if(yes)
-    return 1;
-
+   free(extension);
   }
- }
 
- /* now consider the INPUT */
- for(i=0; i < cd->n_components; i++)
- {
-  skip = 0;
-
-  if(cd->project_component != NULL)
-   if(strcmp(cd->project_component, cd->project_components[i]) != 0)
-    skip = 1;
-
-  if(skip == 0)
+  if(cd->n_inputs > 0)
   {
-   if(cd->n_inputs > 0)
-   {
-    pre_loaded = 1;
-   } else {
-    if(resolve_component_input_dependencies(ctx, cd, i))
-    {
-     return -1;
-    }
-    pre_loaded = 0;
-   }
-
-   for(j=0; j < cd->n_inputs; j++)
-   {
-    handled = 0;
-    x = 0;
-    while(x < cd->n_components)
-    {
-     if(strcmp(cd->inputs[j], cd->project_components[x]) == 0)
-     {
-      handled = 1;
-      break;
-     }
-     x++;
-    }
-
-    if(handled == 0)
-    {
-     fprintf(stderr,
-             "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
-             cd->project_component, cd->host, cd->inputs[j]);
-     return 1;
-    }
-
-
-    if(path_extract(cd->project_output_names[x], NULL, &extension))
-    {
-     return 1;
-    }
-
-    if(strcmp(extension, type_extension) == 0)
-     yes = 1;
-
-    free(extension);
-   }
-
-   if(pre_loaded == 0)
-   {
-    if(cd->n_inputs > 0)
-    {
-     free_string_array(cd->inputs, cd->n_inputs);
-    }
-    cd->n_inputs = 0;
-   }
-
-   if(yes)
-    return 1;
+   free_string_array(cd->inputs, cd->n_inputs);
   }
+  cd->n_inputs = 0;
+
+  if(yes)
+   return 1;
+
  }
 
  if(ctx->verbose > 2)
@@ -598,7 +571,7 @@ int host_cc_configuration(struct bca_context *ctx,
  if(test_runnable(ctx, temp))
  {
   fprintf(stderr,
-          "BCA: Specify alternative with C compiler with the CC environment variable.\n");
+          "BCA: Specify alternative C compiler with the CC environment variable.\n");
   return 1;
  }
 
@@ -637,7 +610,7 @@ int host_cxx_configuration(struct bca_context *ctx,
   snprintf(temp, 512, "%s%s", host_prefix, s);
  } else {
   /* here we guess only if we have to */
-  if(tc->cc != NULL)
+  if(tc->cxx != NULL)
   {
    snprintf(temp, 512, "%s", tc->cxx);
   } else {
@@ -648,7 +621,7 @@ int host_cxx_configuration(struct bca_context *ctx,
  if(test_runnable(ctx, temp))
  {
   fprintf(stderr,
-          "BCA: Specify alternative with C++ compiler with the CXX environment variable.\n");
+          "BCA: Specify alternative C++ compiler with the CXX environment variable.\n");
   return 1;
  }
 
@@ -730,6 +703,102 @@ int c_family_configuration(struct bca_context *ctx,
 
  return 0;
 }
+
+int host_erlc_configuration(struct bca_context *ctx,
+                            struct host_configuration *tc,
+                            struct component_details *cd)
+{
+ char *s;
+ char host_prefix[512];
+
+ /* Normally we think of cross compilation for compilers that output
+    machine code. We also think of host prefixes (as in foo-bar-baz-gcc)
+    as identifying one of multiple compilers. Different versions of
+    the same compiler are generally suffixes (ie gcc-4.4). Typically,
+    multiple versions of erlang are installed in different paths,
+    and we would select which one with "ERLC=/full/path/of/erlc ./configure".
+    Sense the logic is already in place in bca, for consistancy erlc
+    can also leverage the host prefix. For example,
+    "ERLC=abc123 ./configure --host=custombranch" would attempt
+    to use an erlc binary named custombranch-abc123.
+
+    If there was an erlang compiler that created non-portable output,
+    being used to cross compile, this would be the model. Also as expected,
+    build_prefix would based on host_prefix unless otherwise specified.
+    (When neither option is specified, build_prefix defaults to "native".)
+ */
+
+ /* host prefix */
+ if(ctx->host_prefix == NULL)
+ {
+  host_prefix[0] = 0;
+ } else {
+  snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
+ }
+
+ /* erlang compiler */
+ if((s = getenv("ERLC")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
+ {
+  /* here we want to overwrite regardless */
+  snprintf(temp, 512, "%s%s", host_prefix, s);
+ } else {
+  /* here we guess only if we have to */
+  if(tc->erlc != NULL)
+  {
+   snprintf(temp, 512, "%s", tc->erlc);
+  } else {
+   snprintf(temp, 512, "%serlc", host_prefix);
+  }
+ }
+
+ if(test_runnable(ctx, temp))
+ {
+  fprintf(stderr,
+          "BCA: Specify alternative Erlang compiler with the ERLC environment variable.\n");
+  return 1;
+ }
+
+ tc->erlc = strdup(temp);
+ return 0;
+}
+
+
+int erlang_family_configuration(struct bca_context *ctx,
+                                struct host_configuration *tc,
+                                struct component_details *cd)
+{
+ int code, need_erlc;
+ char *s;
+
+ if((need_erlc = is_erlang_compiler_needed(ctx, cd)) == -1)
+  return 1;
+
+ if(need_erlc == 0)
+  return 0;
+
+ if(host_erlc_configuration(ctx, tc, cd))
+  return 1;
+
+ /* erlang compiler output directory flag */
+ if(tc->erlc_output_dir_flag == NULL)
+  tc->erlc_output_dir_flag = "-o";
+
+ /* ERLCFLAGS */
+ if((s = getenv("ERLCFLAGS")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
+ {
+  /* here we want to overide regardless */
+  tc->erlc_flags = strdup(s);
+ }
+
+ return 0;
+}
+
 
 int pkg_config_tests(struct bca_context *ctx,
                      struct host_configuration *tc,
@@ -1785,7 +1854,7 @@ int append_host_configuration(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: append_host_configuration()\n");
 
- char *host_updates[45] =
+ char *host_updates[51] =
 
  { "CC", tc->cc,
    "BUILD_PREFIX", tc->build_prefix,
@@ -1808,13 +1877,16 @@ int append_host_configuration(struct bca_context *ctx,
    "INSTALL_LIB_DIR", tc->install_lib_dir,
    "INSTALL_INCLUDE_DIR", tc->install_include_dir,
    "INSTALL_PKG_CONFIG_DIR", tc->install_pkg_config_dir,
-   "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir } ;
-
+   "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir,
+   "ERLC", tc->erlc,
+   "ERLCFLAGS", tc->erlc_flags,
+   "ERLC_OUTPUT_DIR_FLAG", tc->erlc_output_dir_flag
+ };
 
  p_length = strlen(ctx->principle);
  q_length = strlen(ctx->qualifier);
 
- for(i=0; i < 44; i += 2)
+ for(i=0; i < 50; i += 2)
  {
   if(append_host_configuration_helper(n_modify_records,
                                       mod_principles, mod_components,
@@ -1972,6 +2044,9 @@ int configure(struct bca_context *ctx)
   return 1;
 
  if(c_family_configuration(ctx, tc, &cd))
+  return 1;
+
+ if(erlang_family_configuration(ctx, tc, &cd))
   return 1;
 
  if(pkg_config_tests(ctx, tc, &cd))

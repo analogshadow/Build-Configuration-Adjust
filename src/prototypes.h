@@ -160,6 +160,7 @@ struct host_configuration
  char *cc_include_dir_flag;                /* C & C++ add include dir flag (ie -I) */
  char *cc_define_macro_flag;               /* C & C++ define preprocessor macro (ie -D) */
  char *erlc_flags;                         /* erlang compiler flags */
+ char *erlc_output_dir_flag;               /* erlc change output directory (ie -o) */
  char *python_flags;                       /* python flags */
 
  /* output file characteristics */
@@ -250,6 +251,10 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
 int list_unique_principles(struct bca_context *ctx, char *qualifier,
                            char *contents, int length,
                            char ***principle_list, int *n_principles);   // selftested
+
+int list_unique_qualifiers(struct bca_context *ctx,
+                           char *contents, int length,
+                           char ***list, int *n_elements);
 
 int output_modifications(struct bca_context *ctx, FILE *output,
                          char *contents, int length, int n_records,

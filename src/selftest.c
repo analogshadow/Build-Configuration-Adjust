@@ -1778,6 +1778,7 @@ int config_files_test(struct bca_context *real_ctx)
  if(list_project_components(real_ctx, &cd))
  {
   printf("failed\n");
+  fprintf(stderr, "file was: \n%s\n", file);
  } else {
   printf("passed\n");
  }

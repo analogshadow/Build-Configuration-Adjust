@@ -187,7 +187,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
    case 1:  /* copy original */
         fprintf(output, "%s.%s.%s = ", o_principle, o_component, o_key);
         temp = o_value;
- 
+
         if((output_value = escape_value(ctx, temp, -1)) == NULL)
         {
          /* bail */
@@ -196,7 +196,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
         }
         fprintf(output, "%s\n", output_value);
 
-        if(ctx->verbose > 3) 
+        if(ctx->verbose > 3)
          fprintf(stderr, "BCA: keeping record not in modify array %s.%s.%s = %s\n",
                  o_principle, o_component, o_key, output_value);
 
@@ -216,7 +216,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
         }
         fprintf(output, "%s\n", output_value);
 
-        if(ctx->verbose > 3) 
+        if(ctx->verbose > 3)
          fprintf(stderr, "BCA: updating record %s.%s.%s = %s\n",
                  principle[i], component[i], key[i], output_value);
 
@@ -426,8 +426,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(principle, file + start, principle_length);
-  principle[principle_length] = 0;
+  if(principle != NULL)
+  {
+   memcpy(principle, file + start, principle_length);
+   principle[principle_length] = 0;
+  }
 
   if(component_filter[0] != '*')
   {
@@ -437,8 +440,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(component, file + periods[0] + 1, component_length);
-  component[component_length] = 0;
+  if(component != NULL)
+  {
+   memcpy(component, file + periods[0] + 1, component_length);
+   component[component_length] = 0;
+  }
 
   if(key_filter[0] != '*')
   {
@@ -448,8 +454,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(key, file + periods[1] + 1, key_length);
-  key[key_length] = 0;
+  if(key != NULL)
+  {
+   memcpy(key, file + periods[1] + 1, key_length);
+   key[key_length] = 0;
+  }
 
   if(equals_pos != NULL)
    *equals_pos = equals;
@@ -739,8 +748,8 @@ int check_project_component_types(struct bca_context *ctx)
  int handled, offset = -1, i;
  char type[256], component[256], key[256];
 
- char *component_types[9] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
-                              "MACROEXPAND", "PYTHONMODULE", "CUSTOM" };
+ char *component_types[10] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
+                              "MACROEXPAND", "PYTHONMODULE", "CUSTOM", "BEAM" };
 
  char *component_keys[20] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
                               "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS",
@@ -754,7 +763,7 @@ int check_project_component_types(struct bca_context *ctx)
  {
   handled = 0;
   i=0;
-  while(i<8)
+  while(i<9)
   {
    if(strcmp(type, component_types[i]) == 0)
    {
@@ -791,140 +800,119 @@ int check_project_component_types(struct bca_context *ctx)
  return 0;
 }
 
+/* does some error checking and fills in
+   cd->project_components
+   cd->project_ouput_names
+   cd->project_component_types
+   cd->n_components
+*/
 int list_project_components(struct bca_context *ctx,
                             struct component_details *cd)
 {
- int pass = 0, allocation_size, string_length, offset, i, disabled, ok;
- char *string, type[256], component[256], key[256];
+ char **list = NULL, *name, *base_file_name;
+ int n_elements = 0, x, i, disabled, allocation_size, offset;
+ char principle[256];
 
- if(ctx->verbose > 2)
+ if(ctx->verbose > 1)
   fprintf(stderr, "BCA: list_project_components()\n");
 
- while(pass < 2)
+ if(list_unique_qualifiers(ctx,
+                           ctx->project_configuration_contents,
+                           ctx->project_configuration_length,
+                           &list, &n_elements))
  {
-  offset = -1;
-  cd->n_components = 0;
-  while(iterate_key_primitives(ctx, ctx->project_configuration_contents,
-                               ctx->project_configuration_length, &offset,
-                               NULL, NULL, "NAME",
-                               type, component, key, NULL))
-  {
-   i = 0;
-   disabled = 0;
-   while(i < ctx->n_disables)
-   {
-    if(strcmp(component, ctx->disabled_components[i]) == 0)
-    {
-     disabled = 1;
-     break;
-    }
-    i++;
-   }
-
-   if(pass == 0)
-   {
-    /* validate and count */
-    if(disabled == 0)
-    {
-     ok = 1;
-
-     if(strcmp(component, "ALL") == 0)
-      ok = 0;
-
-     if(strcmp(component, "NONE") == 0)
-      ok = 0;
-
-     if(ok == 0)
-     {
-      fprintf(stderr,
-              "BCA: component name is a reserved word, %s.%s.%s\n",
-              type, component, key);
-      return 1;
-     }
-
-     cd->n_components++;
-    }
-   }
-
-   if( (pass == 1) && (disabled == 0) )
-   {
-    string_length = strlen(component);
-    allocation_size = string_length + 1;
-    if((string = (char *) malloc(allocation_size)) == NULL)
-    {
-     fprintf(stderr, "BCA: malloc(%d) failed 1\n", allocation_size);
-//free array
-     return 1;
-    }
-
-    snprintf(string, allocation_size, "%s", component);
-    cd->project_components[cd->n_components] = string;
-
-
-    string_length = strlen(type);
-    allocation_size = string_length + 1;
-    if((string = (char *) malloc(allocation_size)) == NULL)
-    {
-     fprintf(stderr, "BCA: malloc(%d) failed 2\n", allocation_size);
-//free array
-     return 1;
-    }
-
-    snprintf(string, allocation_size, "%s", type);
-    cd->project_component_types[cd->n_components] = string;
-
-
-    if((cd->project_output_names[cd->n_components] =
-        lookup_key(ctx, ctx->project_configuration_contents,
-                   ctx->project_configuration_length, type, component, "NAME")) == NULL)
-    {
-     fprintf(stderr, "BCA: lookup_key() failed 3\n");
-     return 1;
-    }
-
-    cd->n_components++;
-   }
-
-  }
-
-  if(pass == 0)
-  {
-   if(cd->n_components == 0)
-   {
-    cd->project_components = NULL;
-    cd->project_component_types = NULL;
-    cd->project_output_names = NULL;
-    return 0;
-   }
-
-   /* allocate array of pointers */
-   allocation_size = cd->n_components * sizeof(char *);
-   if((cd->project_components = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 4\n", allocation_size);
-    return 1;
-   }
-
-   if((cd->project_component_types = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 5\n", allocation_size);
-    free(cd->project_components);
-    return 1;
-   }
-
-   if((cd->project_output_names = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 6\n", allocation_size);
-    free(cd->project_components);
-    free(cd->project_component_types);
-    return 1;
-   }
-
-  }
-
-  pass++;
+  fprintf(stderr, "BCA: list_unique_principles() failed.\n");
+  return 1;
  }
 
+ cd->n_components = 0;
+ cd->project_components = NULL;
+
+ for(x=0; x<n_elements; x++)
+ {
+  disabled = 0;
+  for(i=0; i < ctx->n_disables; i++)
+  {
+   if(strcmp(list[x], ctx->disabled_components[i]) == 0)
+   {
+    disabled = 1;
+    break;
+   }
+  }
+
+  if(disabled)
+   continue;
+
+  if(strcmp(list[x], "ALL") == 0)
+   continue;
+
+  if(strcmp(list[x], "NONE") == 0)
+   continue;
+
+  if(add_to_string_array(&(cd->project_components),
+                         cd->n_components,
+                         list[x], -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  offset = -1;
+  if(iterate_key_primitives(ctx,
+                            ctx->project_configuration_contents,
+                            ctx->project_configuration_length,
+                            &offset, NULL, list[x], NULL,
+                            principle, NULL, NULL, NULL) == 0)
+  {
+   fprintf(stderr, "BCA: iterate_key_primitives(*, %s, *) failed \n", list[x]);
+   return 1;
+  }
+
+  name = NULL;
+  if(strcmp(principle, "BEAM") == 0)
+  {
+   if(path_extract(list[x], &base_file_name, NULL))
+   {
+    fprintf(stderr, "BCA: path_extract(%s) failed\n", list[x]);
+    return 1;
+   }
+
+   allocation_size = strlen(base_file_name) + 6;
+   name = malloc(allocation_size);
+   snprintf(name, allocation_size, "%s.beam", base_file_name);
+   free(base_file_name);
+  }
+
+  if(name == NULL)
+  {
+   if((name = lookup_key(ctx, ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         principle, list[x], "NAME")) == NULL)
+   {
+    fprintf(stderr, "BCA: lookup_key(%s, %s, NAME) failed\n", principle, list[x]);
+    return 1;
+   }
+  }
+
+  if(add_to_string_array(&(cd->project_component_types),
+                         cd->n_components, principle, -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  if(add_to_string_array(&(cd->project_output_names),
+                         cd->n_components, name, -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  free(name);
+  cd->n_components++;
+ }
+
+ free_string_array(list, n_elements);
  return 0;
 }
 
@@ -999,6 +987,48 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
  return 0;
 }
 
+int list_unique_qualifiers(struct bca_context *ctx,
+                           char *contents, int length,
+                           char ***list, int *n_elements)
+{
+ char principle[256], qualifier[256], key[256];
+ int offset, matched, code;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: list_unique_qualifiers()\n");
+
+ *list = NULL;
+ *n_elements = 0;
+
+ offset = -1;
+ while(iterate_key_primitives(ctx, contents, length, &offset,
+                              NULL, NULL, NULL,
+                              principle, qualifier, key, NULL))
+ {
+  matched = 0;
+
+  if(strcmp(qualifier, "ALL") == 0)
+   matched = 1;
+
+  if(strcmp(qualifier, "NONE") == 0)
+   matched = 1;
+
+  if((code = add_to_string_array(list, *n_elements,
+                                 qualifier, -1, 1)) == -1)
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  if(code == 0)
+  {
+   (*n_elements)++;
+  }
+ }
+
+ return 0;
+}
+
 char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *host,
                                   char *project_component,
@@ -1043,7 +1073,7 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  }
  memset(tc, 0, allocation_size);
 
- char **host_resolve_vars[24] =
+ char **host_resolve_vars[27] =
  {
   &(tc->build_prefix),
   &(tc->cc),
@@ -1067,10 +1097,13 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   &(tc->install_include_dir),
   &(tc->install_pkg_config_dir),
   &(tc->install_locale_data_dir),
-  &(tc->python)
+  &(tc->python),
+  &(tc->erlc),
+  &(tc->erlc_flags),
+  &(tc->erlc_output_dir_flag)
  };
 
- char *host_resolve_keys[24] =
+ char *host_resolve_keys[27] =
  {
   "BUILD_PREFIX",
   "CC",
@@ -1094,10 +1127,13 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   "INSTALL_INCLUDE_DIR",
   "INSTALL_PKG_CONFIG_DIR",
   "INSTALL_LOCALE_DATA_DIR",
-  "PYTHON"
+  "PYTHON",
+  "ERLC",
+  "ERLCFLAGS",
+  "ERLC_OUTPUT_DIR_FLAG"
  };
 
- for(i=0; i<23; i++)
+ for(i=0; i<26; i++)
  {
   *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host,
                                                         cd->project_component,
@@ -1106,7 +1142,7 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
 
  if(ctx->verbose > 2)
  {
-  for(i=0; i<23; i++)
+  for(i=0; i<26; i++)
   {
    printf("BCA: %s.%s.%s resolves to %s\n",
           cd->host, cd->project_component,  host_resolve_keys[i], *(host_resolve_vars[i]));
@@ -1188,6 +1224,15 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
   if(tc->python != NULL)
    free(tc->python);
+
+  if(tc->erlc != NULL)
+   free(tc->erlc);
+
+  if(tc->erlc_flags != NULL)
+   free(tc->erlc_flags);
+
+  if(tc->erlc_output_dir_flag != NULL)
+   free(tc->erlc_output_dir_flag);
 
   free(tc);
  }
