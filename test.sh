@@ -881,18 +881,18 @@ examples_customwithnativetool() {
  ./bca --component make_hello --type BINARY --newvalue NAME make_hello >> out 2>> out
  ./bca --component make_hello --type BINARY --newvalue FILES make_hello.c >> out 2>> out
 
- #Behold, sh script that outputs a C program, that outputs a C program.
- echo "#include <stdio.h>" > make_hello.c
- echo "int main(void)" >> make_hello.c
- echo "{" >> make_hello.c
- echo ' printf("#include <stdio.h>\\n");' >> make_hello.c
- echo ' printf("int main(void)\\n");' >> make_hello.c
- echo ' printf("{\\n");' >> make_hello.c
- echo ' printf(" printf(\"hello world\\\\n\");\\n");' >> make_hello.c
- echo ' printf(" return 0;\\n");' >> make_hello.c
- echo ' printf("}\\n");' >> make_hello.c
- echo ' return 0;' >> make_hello.c
- echo '}' >> make_hello.c
+ #output a C program, that outputs a C program.
+ $BCA_ECHO "#include <stdio.h>" > make_hello.c
+ $BCA_ECHO "int main(void)" >> make_hello.c
+ $BCA_ECHO "{" >> make_hello.c
+ $BCA_ECHO ' printf("#include <stdio.h>\\n");' >> make_hello.c
+ $BCA_ECHO ' printf("int main(void)\\n");' >> make_hello.c
+ $BCA_ECHO ' printf("{\\n");' >> make_hello.c
+ $BCA_ECHO ' printf(" printf(\\\"hello world\\\\n\\\");\\n");' >> make_hello.c
+ $BCA_ECHO ' printf(" return 0;\\n");' >> make_hello.c
+ $BCA_ECHO ' printf("}\\n");' >> make_hello.c
+ $BCA_ECHO ' return 0;' >> make_hello.c
+ $BCA_ECHO '}' >> make_hello.c
 
  #add a component named "make_hello_wrapper" that is a macro expanded text file
  #with the output name of make_hello_wrapper.sh from the source file
@@ -1587,7 +1587,7 @@ then
 	MAKE=make
 fi
 BASEDIR=`pwd`
-
+BCA_ECHO=`pwd`/buildconfiguration/bca-echo
 NATIVEBINSUFFIX=""
 
 if [ "$1" == "--help" ]
