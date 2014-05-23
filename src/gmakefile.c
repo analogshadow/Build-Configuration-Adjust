@@ -690,6 +690,41 @@ int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
  return 0;
 }
 
+int generate_gmake_host_component_erlangbeam(struct bca_context *ctx,
+                                             struct component_details *cd,
+                                             struct host_configuration *tc,
+                                             char *output_file_name,
+                                             FILE *output)
+{
+ if(cd->n_file_names != 1)
+ {
+  fprintf(stderr,
+          "BCA: I should have exactly one input file for BEAM component %s.\n",
+          cd->project_component);
+  return 1;
+ }
+
+ fprintf(output, "%s : ",  output_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+ {
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
+ }
+
+ fprintf(output, "%s\n", cd->file_names[0]);
+
+
+ fprintf(output, "\t%s ", tc->erlc);
+
+ if(tc->erlc_flags != NULL)
+  fprintf(output, "%s ", tc->erlc_flags);
+
+ fprintf(output, "%s %s %s\n\n",
+         tc->erlc_output_dir_flag, tc->build_prefix, cd->file_names[0]);
+
+ return 0;
+}
+
 int generate_gmake_host_component_custom(struct bca_context *ctx,
                                          struct component_details *cd,
                                          struct host_configuration *tc,
@@ -741,8 +776,11 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
   return 1;
  }
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+ {
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
+ }
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -786,8 +824,9 @@ int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
 {
  int i;
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -821,8 +860,9 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
 {
  int i;
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -838,6 +878,18 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
 
  fprintf(output, "> %s\n\n", output_file_name);
  return 0;
+}
+
+int count_host_component_target_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd)
+{
+ int count = 0;
+
+ count += cd->n_file_deps;
+ count += cd->n_lib_headers;
+ count += cd->n_dependencies;
+
+ return count;
 }
 
 int generate_host_component_target_dependencies(struct bca_context *ctx,
@@ -947,9 +999,12 @@ int object_from_c_file(struct bca_context *ctx,
           tc->build_prefix, cd->project_component,
           source_file_base_name, tc->obj_suffix);
 
- fprintf(output,
-         "%s : %s $(%s-FILE_DEPENDENCIES)\n",
-         temp, source_file_name, output_file_name);
+ fprintf(output, "%s : %s", temp, source_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, " $(%s-FILE_DEPENDENCIES)", output_file_name);
+
+ fprintf(output, "\n");
 
  fprintf(output, "\t%s ", tc->cc);
 
@@ -1501,12 +1556,15 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   return 1;
  }
 
- if(generate_host_component_target_dependencies(ctx, cd, names[0], output))
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
  {
-  fprintf(stderr,
-          "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
-          cd->host, cd->project_component);
-  return 1;
+  if(generate_host_component_target_dependencies(ctx, cd, names[0], output))
+  {
+   fprintf(stderr,
+           "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
+           cd->host, cd->project_component);
+   return 1;
+  }
  }
 
  handled = 0;
@@ -1564,6 +1622,21 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
   handled = 1;
  }
+
+ if(strcmp(cd->project_component_type, "BEAM") == 0)
+ {
+  if(generate_gmake_host_component_erlangbeam(ctx, cd, tc, names[0], output))
+  {
+   fprintf(stderr,
+           "BCA: generate_gmake_host_component_erlangbeam(%s.%s) failed\n",
+           cd->host, cd->project_component);
+
+   return 1;
+  }
+
+  handled = 1;
+ }
+
 
  if( (strcmp(cd->project_component_type, "BINARY") == 0) ||
      (strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0) )
@@ -1873,6 +1946,9 @@ int generate_gmakefile_mode(struct bca_context *ctx)
     handled = 1;
 
    if(strcmp(cd.project_component_types[component_i], "PYTHONMODULE") == 0)
+    handled = 1;
+
+   if(strcmp(cd.project_component_types[component_i], "BEAM") == 0)
     handled = 1;
 
    if(strcmp(cd.project_component_types[component_i], "CUSTOM") == 0)

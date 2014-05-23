@@ -38,6 +38,13 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
  if(strcmp(project_component_type, "SHAREDLIBRARY") == 0)
   return tc->shared_library_suffix;
 
+ if(strcmp(project_component_type, "BEAM") == 0)
+  return ".beam";
+
+ if(strcmp(project_component_type, "PYTHONMODULE") == 0)
+  return ".py";
+
+ /* CAT and MACROEXPAND might need the same logic as CUSTOM */
  if(strcmp(project_component_type, "CAT") == 0)
   return "";
 
@@ -57,9 +64,6 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
   }
   return "";
  }
-
- if(strcmp(project_component_type, "PYTHONMODULE") == 0)
-  return ".py";
 
  fprintf(stderr, "BCA: unknown component type \"%s\"\n",
          project_component_type);
@@ -199,7 +203,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
       return -1;
 
-     if((extension = component_type_file_extension(ctx, tc, cd.project_component_types[y],
+     if((extension = component_type_file_extension(ctx, tc,
+                                                   cd.project_component_types[y],
                                                    cd.project_output_names[y])) == NULL)
      {
       fprintf(stderr, "BCA: component_type_file_extension(%s) failed\n",
@@ -292,23 +297,23 @@ int render_project_component_output_name(struct bca_context *ctx,
       n_names++;
      }
 
-     if(strcmp(cd.project_component_types[y], "BINARY") == 0)
+     if(strcmp(cd.project_component_types[y], "BEAM") == 0)
      {
       handled = 1;
       snprintf(temp + prefix_length, 1024 - prefix_length,
-               "%s%s", cd.project_output_names[y], extension);
+               "%s.beam", cd.project_output_names[y]);
 
       if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
        return -1;
 
       if(extensions != NULL)
-       if((code = add_to_string_array(extensions, n_names, extension, -1, 0)) < 0)
+       if((code = add_to_string_array(extensions, n_names, ".beam", -1, 0)) < 0)
         return -1;
 
       n_names++;
      }
 
-     if(strcmp(cd.project_component_types[y], "BUILDBINARY") == 0)
+     if(strcmp(cd.project_component_types[y], "BINARY") == 0)
      {
       handled = 1;
       snprintf(temp + prefix_length, 1024 - prefix_length,

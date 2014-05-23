@@ -809,8 +809,8 @@ int check_project_component_types(struct bca_context *ctx)
 int list_project_components(struct bca_context *ctx,
                             struct component_details *cd)
 {
- char **list = NULL, *name, *base_file_name;
- int n_elements = 0, x, i, disabled, allocation_size, offset;
+ char **list = NULL, *name, *source, *base_file_name, **source_files;
+ int n_elements = 0, x, i, disabled, allocation_size, offset, n_source_files;
  char principle[256];
 
  if(ctx->verbose > 1)
@@ -871,7 +871,31 @@ int list_project_components(struct bca_context *ctx,
   name = NULL;
   if(strcmp(principle, "BEAM") == 0)
   {
-   if(path_extract(list[x], &base_file_name, NULL))
+   if((source = lookup_key(ctx,
+                           ctx->project_configuration_contents,
+                           ctx->project_configuration_length,
+                           principle, list[x], "FILES")) == NULL)
+   {
+    fprintf(stderr, "BCA: lookup_key(%s, %s, FILES) failed\n", principle, list[x]);
+    return 1;
+   }
+
+   if(split_strings(ctx, source, -1, &n_source_files, &source_files))
+   {
+    fprintf(stderr, "BCA: split_strings() failed on '%s'\n", source);
+    return 1;
+   }
+   free_string_array(source_files, n_source_files);
+
+   if(n_source_files > 1)
+   {
+    fprintf(stderr,
+            "BCA: BEAM component %s should only have one input file, not \"%s\"\n",
+            list[x], source);
+    return 1;
+   }
+
+   if(path_extract(source, &base_file_name, NULL))
    {
     fprintf(stderr, "BCA: path_extract(%s) failed\n", list[x]);
     return 1;
@@ -879,8 +903,9 @@ int list_project_components(struct bca_context *ctx,
 
    allocation_size = strlen(base_file_name) + 6;
    name = malloc(allocation_size);
-   snprintf(name, allocation_size, "%s.beam", base_file_name);
+   snprintf(name, allocation_size, "%s", base_file_name);
    free(base_file_name);
+   free(source);
   }
 
   if(name == NULL)
@@ -889,8 +914,9 @@ int list_project_components(struct bca_context *ctx,
                          ctx->project_configuration_length,
                          principle, list[x], "NAME")) == NULL)
    {
-    fprintf(stderr, "BCA: lookup_key(%s, %s, NAME) failed\n", principle, list[x]);
-    return 1;
+    fprintf(stderr, "BCA: warning: no .NAME for component %s of %s.\n",
+            list[x], principle);
+    name = strdup(list[x]);
    }
   }
 
@@ -992,7 +1018,7 @@ int list_unique_qualifiers(struct bca_context *ctx,
                            char ***list, int *n_elements)
 {
  char principle[256], qualifier[256], key[256];
- int offset, matched, code;
+ int offset, code;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: list_unique_qualifiers()\n");
@@ -1005,16 +1031,14 @@ int list_unique_qualifiers(struct bca_context *ctx,
                               NULL, NULL, NULL,
                               principle, qualifier, key, NULL))
  {
-  matched = 0;
-
   if(strcmp(qualifier, "ALL") == 0)
-   matched = 1;
+   continue;
 
   if(strcmp(qualifier, "NONE") == 0)
-   matched = 1;
+   continue;
 
   if((code = add_to_string_array(list, *n_elements,
-                                 qualifier, -1, 1)) == -1)
+                                    qualifier, -1, 1)) == -1)
   {
    fprintf(stderr, "BCA: add_to_string_array() failed\n");
    return 1;

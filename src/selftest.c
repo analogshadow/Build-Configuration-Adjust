@@ -1770,21 +1770,6 @@ int config_files_test(struct bca_context *real_ctx)
  if(in_file != NULL)
   free(in_file);
 
-
- printf("test: listprojcomponents: ");
- real_ctx->project_configuration_contents = file;
- real_ctx->project_configuration_length = file_length;
- memset(&cd, 0, sizeof(struct component_details));
- if(list_project_components(real_ctx, &cd))
- {
-  printf("failed\n");
-  fprintf(stderr, "file was: \n%s\n", file);
- } else {
-  printf("passed\n");
- }
- free_string_array(cd.project_components, cd.n_components);
- free_string_array(cd.project_component_types, cd.n_components);
- free_string_array(cd.project_output_names, cd.n_components);
  real_ctx->project_configuration_contents = NULL;
  real_ctx->project_configuration_length = 0;
 
