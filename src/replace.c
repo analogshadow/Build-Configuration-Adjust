@@ -1,7 +1,7 @@
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -22,6 +22,8 @@
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "prototypes.h"
 #endif
+
+int line_number = 1;
 
 int parse_function_parameters(char *string, char ***array, int *array_length)
 {
@@ -78,14 +80,17 @@ int parse_function_parameters(char *string, char ***array, int *array_length)
   i++;
  }
 
- if(add_to_string_array(array, *array_length,
-                        string + mark, i - mark, 0))
+ if(i - mark > 0)
  {
-  fprintf(stderr, "BCA: add_to_string_array() failed\n");
-  free_string_array(*array, *array_length);
-  return 1;
+  if(add_to_string_array(array, *array_length,
+                         string + mark, i - mark, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   free_string_array(*array, *array_length);
+   return 1;
+  }
+  (*array_length)++;
  }
- (*array_length)++;
 
  return 0;
 }
@@ -256,6 +261,18 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    return NULL;
   }
   return strdup(value);
+ }
+
+ if(key[0] == 'd')
+ {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  return handle_document_functions(ctx, key);
+#else
+  fprintf(stderr,
+          "BCA: macro key startint with 'd' is likely a document handling function. "
+          "Document processing macros are not in the single file distribution.\n");
+  return NULL;
+#endif
  }
 
  if(strncmp(key, "CHECK(", 6) == 0)
@@ -638,6 +655,10 @@ int string_replace(struct bca_context *ctx)
    while(!feof(stdin))
    {
     fscanf(stdin, "%c", &c);
+
+    if(c == '\n')
+     line_number++;
+
     if(c != '@')
     {
      if(index > 255)
@@ -661,7 +682,9 @@ int string_replace(struct bca_context *ctx)
 
     if((value = resolve_string_replace_key(ctx, key)) == NULL)
     {
-     fprintf(stderr, "BCA: string_replace(): could not resolve key \"%s\"\n", key);
+     fprintf(stderr,
+             "BCA: string_replace(): could not resolve key \"%s\", line %d\n",
+             key, line_number);
      return 1;
     }
 

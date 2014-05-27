@@ -98,6 +98,10 @@ struct bca_context
  char *project_configuration_contents;
  int build_configuration_length;
  int project_configuration_length;
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+ struct document_handling_context *dctx;
+#endif
 };
 
 struct component_details
@@ -186,6 +190,11 @@ int self_test(struct bca_context *ctx);
 
 /* replace.c ------------------------------------ */
 int string_replace(struct bca_context *ctx);
+
+int parse_function_parameters(char *string, char ***array, int *array_length);
+
+/* documents.c ---------------------------------- */
+char * handle_document_functions(struct bca_context *ctx, char *key);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
