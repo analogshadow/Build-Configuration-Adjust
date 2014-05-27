@@ -720,6 +720,7 @@ int file_to_C_source(struct bca_context *ctx, char *file_name)
 {
  char *contents, *array_name;
  int length, n_cols = 0, index = 0;
+ unsigned char byte;
 
  if(ctx->verbose > 0)
   fprintf(stderr, "BCA: file_to_c_source()\n");
@@ -751,7 +752,10 @@ int file_to_C_source(struct bca_context *ctx, char *file_name)
    n_cols = 0;
   }
 
-  fprintf(stdout, "0x%x", (unsigned char) contents[index]);
+  if((byte = (unsigned char) contents[index]) > 0xa)
+   fprintf(stdout, "0x%x", byte);
+  else
+   fprintf(stdout, "0x%x ", byte);
 
   n_cols++;
   index++;

@@ -23,8 +23,6 @@
 #include "prototypes.h"
 #endif
 
-int line_number = 1;
-
 int parse_function_parameters(char *string, char ***array, int *array_length)
 {
  int length, i, mark = -1;
@@ -202,7 +200,7 @@ char *check_function(struct bca_context *ctx, char *key)
 
 char *file_to_C_source_function(struct bca_context *ctx, char *key)
 {
- char **parameters, *contents;
+ char **parameters;
  int n_parameters, i;
 
  if(parse_function_parameters(key, &parameters, &n_parameters))
@@ -269,8 +267,9 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   return handle_document_functions(ctx, key);
 #else
   fprintf(stderr,
-          "BCA: macro key startint with 'd' is likely a document handling function. "
-          "Document processing macros are not in the single file distribution.\n");
+          "BCA: %s, line %d macro key starting with 'd' is likely a document handling function. "
+          "Document processing macros are not in the single file distribution.\n",
+          current_file_name(ctx), ctx->line_number);
   return NULL;
 #endif
  }
@@ -657,7 +656,7 @@ int string_replace(struct bca_context *ctx)
     fscanf(stdin, "%c", &c);
 
     if(c == '\n')
-     line_number++;
+     ctx->line_number++;
 
     if(c != '@')
     {
@@ -683,18 +682,24 @@ int string_replace(struct bca_context *ctx)
     if((value = resolve_string_replace_key(ctx, key)) == NULL)
     {
      fprintf(stderr,
-             "BCA: string_replace(): could not resolve key \"%s\", line %d\n",
-             key, line_number);
+             "BCA: string_replace(): could not resolve key \"%s\": %s, line %d\n",
+             key, current_file_name(ctx), ctx->line_number);
      return 1;
     }
 
     fprintf(stdout, "%s", value);
     free(value);
    }
-
   }
-
  }
 
  return 0;
+}
+
+char *current_file_name(struct bca_context *ctx)
+{
+ if(ctx->n_input_files == 0)
+  return "stdin";
+
+ return ctx->input_files[ctx->input_file_index];
 }

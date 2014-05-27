@@ -75,7 +75,7 @@ int is_file_of_type_used(struct bca_context *ctx,
                          struct component_details *cd,
                          char *type_extension)
 {
- int i, j, x, handled, skip, pre_loaded, yes = 0;
+ int i, j, x, handled, skip, yes = 0;
  char *extension;
 
  if(ctx->verbose > 1)
@@ -770,7 +770,7 @@ int erlang_family_configuration(struct bca_context *ctx,
                                 struct host_configuration *tc,
                                 struct component_details *cd)
 {
- int code, need_erlc;
+ int need_erlc;
  char *s;
 
  if((need_erlc = is_erlang_compiler_needed(ctx, cd)) == -1)

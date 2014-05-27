@@ -301,6 +301,7 @@ int modify_file(struct bca_context *ctx, char *filename,
  }
 
  fclose(output);
+ free(contents);
 
  return 0;
 }

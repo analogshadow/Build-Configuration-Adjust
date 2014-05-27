@@ -8,6 +8,10 @@
 #define HAVE_CWD
 #endif
 
+#if @CHECK(BUILD,CURRENT,ALL,TESTRESULTS,HAVE_CWD)@
+#define HAVE_MMAP
+#endif
+
 @BCA.MACROS.main@
 
 #endif

@@ -67,6 +67,7 @@
 #define LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE 87
 #define SELF_TEST_MODE 99
 #define VERSION_MODE 100
+#define DOCUMENT_MODE 200
 
 #define OUTPUT_CONFIGURE_MODE 110
 #define OUTPUT_BCASFD_MODE 111
@@ -101,7 +102,11 @@ struct bca_context
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  struct document_handling_context *dctx;
+ int loop_inputs, pass_number;
 #endif
+
+ char **input_files;
+ int n_input_files, line_number, input_file_index;
 };
 
 struct component_details
@@ -189,12 +194,18 @@ struct host_configuration
 int self_test(struct bca_context *ctx);
 
 /* replace.c ------------------------------------ */
+char *resolve_string_replace_key(struct bca_context *ctx, char *key);
+
 int string_replace(struct bca_context *ctx);
 
 int parse_function_parameters(char *string, char ***array, int *array_length);
 
+char *current_file_name(struct bca_context *ctx);
+
 /* documents.c ---------------------------------- */
 char * handle_document_functions(struct bca_context *ctx, char *key);
+
+int document_mode(struct bca_context *ctx);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
@@ -240,6 +251,10 @@ int free_string_array(char **array, int n_elements);  // selftested
 int path_extract(const char *full_path, char **base_file_name, char **extension);  // selftested
 
 char *read_file(char *name, int *length, int silent_test);  // selftested
+
+int mmap_file(char *name, void **p, int *length, int *fd);
+
+int umap_file(void *p, int length, int fd);
 
 int find_line(char *buffer, int buffer_length, int *start, int *end, int *line_length); // selftested
 
@@ -399,6 +414,9 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  int uninstall_version);
 
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output);
+
+int count_host_component_target_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd);
 
 /* graphviz.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,
