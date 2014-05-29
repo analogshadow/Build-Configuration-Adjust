@@ -190,6 +190,88 @@ struct host_configuration
  char *install_locale_data_dir;
 };
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+/* documents.c ---------------------------------- */
+char * handle_document_functions(struct bca_context *ctx, char *key);
+
+int document_mode(struct bca_context *ctx);
+
+struct document_handling_context_stack_frame
+{
+ int (*close_function) (struct document_handling_context *, void *);
+ void *data;
+ int type, input_file_index, line_number;
+};
+
+#define DLEVEL_NONE    0
+#define DLEVEL_PART    1
+#define DLEVEL_CHAPTER 2
+#define DLEVEL_SECTION 3
+#define DLEVEL_SUB     4
+#define DLEVEL_INSET   5
+#define DLEVEL_LISTING 6
+
+#define DSTACK_TYPE_TAG   100
+#define DSTACK_TYPE_TABLE 101
+#define DSTACK_TYPE_TR    102
+#define DSTACK_TYPE_TC    103
+#define DSTACK_TYPE_LIST  104
+#define DSTACK_TYPE_POINT 105
+
+struct document_handling_context
+{
+ struct bca_context *ctx;
+ int dmode_depth;
+
+ int table_depth, list_depth;
+
+ int stack_depth;
+ struct document_handling_context_stack_frame stack[64];
+
+ int current_level;
+ int implied_levels_mask[7];
+
+ int tag_depth, tag_buffer_length;
+ char *tags[32];
+ char tag_buffer[1024];
+
+ char output_buffer[1024];
+ int output_buffer_length;
+
+ void *render_engine_context;
+ int (*start_document) (struct document_handling_context *dctx);
+ int (*finish_document) (struct document_handling_context *dctx);
+ int (*consume_text) (struct document_handling_context *dctx, char *text, int length);
+ int (*open_point) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_point) (struct document_handling_context *dctx);
+ int (*open_list) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_list) (struct document_handling_context *dctx);
+ int (*open_listing) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_listing) (struct document_handling_context *dctx);
+ int (*open_inset) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_inset) (struct document_handling_context *dctx);
+ int (*open_subsection) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_subsection) (struct document_handling_context *dctx);
+ int (*open_section) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_section) (struct document_handling_context *dctx);
+ int (*open_chapter) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_chapter) (struct document_handling_context *dctx);
+ int (*open_part) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_part) (struct document_handling_context *dctx);
+ int (*open_table) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_table) (struct document_handling_context *dctx);
+ int (*open_tr) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tr) (struct document_handling_context *dctx);
+ int (*open_tc) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tc) (struct document_handling_context *dctx);
+ int (*open_tag) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tag) (struct document_handling_context *dctx);
+};
+
+/* plaintext.c */
+int activate_document_engine_plaintext(struct document_handling_context *dctx);
+#endif
+
 /* selftest.c ----------------------------------- */
 int self_test(struct bca_context *ctx);
 
@@ -201,11 +283,6 @@ int string_replace(struct bca_context *ctx);
 int parse_function_parameters(char *string, char ***array, int *array_length);
 
 char *current_file_name(struct bca_context *ctx);
-
-/* documents.c ---------------------------------- */
-char * handle_document_functions(struct bca_context *ctx, char *key);
-
-int document_mode(struct bca_context *ctx);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
