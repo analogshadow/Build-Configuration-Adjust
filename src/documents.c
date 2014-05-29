@@ -48,7 +48,7 @@ struct document_handling_context
  struct bca_context *ctx;
  int dmode_depth;
 
- int table_depth, list_depth, in_tr, in_tc, in_point;
+ int table_depth, list_depth;
 
  int stack_depth;
  struct document_handling_context_stack_frame stack[64];
@@ -56,13 +56,133 @@ struct document_handling_context
  int current_level;
  int implied_levels_mask[7];
 
+ int tag_depth, tag_buffer_length;
+ char *tags[32];
+ char tag_buffer[1024];
+
  char output_buffer[1024];
  int output_buffer_length;
 };
 
+char *type_to_string(int type)
+{
+ switch(dctx->current_level)
+ {
+  case DLEVEL_PART:
+       return "part";
+
+  case DLEVEL_CHAPTER:
+       return "chapter";
+
+  case DLEVEL_SECTION:
+       return "section";
+
+  case DLEVEL_SUBSECTION:
+       return "subsection";
+
+  case DLEVEL_INSET:
+       return "inset";
+
+  case DLEVEL_LISTING:
+       return "listing";
+
+  case DSTACK_TYPE_TAG:
+       return "tag";
+
+  case DSTACK_TYPE_TABLE:
+       return "table";
+
+  case DSTACK_TYPE_TR:
+       return "tablerow";
+
+  case DSTACK_TYPE_TC:
+       return "tablecell";
+
+  case DSTACK_TYPE_LIST:
+       return "list";
+
+  case DSTACK_TYPE_POINT:
+       return "point";
+
+ }
+ return NULL;
+}
+
+int type_string_to_id(char *string)
+{
+ if(strcmp(string, "part") == 0)
+ {
+  return DLEVEL_PART;
+ } else if(strcmp(string, "chapter") == 0) {
+  return DLEVEL_CHAPTER;
+ } else if(strcmp(string, "section") == 0) {
+  return DLEVEL_SECTION;
+ } else if(strcmp(string, "sub") == 0) {
+  return DLEVEL_SUB;
+ } else if(strcmp(string, "inset") == 0) {
+  return DLEVEL_INSET;
+ } else if(strcmp(string, "listing") == 0) {
+  return DLEVEL_LISTING;
+ } else if(strcmp(string, "tag") == 0) {
+  return DLEVEL_TAG;
+ } else if(strcmp(string, "table") == 0) {
+  return DLEVEL_TABLE;
+ } else if(strcmp(string, "tr") == 0) {
+  return DLEVEL_TR;
+ } else if(strcmp(string, "tc") == 0) {
+  return DLEVEL_TC;
+ } else if(strcmp(string, "list") == 0) {
+  return DLEVEL_LIST;
+ } else if(strcmp(string, "point") == 0) {
+  return DLEVEL_POINT;
+ }
+
+ return DLEVEL_NONE;
+}
+
+int backtrace_stack_test(struct document_handling_context *dctx,
+                         int need_to_find, int before_finding)
+{
+ int i;
+ struct document_handling_context_stack_frame *frame;
+
+ i = dctx->stack_depth;
+ while(i > 0)
+ {
+  frame = &(dctx->stack[i]);
+  if(frame->type == need_to_find)
+   return 0;
+
+  if(frame->type == before_finding)
+  {
+   fprintf(stderr,
+           "BCA: %s, line %d: openning of type %s in %s, line %d would need to be "
+           "followed by an openning of type %s before here in this context.\n",
+           dctx->ctx->input_files[dctx->ctx->input_index],
+           dctx->line_number,
+           type_to_string(before_finding),
+           dctx->ctx->input_files[frame->input_index],
+           frame->line_number,
+           type_to_string(need_to_find));
+   return 1;
+  }
+
+  i--;
+ }
+
+ fprintf(stderr,
+         "BCA: %s, line %d: expected to find openning of type %s before here.\n",
+         dctx->ctx->input_files[dctx->ctx->input_index],
+         dctx->line_number,
+         type_to_string(need_to_find));
+
+ return 1;
+}
+
 struct document_handling_context_stack_frame *
  backtrace_stack_to_last_frame_of_type(struct document_handling_context *dctx, int type)
 {
+ int i;
  struct document_handling_context_stack_frame *frame;
 
  i = dctx->stack_depth;
@@ -75,7 +195,7 @@ struct document_handling_context_stack_frame *
   i--;
  }
 
- fprintf(stderr, "BCA: backtracing found no frame of type %d\n", type);
+ fprintf(stderr, "BCA: backtracing found no frame of type %s\n", type_string(type));
  return NULL;
 }
 
@@ -84,7 +204,7 @@ int exit_level(struct document_handling_context *dctx)
  int i = dctx->current_level;
  while(i > 0)
  {
-  if(dctx->start_of_level_stack_frames[i] != -1)
+  if(dctx->implied_levels_mask[i] != 1)
    break;
 
   i--;
@@ -107,65 +227,32 @@ int enter_level(struct document_handling_context *dctx, int level_value)
 
  for(i=dctx->current_level + 1; i<level_value; i++)
  {
-  dctx->start_of_level_stack_frames[i] = -1;
+  dctx->implied_levels_mask[i] = 1;
  }
 
- dctx->start_of_level_stack_frames[level_value] = ctx->stack_depth;
+ dctx->implied_levels_mask[level_value] = 0;
  dctx->current_level = level_value;
 
  return 0;
 }
 
-int assert_starting_level_correctly(struct document_handling_context *dctx,
-                                    int level_value, char *level_name)
+int test_starting_level_correctly(struct document_handling_context *dctx,
+                                  int level_value, char *level_name)
 {
  struct document_handling_context_stack_frame *frame;
- int logical_level;
 
  if(dctx->current_level < level_value)
   return 0;
-
- for(logical_level = dctx->current_level; logical_level > 0; logical_level--)
- {
-  if(dctx->start_of_level_stack_frames[logical_level] != -1)
-   break;
- }
-
- if(logical_level == 0)
- {
-  fprintf(stderr, "BCA: something is wrong, %s, line %d\n", __FILE__, __LINE__)
-  return 1;
- }
 
  fprintf(stderr,
          "BCA: %s, line %d: can not start %s, already inside a ",
          dctx->ctx->input_files[frame->input_index],
          frame->line_number);
 
- switch(logical_level)
- {
-  case DLEVEL_PART:
-       fprintf(stderr, "part");
+ fprintf(stderr, "%s", type_to_sting(ctx->current_level));
 
-  case DLEVEL_CHAPTER:
-       fprintf(stderr, "chapter");
-
-  case DLEVEL_SECTION:
-       fprintf(stderr, "section");
-
-  case DLEVEL_SUBSECTION:
-       fprintf(stderr, "subsection");
-
-  case DLEVEL_INSET:
-       fprintf(stderr, "inset");
-
-  case DLEVEL_LISTING:
-       fprintf(stderr, "listing");
- }
-
- if((frame = backtrace_stack_to_last_frame_of_type(dctx, logical_level)) == NULL)
+ if((frame = backtrace_stack_to_last_frame_of_type(dctx, dctx->current_level)) == NULL)
   return 1;
-
 
  fprintf(stderr, " openned in %s, line %d\n.",
          dctx->ctx->input_files[frame->input_index],
@@ -200,7 +287,7 @@ void list_error(struct document_handling_context *dctx)
          frame->line_number);
 }
 
-int assert_not_in_list_or_table(struct document_handling_context *dctx,
+int test_not_in_list_or_table(struct document_handling_context *dctx,
                                 char *type)
 {
  if(dctx->table_depth != 0)
@@ -251,7 +338,7 @@ int push_close_function(struct document_handling_context *dctx,
  return 0;
 }
 
-int function_close(struct document_handling_context *dctx)
+int function_close(struct document_handling_context *dctx, int type)
 {
  struct document_handling_context_stack_frame *frame;
 
@@ -266,6 +353,17 @@ int function_close(struct document_handling_context *dctx)
  }
 
  frame = &(dctx->stack[dctx->stack_depth - 1]);
+
+ if(frame->type != type)
+ {
+  fprintf(stderr, "BCA: %s, line %d dc() was expecting to be closing opening %s in %s on %d.\n",
+          current_file_name(dctx->ctx), dctx->ctx->line_number,
+          type_to_string(type),
+          dctx->ctx->input_files[frame->input_index],
+          frame->line_number);
+
+  return 1;
+ }
 
  if(frame->close_function(dctx, frame->data))
  {
@@ -284,15 +382,42 @@ int function_close(struct document_handling_context *dctx)
 
 int function_close_tag(struct document_handling_context *dctx, void *data)
 {
-
+ dctx->tag_depth--;
  return 0;
 }
 
 int function_dtag(struct document_handling_context *dctx,
                    char **parameters, int n_parameters)
 {
+ int tag_length;
+
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dtag()\n");
+
+ if(n_parameters != 2)
+ {
+  fprintf(stderr, "BCA: %s, %d: tag() expectes 1 parameter, not %d\n",
+          current_file_name(dctx->ctx), dctx->ctx->line_number, n_parameters - 1);
+  return 1;
+ }
+
+ if(dctx->tag_depth > 30)
+ {
+  fprintf(stderr, "BCA: tag depth too deep\n");
+  return 1;
+ }
+
+ tag_length = strlen(parameters[1]) + 1;
+ if(dctx->tag_buffer_lengthh + tag_length >= 1024)
+ {
+  fprintf(stderr, "BCA: tag buffer full\n");
+  return 1;
+ }
+
+ dctx->tags[dctx->tag_depth] = dctx->tag_buffer + dctx->tag_buffer_length;
+ memcpy(dctx->tags[dctx->tag_depth], parameters[1], tag_length);
+ dctx->tag_buffer_length += tag_length;
+ dctx->tag_depth++;
 
  return push_close_function(dctx, function_close_tag, NULL, DSTACK_TYPE_TAG);
 }
@@ -311,6 +436,9 @@ int function_dtr(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dtr()\n");
 
+ if(backtrace_stack_test(dctx, DSTACK_TYPE_TABLE, DSTACK_TYPE_TR))
+  return 1;
+
  return push_close_function(dctx, function_close_tr, NULL, DSTACK_TYPE_TR);
 }
 
@@ -325,6 +453,9 @@ int function_dtc(struct document_handling_context *dctx,
 {
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dtc()\n");
+
+ if(backtrace_stack_test(dctx, DSTACK_TYPE_TR, DSTACK_TYPE_TC))
+  return 1;
 
  return push_close_function(dctx, function_close_tc, NULL, DSTACK_TYPE_TC);
 }
@@ -381,7 +512,7 @@ int function_dpoint(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dpoint()\n");
 
- if(assert_not_in_list_or_table(dctx, "point"))
+ if(backtrace_stack_test(dctx, DSTACK_TYPE_LIST, DSTACK_TYPE_POINT))
   return 1;
 
  return push_close_function(dctx, function_close_point, NULL, DSTACK_TYPE_POINT);
@@ -466,10 +597,10 @@ int function_dpart(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dpart()\n");
 
- if(assert_not_in_list_or_table(dctx, "part"))
+ if(test_not_in_list_or_table(dctx, "part"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_PART, "part"))
+ if(test_starting_level_correctly(dctx, DLEVEL_PART, "part"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_PART))
@@ -492,10 +623,10 @@ int function_dchapter(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dchapter()\n");
 
- if(assert_not_in_list_or_table(dctx, "chapter"))
+ if(test_not_in_list_or_table(dctx, "chapter"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_CHAPTER, "chapter"))
+ if(test_starting_level_correctly(dctx, DLEVEL_CHAPTER, "chapter"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_CHAPTER))
@@ -518,10 +649,10 @@ int function_dsection(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dsection()\n");
 
- if(assert_not_in_list_or_table(dctx, "section"))
+ if(test_not_in_list_or_table(dctx, "section"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_SECTION, "section"))
+ if(test_starting_level_correctly(dctx, DLEVEL_SECTION, "section"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_SECTION))
@@ -544,10 +675,10 @@ int function_dsub(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dsub()\n");
 
- if(assert_not_in_list_or_table(dctx, "subsection"))
+ if(test_not_in_list_or_table(dctx, "subsection"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_SUBSECTION, "subsection"))
+ if(test_starting_level_correctly(dctx, DLEVEL_SUBSECTION, "subsection"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_SUBSECTION))
@@ -570,10 +701,10 @@ int function_dinset(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dinset()\n");
 
- if(assert_not_in_list_or_table(dctx, "inset"))
+ if(test_not_in_list_or_table(dctx, "inset"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_INSET, "inset"))
+ if(test_starting_level_correctly(dctx, DLEVEL_INSET, "inset"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_INSET))
@@ -596,10 +727,10 @@ int function_dlisting(struct document_handling_context *dctx,
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dlisting()\n");
 
- if(assert_not_in_list_or_table(dctx, "listing"))
+ if(test_not_in_list_or_table(dctx, "listing"))
   return 1;
 
- if(assert_starting_level_correctly(dctx, DLEVEL_LISTING, "listing"))
+ if(test_starting_level_correctly(dctx, DLEVEL_LISTING, "listing"))
   return 1;
 
  if(enter_level(dctx, DLEVEL_LISTING))
@@ -868,6 +999,9 @@ int document_mode(struct bca_context *ctx)
    if(process_file(ctx, dctx, contents_array[i], length_array[i]))
     return 1;
   }
+  if(end_of_input_tests(dctx))
+   return 1;
+
   ctx->pass_number++;
  }
 
