@@ -429,10 +429,9 @@ char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *key);
 
 struct host_configuration *
-resolve_host_build_configuration(struct bca_context *ctx, struct component_details *cd);
-
-struct host_configuration *
-resolve_host_configuration(struct bca_context *ctx, struct component_details *cd);
+resolve_host_configuration(struct bca_context *ctx,
+                           char *host,
+                           char *component);
 
 int free_host_configuration(struct bca_context *ctx, struct host_configuration *tc);
 

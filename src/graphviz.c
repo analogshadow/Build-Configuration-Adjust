@@ -138,7 +138,7 @@ int graphviz_nodes(struct bca_context *ctx, FILE *output,
    cd->project_component_type = cd->project_component_types[y];
    cd->host = hosts[x];
 
-   if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+   if((tc = resolve_host_configuration(ctx, cd->host, cd->project_component)) == NULL)
     return 1;
 
    if(engage_build_configuration_disables_for_host(ctx, hosts[x]))
@@ -406,7 +406,7 @@ int graphviz_edges(struct bca_context *ctx, FILE *output,
  if(ctx->verbose > 1)
   fprintf(stderr, "BCA: graphviz_edges(host = %s)\n", cd->host);
 
- if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+ if((tc = resolve_host_configuration(ctx, cd->host, cd->project_component)) == NULL)
  {
   return 1;
  }

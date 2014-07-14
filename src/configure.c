@@ -1951,7 +1951,7 @@ int configure(struct bca_context *ctx)
      read_file("./buildconfiguration/buildconfiguration",
                &(ctx->build_configuration_length), 1)) != NULL)
  {
-  if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
+  if((tc = resolve_host_configuration(ctx, cd.host, cd.project_component)) == NULL)
   {
    fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
    return 1;
