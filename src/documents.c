@@ -23,8 +23,13 @@
 
 char *type_to_string(int type)
 {
+ char error[64];
+
  switch(type)
  {
+  case DLEVEL_NONE:
+       return "none/doc";
+
   case DLEVEL_PART:
        return "part";
 
@@ -62,7 +67,9 @@ char *type_to_string(int type)
        return "point";
 
  }
- return NULL;
+
+ snprintf(error, 64, "<failure, type_to_string(%d)>", type);
+ return strdup(error);
 }
 
 int type_string_to_id(char *string)
@@ -92,9 +99,11 @@ int type_string_to_id(char *string)
   return DSTACK_TYPE_LIST;
  } else if(strcmp(string, "point") == 0) {
   return DSTACK_TYPE_POINT;
+ } else if(strcmp(string, "doc") == 0) {
+  return DLEVEL_NONE;
  }
 
- return DLEVEL_NONE;
+ return -1;
 }
 
 int end_of_input_tests(struct document_handling_context *dctx)
@@ -105,7 +114,11 @@ int end_of_input_tests(struct document_handling_context *dctx)
  if(dctx->stack_depth == 0)
   return 0;
 
- fprintf(stderr, "BCA: reached end of input before expected closings for the following: ");
+ fprintf(stderr,
+         "BCA: reached end of input before expected closings for the following: (depth %d) ",
+         dctx->stack_depth);
+
+ i = dctx->stack_depth;
  while(i > 0)
  {
   frame = &(dctx->stack[i]);
@@ -114,6 +127,7 @@ int end_of_input_tests(struct document_handling_context *dctx)
           type_to_string(frame->type),
           dctx->ctx->input_files[frame->input_file_index],
           frame->line_number);
+
   i--;
  }
 
@@ -227,8 +241,8 @@ int test_starting_level_correctly(struct document_handling_context *dctx, int le
 
  fprintf(stderr,
          "BCA: %s, line %d: can not start %s, already inside a %s",
-         dctx->ctx->input_files[frame->input_file_index],
-         frame->line_number,
+         dctx->ctx->input_files[dctx->ctx->input_file_index],
+         dctx->ctx->line_number,
          type_to_string(level_value),
          type_to_string(dctx->current_level));
 
@@ -299,7 +313,8 @@ int push_close_function(struct document_handling_context *dctx,
  struct document_handling_context_stack_frame *frame;
 
  if(dctx->ctx->verbose > 2)
-  fprintf(stderr, "BCA: push_close_function()\n");
+  fprintf(stderr, "BCA: push_close_function(%d, , , %d, %d)\n",
+          frame_type, dctx->ctx->input_file_index, dctx->ctx->line_number);
 
  if(dctx->stack_depth > 63)
  {
@@ -316,6 +331,7 @@ int push_close_function(struct document_handling_context *dctx,
  frame->line_number = dctx->ctx->line_number;
 
  dctx->stack_depth++;
+
  return 0;
 }
 
@@ -815,7 +831,7 @@ char *handle_document_functions(struct bca_context *ctx, char *key)
  struct document_handling_context *dctx;
 
  if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: handle_document_functions()\n");
+  fprintf(stderr, "BCA: handle_document_functions(%s)\n", key);
 
  if((dctx = ctx->dctx) == NULL)
  {
@@ -865,14 +881,14 @@ char *handle_document_functions(struct bca_context *ctx, char *key)
  if(strncmp(parameters[0] + 1, "point", 5) == 0)
   code = function_dpoint(dctx, parameters, n_parameters);
 
- if(strncmp(parameters[0] + 1, "c", 1) == 0)
+ if(strncmp(key + 1, "c(", 2) == 0)
  {
   if(n_parameters != 2)
   {
    fprintf(stderr, "BCA: dc() needs a type\n");
    return NULL;
   }
-  if((type = type_string_to_id(parameters[1])) == DLEVEL_NONE)
+  if((type = type_string_to_id(parameters[1])) == -1)
   {
    fprintf(stderr, "BCA: %s, line %d: unknown type %s\n",
            current_file_name(dctx->ctx),
@@ -1037,6 +1053,13 @@ int document_mode(struct bca_context *ctx)
  memset(dctx, 0, allocation_size);
  dctx->ctx = ctx;
  ctx->dctx = dctx;
+
+ if(activate_document_engine_plaintext(dctx))
+ {
+  fprintf(stderr,
+          "BCA: document_mode(): activate_document_engine_plaintext() failed\n");
+  return 1;
+ }
 
  allocation_size = ctx->n_input_files * sizeof(int);
  if((length_array = (int *) malloc(allocation_size)) == NULL)

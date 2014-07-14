@@ -66,7 +66,6 @@ void help(void)
         " --file-to-C-source input-file\n"
         " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --inputfiles \"file list\"\n"
         " --document\n"
         " --generate-graphviz\n"
         " --output-configure\n"
