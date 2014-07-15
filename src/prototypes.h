@@ -525,5 +525,31 @@ extern const char __configure[];
 extern const int bca_sfd_c_length;
 extern const char bca_sfd_c[];
 
+/* utf8_word_engine.c ----------------------------- */
+#define UWC_WORD 1
+#define UWC_BROKEN_WORD 2
+
+struct unicode_word_context
+{
+ unsigned char character_buffer[7];
+ char word_buffer[256];
+ int buffer_size, buffer_length, n_characters;
+ int direction, character_buffer_length, expected_character_length;
+
+ void *data;
+ int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
+};
+
+struct unicode_word_context *
+unicode_word_engine_initialize(void *data,
+                               int (*consume_word) (struct unicode_word_context *uwc,
+                                                    void *data, int flags));
+
+int unicode_word_engine_finalize(struct unicode_word_context *uwc);
+
+int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte);
+
+int is_white_space(char *utf8_character);
+
 #endif
 

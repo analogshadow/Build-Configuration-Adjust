@@ -557,4 +557,3 @@ int free_string_array(char **array, int n_elements)
  return 0;
 }
 
-
