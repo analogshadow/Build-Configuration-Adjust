@@ -67,6 +67,7 @@
 #define LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE 87
 #define SELF_TEST_MODE 99
 #define VERSION_MODE 100
+#define DOCUMENT_MODE 200
 
 #define OUTPUT_CONFIGURE_MODE 110
 #define OUTPUT_BCASFD_MODE 111
@@ -101,7 +102,11 @@ struct bca_context
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  struct document_handling_context *dctx;
+ int loop_inputs, pass_number;
 #endif
+
+ char **input_files;
+ int n_input_files, line_number, input_file_index;
 };
 
 struct component_details
@@ -185,16 +190,113 @@ struct host_configuration
  char *install_locale_data_dir;
 };
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+/* documents.c ---------------------------------- */
+char * handle_document_functions(struct bca_context *ctx, char *key);
+
+int document_mode(struct bca_context *ctx);
+
+struct document_handling_context_stack_frame
+{
+ int (*close_function) (struct document_handling_context *, void *);
+ void *data;
+ int type, input_file_index, line_number;
+};
+
+#define DLEVEL_NONE    0
+#define DLEVEL_PART    1
+#define DLEVEL_CHAPTER 2
+#define DLEVEL_SECTION 3
+#define DLEVEL_SUB     4
+#define DLEVEL_INSET   5
+#define DLEVEL_LISTING 6
+
+#define DSTACK_TYPE_TAG   100
+#define DSTACK_TYPE_TABLE 101
+#define DSTACK_TYPE_TR    102
+#define DSTACK_TYPE_TC    103
+#define DSTACK_TYPE_LIST  104
+#define DSTACK_TYPE_POINT 105
+
+struct toc_element
+{
+ int type;
+ int count;
+ char *name;
+ char page[16];
+ struct toc_element *last, *next, *child, *parrent;
+};
+
+struct toc_element *new_toc_element(int type, char *name);
+
+char *type_to_string(int type);
+
+struct document_handling_context
+{
+ struct bca_context *ctx;
+ int dmode_depth;
+
+ int table_depth, list_depth;
+
+ int stack_depth;
+ struct document_handling_context_stack_frame stack[64];
+
+ int current_level;
+ int implied_levels_mask[7];
+
+ int tag_depth, tag_buffer_length;
+ char *tags[32];
+ char tag_buffer[1024];
+ char **tag_datas[32];
+
+ char output_buffer[1024];
+ int output_buffer_length;
+
+ void *render_engine_context;
+ int (*start_document) (struct document_handling_context *dctx);
+ int (*finish_document) (struct document_handling_context *dctx);
+ int (*consume_text) (struct document_handling_context *dctx, char *text, int length);
+ int (*open_point) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_point) (struct document_handling_context *dctx);
+ int (*open_list) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_list) (struct document_handling_context *dctx);
+ int (*open_listing) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_listing) (struct document_handling_context *dctx);
+ int (*open_inset) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_inset) (struct document_handling_context *dctx);
+ int (*open_subsection) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_subsection) (struct document_handling_context *dctx);
+ int (*open_section) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_section) (struct document_handling_context *dctx);
+ int (*open_chapter) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_chapter) (struct document_handling_context *dctx);
+ int (*open_part) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_part) (struct document_handling_context *dctx);
+ int (*open_table) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_table) (struct document_handling_context *dctx);
+ int (*open_tr) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tr) (struct document_handling_context *dctx);
+ int (*open_tc) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tc) (struct document_handling_context *dctx);
+ int (*open_tag) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tag) (struct document_handling_context *dctx);
+};
+
+/* plaintext.c */
+int activate_document_engine_plaintext(struct document_handling_context *dctx);
+#endif
+
 /* selftest.c ----------------------------------- */
 int self_test(struct bca_context *ctx);
 
 /* replace.c ------------------------------------ */
+char *resolve_string_replace_key(struct bca_context *ctx, char *key);
+
 int string_replace(struct bca_context *ctx);
 
 int parse_function_parameters(char *string, char ***array, int *array_length);
 
-/* documents.c ---------------------------------- */
-char * handle_document_functions(struct bca_context *ctx, char *key);
+char *current_file_name(struct bca_context *ctx);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
@@ -240,6 +342,10 @@ int free_string_array(char **array, int n_elements);  // selftested
 int path_extract(const char *full_path, char **base_file_name, char **extension);  // selftested
 
 char *read_file(char *name, int *length, int silent_test);  // selftested
+
+int mmap_file(char *name, void **p, int *length, int *fd);
+
+int umap_file(void *p, int length, int fd);
 
 int find_line(char *buffer, int buffer_length, int *start, int *end, int *line_length); // selftested
 
@@ -337,10 +443,9 @@ char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *key);
 
 struct host_configuration *
-resolve_host_build_configuration(struct bca_context *ctx, struct component_details *cd);
-
-struct host_configuration *
-resolve_host_configuration(struct bca_context *ctx, struct component_details *cd);
+resolve_host_configuration(struct bca_context *ctx,
+                           char *host,
+                           char *component);
 
 int free_host_configuration(struct bca_context *ctx, struct host_configuration *tc);
 
@@ -400,6 +505,9 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
 
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output);
 
+int count_host_component_target_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd);
+
 /* graphviz.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,
                    struct component_details *cd);
@@ -430,6 +538,32 @@ extern const char __configure[];
 
 extern const int bca_sfd_c_length;
 extern const char bca_sfd_c[];
+
+/* utf8_word_engine.c ----------------------------- */
+#define UWC_WORD 1
+#define UWC_BROKEN_WORD 2
+
+struct unicode_word_context
+{
+ unsigned char character_buffer[7];
+ char word_buffer[256];
+ int buffer_size, buffer_length, n_characters;
+ int direction, character_buffer_length, expected_character_length;
+
+ void *data;
+ int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
+};
+
+struct unicode_word_context *
+unicode_word_engine_initialize(void *data,
+                               int (*consume_word) (struct unicode_word_context *uwc,
+                                                    void *data, int flags));
+
+int unicode_word_engine_finalize(struct unicode_word_context *uwc);
+
+int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte);
+
+int is_white_space(char *utf8_character);
 
 #endif
 

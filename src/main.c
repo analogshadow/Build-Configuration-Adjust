@@ -64,7 +64,9 @@ void help(void)
         " --concatenate file list\n"
         " --replacestrings\n"
         " --file-to-C-source input-file\n"
+        " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+        " --document\n"
         " --generate-graphviz\n"
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
@@ -442,6 +444,17 @@ int main(int argc, char **argv)
   case SELF_TEST_MODE:
        return self_test(ctx);
        break;
+
+  case DOCUMENT_MODE:
+       if((code = document_mode(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: document_mode() finished\n");
+       } else {
+        fprintf(stderr, "BCA: document_mode() failed\n");
+       }
+       return code;
+       break;
 #endif
 
   case FILE_TO_C_SOURCE_MODE:
@@ -684,6 +697,18 @@ struct bca_context *setup(int argc, char **argv)
 #endif
   }
 
+  if(strcmp(argv[current_arg], "--document") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+   ctx->mode = DOCUMENT_MODE;
+#else
+   fprintf(stderr,
+           "BCA: document mode not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
+  }
+
   if(strcmp(argv[current_arg], "--output-configure") == 0)
   {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
@@ -828,7 +853,7 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
   }
 
-  if( (strcmp(argv[current_arg], "--type") == 0) || 
+  if( (strcmp(argv[current_arg], "--type") == 0) ||
       (strcmp(argv[current_arg], "-T") == 0) )
   {
    if(argc < current_arg + 1)
@@ -842,7 +867,7 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
   }
 
-  if( (strcmp(argv[current_arg], "--host") == 0) || 
+  if( (strcmp(argv[current_arg], "--host") == 0) ||
       (strcmp(argv[current_arg], "-H") == 0) )
   {
    if(argc < current_arg + 1)
@@ -861,8 +886,7 @@ struct bca_context *setup(int argc, char **argv)
    handled = 1;
   }
 
-
-  if( (strcmp(argv[current_arg], "--component") == 0) || 
+  if( (strcmp(argv[current_arg], "--component") == 0) ||
       (strcmp(argv[current_arg], "-C") == 0) )
   {
    if(argc < current_arg + 1)
@@ -1019,7 +1043,7 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
 
-   /* Build cofiguration adjust has at least two strings are involved in cross compilation. 
+   /* Build cofiguration adjust has at least two strings are involved in cross compilation.
       The "host identifier" in the sense of host.component.key in the buildconfiguration file.
       The "build prefix" where the build output goes. (not to be confused with install prefix)
 
@@ -1041,7 +1065,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts, 
+   if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts,
                           argv[current_arg] + 10, -1, 1))
    {
     return NULL;
@@ -1053,8 +1077,8 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if((ctx->project_configuration_contents = 
-       read_file("./buildconfiguration/projectconfiguration", 
+   if((ctx->project_configuration_contents =
+       read_file("./buildconfiguration/projectconfiguration",
                  &(ctx->project_configuration_length), 0)) == NULL)
    {
     fprintf(stderr, "BCA: can't open project configuration file\n");
@@ -1069,7 +1093,7 @@ struct bca_context *setup(int argc, char **argv)
    for(i=0; i<cd.n_components; i++)
    {
     if(add_to_string_array(&(ctx->disabled_components),
-                           ctx->n_disables, 
+                           ctx->n_disables,
                            cd.project_components[i], -1, 1))
     {
      return NULL;
@@ -1082,7 +1106,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
+   if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables,
                           argv[current_arg] + 10, -1, 1))
    {
     return NULL;
@@ -1094,7 +1118,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->enabled_components), ctx->n_enables, 
+   if(add_to_string_array(&(ctx->enabled_components), ctx->n_enables,
                           argv[current_arg] + 9, -1, 1))
    {
     return NULL;
@@ -1112,14 +1136,14 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
 
-   if(add_to_string_array(&(ctx->swapped_components), ctx->n_swaps, 
+   if(add_to_string_array(&(ctx->swapped_components), ctx->n_swaps,
                           argv[current_arg] + 7, -1, 1))
    {
     fprintf(stderr, "BCA: add_to_string_array() failed\n");
     return NULL;
    }
 
-   if(add_to_string_array(&(ctx->swapped_component_hosts), ctx->n_swaps, 
+   if(add_to_string_array(&(ctx->swapped_component_hosts), ctx->n_swaps,
                           argv[++current_arg], -1, 1))
    {
     fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -1173,9 +1197,28 @@ struct bca_context *setup(int argc, char **argv)
    }
   }
 
+  if(strcmp(argv[current_arg], "--inputfiles") == 0)
+  {
+   handled = 1;
+   if(argc < current_arg + 1)
+   {
+    fprintf(stderr, "BCA: --input files expects a list as a single parameter\n");
+    return NULL;
+   }
+   current_arg++;
+
+   if(split_strings(ctx, argv[current_arg], -1,
+                    &(ctx->n_input_files),
+                    &(ctx->input_files)))
+   {
+    fprintf(stderr, "BCA: split_strings(%s) failed\n", argv[current_arg]);
+    return NULL;
+   }
+  }
+
   if(handled == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: I don't know what to do with the parameter \"%s\".\n", argv[current_arg]);
    return NULL;
   }
@@ -1229,8 +1272,8 @@ int short_help_mode(struct bca_context *ctx)
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: short_test_mode()\n");
 
- if((ctx->project_configuration_contents = 
-     read_file("./buildconfiguration/projectconfiguration", 
+ if((ctx->project_configuration_contents =
+     read_file("./buildconfiguration/projectconfiguration",
                &(ctx->project_configuration_length), 0)) == NULL)
  {
   fprintf(stderr, "BCA: can't open project configuration file\n");

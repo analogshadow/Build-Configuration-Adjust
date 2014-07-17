@@ -1260,7 +1260,6 @@ int config_files_test(struct bca_context *real_ctx)
       **principle_modifications, **component_modifications, **key_modifications,
       **value_modifications, *in_file, *right_value;
  FILE *output;
- struct component_details cd;
 
  printf("suite: config_files\n");
 

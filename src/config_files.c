@@ -301,6 +301,7 @@ int modify_file(struct bca_context *ctx, char *filename,
  }
 
  fclose(output);
+ free(contents);
 
  return 0;
 }
@@ -1077,8 +1078,13 @@ char *resolve_build_host_variable(struct bca_context *ctx,
  return value;
 }
 
+/* Resolve a host configuration for a given host, and
+   component. Recall that idividual components can have
+   specific overides which is why we need the component. */
 struct host_configuration *
-resolve_host_configuration(struct bca_context *ctx, struct component_details *cd)
+resolve_host_configuration(struct bca_context *ctx,
+                           char *host,
+                           char *component)
 {
  int allocation_size, i;
  struct host_configuration *tc;
@@ -1159,9 +1165,8 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
 
  for(i=0; i<26; i++)
  {
-  *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host,
-                                                        cd->project_component,
-                                                        host_resolve_keys[i]);
+  *(host_resolve_vars[i]) =
+   resolve_build_host_variable(ctx, host, component, host_resolve_keys[i]);
  }
 
  if(ctx->verbose > 2)
@@ -1169,7 +1174,7 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   for(i=0; i<26; i++)
   {
    printf("BCA: %s.%s.%s resolves to %s\n",
-          cd->host, cd->project_component,  host_resolve_keys[i], *(host_resolve_vars[i]));
+          host, component,  host_resolve_keys[i], *(host_resolve_vars[i]));
   }
  }
 

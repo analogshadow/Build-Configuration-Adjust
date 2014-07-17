@@ -23,6 +23,13 @@
 #include "prototypes.h"
 #endif
 
+#ifdef HAVE_MMAP
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 int split_strings(struct bca_context *ctx, char *source, int length,
                   int *count, char ***strings)
 {
@@ -274,6 +281,94 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
  return 0;
 }
 
+int mmap_file(char *name, void **p_ptr, int *length_ptr, int *fd_ptr)
+{
+#ifdef HAVE_MMAP
+ int fd;
+ struct stat meta;
+ void *p;
+ size_t file_length;
+
+ if((fd = open(name, O_RDONLY)) < 0)
+ {
+  fprintf(stderr, "BCA: open(%s) failed, %s\n", name, strerror(errno));
+  return 1;
+ }
+
+ if(fstat(fd, &meta))
+ {
+  fprintf(stderr, "BCA: fstat() failed, %s\n", strerror(errno));
+  close(fd);
+  return 1;
+ }
+
+ if((file_length = meta.st_size) > (100 * 1024 * 1024))
+ {
+  fprintf(stderr,
+          "BCA: read_file(): %s is %llu bytes. Most likely something is wrong. "
+          "If you realy want to process a file greater than 100MB, please "
+          "edit %s line %d\n.",
+          name, (unsigned long long int) file_length, __FILE__, __LINE__);
+  close(fd);
+  return 1;
+ }
+
+ if(file_length == 0)
+ {
+  fprintf(stderr, "BCA: mmap_file(): %s is 0 bytes long.\n", name);
+  close(fd);
+  return 1;
+ }
+
+ if((p = mmap(NULL, file_length, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
+ {
+  fprintf(stderr,
+          "BCA: mmap(NULL, %d, PROT_READ, MAP_SHARED, %d, 0) failed, %s\n",
+          (int) file_length, fd, strerror(errno));
+  return 1;
+ }
+
+ *length_ptr = (int) file_length;
+ *fd_ptr = fd;
+ *p_ptr = p;
+ return 0;
+#else
+ char *c;
+ int length;
+ if((c = read_file(name, &length, 0)) == NULL)
+  return 1;
+
+ *p_ptr = c;
+ *length_ptr = length;
+ *fd_ptr = -1;
+ return 0;
+#endif
+}
+
+int umap_file(void *p, int length, int fd)
+{
+#ifdef HAVE_MMAP
+ if(munmap(p, length))
+ {
+  fprintf(stderr, "BCA: munmap() failed, %s\n", strerror(errno));
+  return 1;
+ }
+ close(fd);
+ return 0;
+#else
+ if(p == NULL)
+  return 1;
+
+ if(length < 1)
+  return 1;
+
+ if(fd != -1)
+  return 1;
+
+ free(p);
+ return 0;
+#endif
+}
 
 char *read_file(char *name, int *length, int silent_test)
 {
@@ -461,5 +556,4 @@ int free_string_array(char **array, int n_elements)
 
  return 0;
 }
-
 

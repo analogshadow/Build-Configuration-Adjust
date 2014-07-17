@@ -19,6 +19,14 @@
     along with this program.  If not, see http://www.gnu.org/licenses.
 */
 
+/* BCA coding style is to say "yes" to as many redundant sanity checks
+   as we want, as long as the could give some usefull error message.
+   In the case of rendering a makefile for instance, a 100x slowdown is
+   well worth an error message that might save hours of human time trying
+   to figure out what is wrong. Pretty much all of these that seem overkill
+   are there because it would have saved some pain for me at one point.
+*/
+
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "prototypes.h"
 #endif
@@ -161,13 +169,15 @@ int gmake_clean_rules(struct bca_context *ctx, FILE *output,
     i++;
    }
 
+   /* If a component is swapped, then for 1 or more build hosts, that component
+      is not built, and thus does not need to be cleaned. */
    if(swapped == 0)
    {
     cd->project_component = cd->project_components[y];
     cd->project_component_type = cd->project_component_types[y];
     cd->host = hosts[x];
 
-    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+    if((tc = resolve_host_configuration(ctx, cd->host, cd->project_component)) == NULL)
     {
      fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
      return 1;
@@ -262,7 +272,7 @@ int gmake_help(struct bca_context *ctx, FILE *output,
 int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
                                    char **hosts, int n_hosts)
 {
- int x, y, z, n_names, yes, i, swapped;
+ int x, y, z, n_names, i, swapped;
  char **names;
  struct component_details cd_s, *cd = &cd_s;
 
@@ -296,11 +306,6 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
 
   for(y=0; y < cd->n_components; y++)
   {
-   yes = 1;
-
-   if(strcmp(cd->project_component_types[y], "PYTHONMODULE") == 0)
-    yes = 0;
-
    swapped = 0;
    i = 0;
    while(i<ctx->n_swaps)
@@ -313,35 +318,33 @@ int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
     i++;
    }
 
-   if(yes)
+   if(swapped == 0)
    {
-    if(swapped == 0)
+    if((n_names =
+        render_project_component_output_name(ctx, hosts[x],
+                                             cd->project_components[y],
+                                             2, &names, NULL)) < 1)
     {
-     if((n_names =
-         render_project_component_output_name(ctx, hosts[x],
-                                              cd->project_components[y],
-                                              2, &names, NULL)) < 1)
-     {
-      fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
-      return 1;
-     }
-    } else {
-     if((n_names =
-         render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
-                                              cd->project_components[y],
-                                              2, &names, NULL)) < 1)
-     {
-      fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
-      return 1;
-     }
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     return 1;
     }
-
-    for(z=0; z<n_names; z++)
+   } else {
+    if((n_names =
+        render_project_component_output_name(ctx, ctx->swapped_component_hosts[i],
+                                             cd->project_components[y],
+                                             2, &names, NULL)) < 1)
     {
-     fprintf(output, "%s ", names[z]);
+     fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
+     return 1;
     }
-    free_string_array(names, n_names);
    }
+
+   for(z=0; z<n_names; z++)
+   {
+    fprintf(output, "%s ", names[z]);
+   }
+   free_string_array(names, n_names);
+
   }
 
   fprintf(output, "\n");
@@ -386,29 +389,729 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
-/* .INPUT is a list of other components from which to dynamically translate
-   the output file name of into elements on the .FILES list.
-
-   Note that there is no inheritance for thigs like: dependencies, .FILE_DEPS,
-   and .INCLUDE_DIRS. Those must and can be added to the component(s)
-   using other components as an input.
-
-   The primary use case is for MACROEXPAND, CAT, and CUSTOM component types
-   to create source files for other types. See the test examples.enerateddeps
-   for an example.
-
-   Chaining of multiple layers can also be done. ie a conCATenation of MACROEXPANDS.
-   (that needs a test).
-
-   The other allowed use is a CUSTOM component may have a BINARY compoent as
-   an INPUT. The idea is the the .DRIVER script would make use of said BINARY.
- */
-int derive_file_dependencies_from_inputs(struct bca_context *ctx,
-                                         struct host_configuration *tc,
-                                         struct component_details *cd)
+int project_component_index(struct component_details *cd,
+                            char *component_name)
 {
- int i, x, y, handled, valid_input, process_file_name, add_temp_to_files, n_output_names;
- char temp[1024], *base_file_name, *extension, **output_names;
+ int x = 0;
+ while(x < cd->n_components)
+ {
+  if(strcmp(cd->project_components[x], component_name) == 0)
+  {
+   return x;
+  }
+  x++;
+ }
+
+ return -1;
+}
+
+/* Has the same effect as if element had been in a component's .FILE list
+   from the begining.
+ */
+int add_to_FILES(struct bca_context *ctx, struct component_details *cd,
+                 char *file_name, char *base_file_name, char *extension)
+{
+
+ if(add_to_string_array(&(cd->file_names), cd->n_file_names,
+                        file_name, -1, 0))
+ {
+  fprintf(stderr, "BCA: add_to_FILES(): add_to_string_array() failed\n");
+  return 1;
+ }
+
+ if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
+                        base_file_name, -1, 0))
+ {
+  fprintf(stderr, "BCA: add_to_FILES(): add_to_string_array() failed\n");
+  return 1;
+ }
+
+ if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
+                        extension, -1, 0))
+ {
+  fprintf(stderr, "BCA: add_to_FILES(): add_to_string_array() failed\n");
+  return 1;
+ }
+
+ cd->n_file_names++;
+ return 0;
+}
+
+int input_deps_for_native(struct bca_context *ctx,
+                          struct host_configuration *tc,
+                          struct component_details *cd)
+{
+ int i, j, ci, valid_input_component_type, add_to_lib_headers,
+     add_to_files, add_to_file_deps, add_to_include_dirs;
+ char temp[1024], *base_file_name, *extension;
+ struct host_configuration *effective_tc;
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  if((ci = project_component_index(cd, cd->inputs[i])) == -1)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_native(): "
+           "component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  valid_input_component_type = 0;
+
+  if(strcmp(cd->project_component_types[ci], "CUSTOM") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "CAT") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "MACROEXPAND") == 0)
+   valid_input_component_type = 1;
+
+  if(valid_input_component_type == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_native(): "
+           "I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  /* Next we need to get the file name this input will create. This
+     must take swaps in to consideration. */
+  effective_tc = tc;
+  j = 0;
+  while(j <ctx->n_swaps)
+  {
+   if(strcmp(cd->inputs[i], ctx->swapped_components[j]) == 0)
+   {
+    if((effective_tc = resolve_host_configuration(ctx,
+                                                  ctx->swapped_component_hosts[j],
+                                                  cd->inputs[i])) == NULL)
+    {
+     fprintf(stderr,
+             "BCA: input_deps_for_native(): resolve_host_configuration(%s, %s) failed.\n",
+             ctx->swapped_component_hosts[j], cd->inputs[i]);
+     return 1;
+    }
+    break;
+   }
+   j++;
+  }
+
+  /* note that we can get away with not calling render_project_component_output_name()
+     here because the component type is CUSTOM/CAT/MACROEXPAND */
+  snprintf(temp, 1024, "%s/%s",
+           effective_tc->build_prefix, cd->project_output_names[ci]);
+
+  if(path_extract(temp, &base_file_name, &extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_native(): path_extract(%s) failed\n", temp);
+   return 1;
+  }
+
+  /* There is a at least one problem with the logic below. In general, if we have
+     .h or .hpp source files used in a component we reflect that with .FILE_DEPENDS
+     and INCLUDE_DIRS (if needed). If that component is a library, then there is the
+     option to instead put the header in .LIB_HEADERS, so to reflect that consumers
+     of the library need access to it. Now, if the header file is a .INPUT that we
+     generate via CAT/CUSTOM/MACROEXPAND, then there is no way to differentiate
+     between the two choices for libraries. Considering that a macro epxanded header
+     for a library could be a config.h that needs to be available to perhapes not
+     library consumers, but API files used by library consumers, we will just
+     default to .LIB_HEADERS for libraries. */
+
+  add_to_files = 0;
+  add_to_file_deps = 0;
+  add_to_include_dirs = 0;
+  add_to_lib_headers = 0;
+
+  if( (strcmp(cd->project_component_type, "STATICLIBRARY") == 0) ||
+      (strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0) )
+  {
+
+   if(strcmp(extension, "h") == 0)
+    add_to_lib_headers = 1;
+
+   if(strcmp(extension, "hpp") == 0)
+    add_to_lib_headers = 1;
+
+  } else {
+
+   if(strcmp(extension, "h") == 0)
+   {
+    add_to_file_deps = 1;
+    add_to_include_dirs = 1;
+   }
+
+   if(strcmp(extension, "hpp") == 0)
+   {
+    add_to_file_deps = 1;
+    add_to_include_dirs = 1;
+   }
+
+  }
+
+  if(strcmp(extension, "c") == 0)
+   add_to_files = 1;
+
+  if(strcmp(extension, "cpp") == 0)
+   add_to_files = 1;
+
+  if(add_to_files + add_to_file_deps + add_to_include_dirs + add_to_lib_headers == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_native(): "
+           "I don't know what to do with .INPUT component %s of type %s "
+           "for component %s of type %s on host %s, that is yielding an "
+           "output file with the extension '%s'.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type,
+           cd->host, extension);
+   return 1;
+  }
+
+  if(add_to_files == 1)
+  {
+   if(add_to_FILES(ctx, cd, temp, base_file_name, extension))
+   {
+    fprintf(stderr, "BCA: input_deps_for_native(): add_to_FILES() failed\n");
+    return 1;
+   }
+  }
+
+  if(add_to_file_deps == 1)
+  {
+   if(add_to_string_array(&(cd->file_deps), cd->n_file_deps,
+                          temp, -1, 0))
+   {
+    fprintf(stderr, "BCA: input_deps_for_native(): add_to_string_array() failed\n");
+    return 1;
+   }
+
+   cd->n_file_deps++;
+  }
+
+  if(add_to_include_dirs == 1)
+  {
+   j = strlen(temp);
+   while(j > 0)
+   {
+    if(temp[j] == '/')
+     break;
+    temp[j--] = 0;
+   }
+
+   if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, temp, -1, 0))
+   {
+    fprintf(stderr, "BCA: input_deps_for_native(): add_to_string_array() failed\n");
+    return 1;
+   }
+
+   cd->n_include_dirs++;
+  }
+
+  if(add_to_lib_headers == 1)
+  {
+   if(add_to_string_array(&(cd->lib_headers), cd->n_lib_headers, temp, -1, 0))
+   {
+    fprintf(stderr, "BCA: input_deps_for_native(): add_to_string_array() failed\n");
+    return 1;
+   }
+
+   cd->n_lib_headers++;
+  }
+
+  if(effective_tc != tc)
+   free_host_configuration(ctx, effective_tc);
+
+  free(base_file_name);
+  free(extension);
+ }
+
+ return 0;
+}
+
+int input_deps_for_text(struct bca_context *ctx,
+                        struct host_configuration *tc,
+                        struct component_details *cd)
+{
+ int i, j, ci, valid_input_component_type;
+ char temp[1024], *base_file_name, *extension;
+ struct host_configuration *effective_tc;
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  if((ci = project_component_index(cd, cd->inputs[i])) == -1)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_text(): "
+           "component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  valid_input_component_type = 0;
+
+  if(strcmp(cd->project_component_types[ci], "CUSTOM") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "CAT") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "MACROEXPAND") == 0)
+   valid_input_component_type = 1;
+
+  if(valid_input_component_type == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_text(): "
+           "I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  /* Next we need to get the file name this input will create. This
+     must take swaps in to consideration. */
+  effective_tc = tc;
+  j = 0;
+  while(j <ctx->n_swaps)
+  {
+   if(strcmp(cd->inputs[i], ctx->swapped_components[j]) == 0)
+   {
+    if((effective_tc = resolve_host_configuration(ctx,
+                                                  ctx->swapped_component_hosts[j],
+                                                  cd->inputs[i])) == NULL)
+    {
+     fprintf(stderr,
+             "BCA: input_deps_for_text(): resolve_host_configuration(%s, %s) failed.\n",
+             ctx->swapped_component_hosts[j], cd->inputs[i]);
+     return 1;
+    }
+    break;
+   }
+   j++;
+  }
+
+  /* note that we can get away with not calling render_project_component_output_name()
+     here because the component type is CUSTOM/CAT/MACROEXPAND */
+  snprintf(temp, 1024, "%s/%s",
+           effective_tc->build_prefix, cd->project_output_names[ci]);
+
+  if(path_extract(temp, &base_file_name, &extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_text(): path_extract(%s) failed\n", temp);
+   return 1;
+  }
+
+  /* Now add the file that will be created by this INPUT the the FILES list. */
+  if(add_to_FILES(ctx, cd, temp, base_file_name, extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_text(): add_to_FILES() failed\n");
+   return 1;
+  }
+
+  if(effective_tc != tc)
+   free_host_configuration(ctx, effective_tc);
+
+  free(base_file_name);
+  free(extension);
+ }
+
+ return 0;
+}
+
+int input_deps_for_custom(struct bca_context *ctx,
+                          struct host_configuration *tc,
+                          struct component_details *cd)
+{
+ int i, j, ci, valid_input_component_type;
+ char temp[1024], *base_file_name, *extension;
+ struct host_configuration *effective_tc;
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  if((ci = project_component_index(cd, cd->inputs[i])) == -1)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_custom(): "
+           "component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  valid_input_component_type = 0;
+
+  if(strcmp(cd->project_component_types[ci], "CUSTOM") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "CAT") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "MACROEXPAND") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "BINARY") == 0)
+   valid_input_component_type = 1;
+
+  if(valid_input_component_type == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_custom(): "
+           "I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  /* Next we need to get the file name this input will create. This
+     must take swaps in to consideration. */
+  effective_tc = tc;
+  j = 0;
+  while(j <ctx->n_swaps)
+  {
+   if(strcmp(cd->inputs[i], ctx->swapped_components[j]) == 0)
+   {
+    if((effective_tc = resolve_host_configuration(ctx,
+                                                  ctx->swapped_component_hosts[j],
+                                                  cd->inputs[i])) == NULL)
+    {
+     fprintf(stderr,
+             "BCA: input_deps_for_custom(): resolve_host_configuration(%s, %s) failed.\n",
+             ctx->swapped_component_hosts[j], cd->inputs[i]);
+     return 1;
+    }
+    break;
+   }
+   j++;
+  }
+
+  /* note that we can get away with not calling render_project_component_output_name()
+     here because the component type is CUSTOM/CAT/MACROEXPAND */
+  snprintf(temp, 1024, "%s/%s",
+           effective_tc->build_prefix, cd->project_output_names[ci]);
+
+  if(path_extract(temp, &base_file_name, &extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_custom(): path_extract(%s) failed\n", temp);
+   return 1;
+  }
+
+  /* Now add the file that will be created by this INPUT the the FILES list. */
+  if(add_to_FILES(ctx, cd, temp, base_file_name, extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_custom(): add_to_FILES() failed\n");
+   return 1;
+  }
+
+  if(effective_tc != tc)
+   free_host_configuration(ctx, effective_tc);
+
+  free(base_file_name);
+  free(extension);
+ }
+
+ return 0;
+}
+
+
+int input_deps_for_python_module(struct bca_context *ctx,
+                                 struct host_configuration *tc,
+                                 struct component_details *cd)
+{
+ int i, j, ci, valid_input_component_type, add_to_files;
+ char temp[1024], *base_file_name, *extension;
+ struct host_configuration *effective_tc;
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  if((ci = project_component_index(cd, cd->inputs[i])) == -1)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_python_module(): "
+           "component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  valid_input_component_type = 0;
+
+  if(strcmp(cd->project_component_types[ci], "CUSTOM") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "CAT") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "MACROEXPAND") == 0)
+   valid_input_component_type = 1;
+
+  if(valid_input_component_type == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_python_module(): "
+           "I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  /* Next we need to get the file name this input will create. This must
+     take swaps in to consideration. */
+  effective_tc = tc;
+  j = 0;
+  while(j <ctx->n_swaps)
+  {
+   if(strcmp(cd->inputs[i], ctx->swapped_components[j]) == 0)
+   {
+    if((effective_tc = resolve_host_configuration(ctx,
+                                                  ctx->swapped_component_hosts[j],
+                                                  cd->inputs[i])) == NULL)
+    {
+     fprintf(stderr,
+             "BCA: input_deps_for_python_module(): "
+             "resolve_host_configuration(%s, %s) failed.\n",
+             ctx->swapped_component_hosts[j], cd->inputs[i]);
+     return 1;
+    }
+    break;
+   }
+   j++;
+  }
+
+  /* note that we can get away with not calling render_project_component_output_name()
+     here because the component type is CUSTOM/CAT/MACROEXPAND */
+  snprintf(temp, 1024, "%s/%s",
+           effective_tc->build_prefix, cd->project_output_names[ci]);
+
+  if(path_extract(temp, &base_file_name, &extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_python_module(): path_extract(%s) failed\n", temp);
+   return 1;
+  }
+
+  add_to_files = 0;
+
+  if(strcmp(extension, "py") == 0)
+   add_to_files = 1;
+
+  /* At one point there was a notion of building a python module with native code. This
+     would be the same thing as a shared library with the understanding that it should
+     link to libpython*. The way to do this now is simply that. ie Create a shared libaray
+     and add libpython in the .EXT_DEPENDS key. */
+  if(add_to_files == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_python_module(): "
+           "I don't know what to do with .INPUT component %s of type %s "
+           "for component %s of type %s on host %s, that is yielding an "
+           "output file with the extension '%s'.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type,
+           cd->host, extension);
+   return 1;
+  }
+
+  if(add_to_files == 1)
+  {
+   if(add_to_FILES(ctx, cd, temp, base_file_name, extension))
+   {
+    fprintf(stderr, "BCA: input_deps_for_python_module(): add_to_FILES() failed\n");
+    return 1;
+   }
+  }
+
+  if(effective_tc != tc)
+   free_host_configuration(ctx, effective_tc);
+
+  free(base_file_name);
+  free(extension);
+ }
+
+ return 0;
+}
+
+int input_deps_for_beam(struct bca_context *ctx,
+                        struct host_configuration *tc,
+                        struct component_details *cd)
+{
+ int i, j, ci, valid_input_component_type, add_to_files,
+     add_to_file_deps, add_to_include_dirs;
+ char temp[1024], *base_file_name, *extension;
+ struct host_configuration *effective_tc;
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  if((ci = project_component_index(cd, cd->inputs[i])) == -1)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_beam(): "
+           "component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  valid_input_component_type = 0;
+
+  if(strcmp(cd->project_component_types[ci], "CUSTOM") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "CAT") == 0)
+   valid_input_component_type = 1;
+
+  if(strcmp(cd->project_component_types[ci], "MACROEXPAND") == 0)
+   valid_input_component_type = 1;
+
+  if(valid_input_component_type == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_beam(): "
+           "I don't know what to do with input component %s of type %s "
+           "for component %s of type %s on host %s.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type, cd->host);
+   return 1;
+  }
+
+  /* Next we need to get the file name this input will create. This
+     must take swaps in to consideration. */
+  effective_tc = tc;
+  j = 0;
+  while(j <ctx->n_swaps)
+  {
+   if(strcmp(cd->inputs[i], ctx->swapped_components[j]) == 0)
+   {
+    if((effective_tc = resolve_host_configuration(ctx,
+                                                  ctx->swapped_component_hosts[j],
+                                                  cd->inputs[i])) == NULL)
+    {
+     fprintf(stderr,
+             "BCA: input_deps_for_beam(): resolve_host_configuration(%s, %s) failed.\n",
+             ctx->swapped_component_hosts[j], cd->inputs[i]);
+     return 1;
+    }
+    break;
+   }
+   j++;
+  }
+
+  /* note that we can get away with not calling render_project_component_output_name()
+     here because the component type is CUSTOM/CAT/MACROEXPAND */
+  snprintf(temp, 1024, "%s/%s",
+           effective_tc->build_prefix, cd->project_output_names[ci]);
+
+  if(path_extract(temp, &base_file_name, &extension))
+  {
+   fprintf(stderr, "BCA: input_deps_for_native(): path_extract(%s) failed\n", temp);
+   return 1;
+  }
+
+  add_to_files = 0;
+  add_to_file_deps = 0;
+  add_to_include_dirs = 0;
+
+  if(strcmp(extension, "hrl") == 0)
+  {
+   add_to_file_deps = 1;
+   add_to_include_dirs = 1;
+  }
+
+  if(strcmp(extension, "erl") == 0)
+   add_to_files = 1;
+
+  if(add_to_files + add_to_file_deps + add_to_include_dirs == 0)
+  {
+   fprintf(stderr,
+           "BCA: input_deps_for_beam(): "
+           "I don't know what to do with .INPUT component %s of type %s "
+           "for component %s of type %s on host %s, that is yielding an "
+           "output file with the extension '%s'.\n",
+           cd->inputs[i], cd->project_component_types[ci],
+           cd->project_component, cd->project_component_type,
+           cd->host, extension);
+   return 1;
+  }
+
+  if(add_to_files == 1)
+  {
+   if(add_to_FILES(ctx, cd, temp, base_file_name, extension))
+   {
+    fprintf(stderr, "BCA: input_deps_for_beam(): add_to_FILES() failed\n");
+    return 1;
+   }
+  }
+
+  if(add_to_file_deps == 1)
+  {
+   if(add_to_string_array(&(cd->file_deps), cd->n_file_deps,
+                          temp, -1, 0))
+   {
+    fprintf(stderr, "BCA: input_deps_for_beam(): add_to_string_array() failed\n");
+    return 1;
+   }
+
+   cd->n_file_deps++;
+  }
+
+  if(add_to_include_dirs == 1)
+  {
+   j = strlen(temp);
+   while(j > 0)
+   {
+    if(temp[j] == '/')
+     break;
+    temp[j--] = 0;
+   }
+
+   if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, temp, -1, 0))
+   {
+    fprintf(stderr, "BCA: input_deps_for_beam(): add_to_string_array() failed\n");
+    return 1;
+   }
+
+   cd->n_include_dirs++;
+  }
+
+  if(effective_tc != tc)
+   free_host_configuration(ctx, effective_tc);
+
+  free(base_file_name);
+  free(extension);
+ }
+
+ return 0;
+}
+
+/* The .INPUT list for a component contains other components which will
+   get built by their own logic. However, both the build order, and the
+   rebuild logic need to be passed on to make. Here we take a look at
+   each .INPUT component, find out if any make target level dependencies
+   are needed, and if so manipulate .FILES and/or .INCLUDE_DIRS.
+ */
+int derive_make_target_dependencies_from_inputs(struct bca_context *ctx,
+                                                struct host_configuration *tc,
+                                                struct component_details *cd)
+{
+ if(cd->n_file_names == 0)
+ {
+  cd->file_names = NULL;
+  cd->file_base_names = NULL;
+  cd->file_extensions = NULL;
+ }
+
+ if(strcmp(cd->project_component_type, "NONE") == 0)
+ {
+  fprintf(stderr,
+          "BCA: derive_make_target_dependencies_from_inputs(): "
+          "I should not be handling a component of type %s.\n",
+          cd->project_component_type);
+  return 1;
+ }
 
  if(cd->n_file_names == 0)
  {
@@ -417,250 +1120,36 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   cd->file_extensions = NULL;
  }
 
- for(i=0; i < cd->n_inputs; i++)
- {
-  valid_input = 0;
+ if(strcmp(cd->project_component_type, "CAT") == 0)
+  return input_deps_for_text(ctx, tc, cd);
 
-  /* what kind of component is this input? */
-  handled = 0;
-  x = 0;
-  while(x < cd->n_components)
-  {
-   if(strcmp(cd->inputs[i], cd->project_components[x]) == 0)
-   {
-    handled = 1;
-    break;
-   }
-   x++;
-  }
+ if(strcmp(cd->project_component_type, "MACROEXPAND") == 0)
+  return input_deps_for_text(ctx, tc, cd);
 
-  if(handled == 0)
-  {
-   /* this should have been discovered by now, but check again */
-   fprintf(stderr,
-           "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
-           cd->project_component, cd->host, cd->inputs[i]);
-   return 1;
-  }
+ if(strcmp(cd->project_component_type, "CUSTOM") == 0)
+  return input_deps_for_custom(ctx, tc, cd);
 
-  valid_input = 0;
-  process_file_name = 0;
+ if(strcmp(cd->project_component_type, "BINARY") == 0)
+  return input_deps_for_native(ctx, tc, cd);
 
-  if(strcmp(cd->project_component_types[x], "CUSTOM") == 0)
-  {
-   valid_input = 1;
-   process_file_name = 1;
-  }
+ if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
+  return input_deps_for_native(ctx, tc, cd);
 
-  if(strcmp(cd->project_component_types[x], "CAT") == 0)
-  {
-   valid_input = 1;
-   process_file_name = 1;
-  }
+ if(strcmp(cd->project_component_type, "STATICLIBRARY") == 0)
+  return input_deps_for_native(ctx, tc, cd);
 
-  if(strcmp(cd->project_component_types[x], "MACROEXPAND") == 0)
-  {
-   valid_input = 1;
-   process_file_name = 1;
-  }
+ if(strcmp(cd->project_component_type, "PYTHONMODULE") == 0)
+  return input_deps_for_python_module(ctx, tc, cd);
 
-  if(strcmp(cd->project_component_type, "CUSTOM") == 0)
-  {
-   if(strcmp(cd->project_component_types[x], "BINARY") == 0)
-   {
-    valid_input = 1;
+ if(strcmp(cd->project_component_type, "BEAM") == 0)
+  return input_deps_for_beam(ctx, tc, cd);
 
-    n_output_names = render_project_component_output_name(ctx,
-                                                          cd->host,
-                                                          cd->project_components[x], 2,
-                                                          &output_names, NULL);
-    if(n_output_names < 0)
-    {
-     fprintf(stderr, "BCA: render_project_component_output_name() failed\n");
-     return 1;
-    }
+ fprintf(stderr,
+         "BCA: derive_make_target_dependencies_from_inputs(): "
+         "I don't know what to do with a component of type %s.\n",
+         cd->project_component_type);
 
-    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
-                           output_names[0], -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(path_extract(output_names[0], &base_file_name, &extension))
-    {
-     fprintf(stderr, "BCA: path_extract(%s) failed\n", temp);
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
-                           base_file_name, 0, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
-                           extension, 0, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    cd->n_file_names++;
-
-    free(base_file_name);
-    free(extension);
-   }
-  }
-
-  if(valid_input == 0)
-  {
-   fprintf(stderr,
-           "BCA: I don't know what to do with input component %s of type %s "
-           "for component %s of type %s on host %s.\n",
-           cd->inputs[i], cd->project_component_types[x],
-           cd->project_component, cd->project_component_type, cd->host);
-   return 1;
-  }
-
-  if(process_file_name)
-  {
-   handled = 0;
-   add_temp_to_files = 0;
-
-   snprintf(temp, 1024, "%s/%s",
-            tc->build_prefix, cd->project_output_names[x]);
-
-   if(path_extract(temp, &base_file_name, &extension))
-   {
-    fprintf(stderr, "BCA: path_extract(%s) failed\n", temp);
-    return 1;
-   }
-
-   /* this needs to be updated everytime new file types are added, this really
-      should be an array that is shared everywhere.
-      We could skip this check since later when the component target rules get
-      generated, a file type with an unknown corse of action will be reported,
-      but we wont know that it was from an .INPUT and we wont get to deal with
-      header files specially here.
-   */
-   if(strcmp(extension, "c") == 0)
-   {
-    handled = 1;
-    add_temp_to_files = 1;
-   }
-
-   if(strcmp(extension, "cpp") == 0)
-   {
-    handled = 1;
-    add_temp_to_files = 1;
-   }
-
-   /*  If the input is a header file, then add it to the .FILE_DEPS since
-       it that there is some code path for creating the correct makefile dependency.
-       We need to also add the directory to the list of include paths.
-    */
-   if(strcmp(extension, "h") == 0)
-   {
-    if(add_to_string_array(&(cd->file_deps), cd->n_file_deps,
-                           temp, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    cd->n_file_deps++;
-
-    y = strlen(temp);
-    while(y > 0)
-    {
-     if(temp[y] == '/')
-      break;
-
-     temp[y--] = 0;
-    }
-
-    if(add_to_string_array(&(cd->include_dirs), cd->n_include_dirs, temp, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    cd->n_include_dirs++;
-    handled = 1;
-   }
-
-   /* the text processing types can of course work with any file extension */
-   if((handled == 0) &&
-      (strcmp(cd->project_component_type, "CAT") == 0) )
-   {
-    handled = 1;
-    add_temp_to_files = 1;
-   }
-
-   if((handled == 0) &&
-      (strcmp(cd->project_component_type, "MACROEXPAND") == 0) )
-   {
-    handled = 1;
-    add_temp_to_files = 1;
-   }
-
-   /* along the same lines CUSTOM types could be doing anything */
-   if((handled == 0) &&
-      (strcmp(cd->project_component_type, "CUSTOM") == 0) )
-   {
-    handled = 1;
-    add_temp_to_files = 1;
-   }
-
-   if(add_temp_to_files)
-   {
-    /* Do the actual adding of the ouptut name to .FILES. At this point,
-       base names and extensions have already been expanded for the other
-       .FILES, so these need to be added here. */
-    if(add_to_string_array(&(cd->file_names), cd->n_file_names,
-                           temp, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_base_names), cd->n_file_names,
-                           base_file_name, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    if(add_to_string_array(&(cd->file_extensions), cd->n_file_names,
-                           extension, -1, 0))
-    {
-     fprintf(stderr, "BCA: add_to_string_array() failed\n");
-     return 1;
-    }
-
-    cd->n_file_names++;
-   }
-
-   if(handled == 0)
-   {
-    fprintf(stderr,
-            "BCA: I don't know what to do with input component %s of type %s "
-           "for component %s of type %s on host %s, that is yielding an "
-           "output file with the extension '%s'.\n",
-           cd->inputs[i], cd->project_component_types[x],
-           cd->project_component, cd->project_component_type,
-           cd->host, extension);
-    return 1;
-   }
-
-   free(base_file_name);
-   free(extension);
-  }
- }
-
- return 0;
+ return 1;
 }
 
 int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
@@ -696,6 +1185,8 @@ int generate_gmake_host_component_erlangbeam(struct bca_context *ctx,
                                              char *output_file_name,
                                              FILE *output)
 {
+ int y;
+
  if(cd->n_file_names != 1)
  {
   fprintf(stderr,
@@ -713,11 +1204,36 @@ int generate_gmake_host_component_erlangbeam(struct bca_context *ctx,
 
  fprintf(output, "%s\n", cd->file_names[0]);
 
-
  fprintf(output, "\t%s ", tc->erlc);
 
  if(tc->erlc_flags != NULL)
   fprintf(output, "%s ", tc->erlc_flags);
+
+ /* handle dependencies (right now just extrnal supported) */
+ if(cd->n_dependencies > 0)
+ {
+  fprintf(output, "`");
+
+  if(component_pkg_config_path(ctx, cd, tc, output))
+   return 1;
+
+  if(tc->pkg_config_libdir != NULL)
+   fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
+
+  fprintf(output, "%s --cflags ", tc->pkg_config);
+
+  for(y=0; y < cd->n_dependencies; y++)
+  {
+   fprintf(output, "%s ", cd->dependencies[y]);
+  }
+
+  fprintf(output, "` ");
+ }
+
+ for(y=0; y< cd->n_include_dirs; y++)
+ {
+  fprintf(output, "%s %s ", tc->cc_include_dir_flag, cd->include_dirs[y]);
+ }
 
  fprintf(output, "%s %s %s\n\n",
          tc->erlc_output_dir_flag, tc->build_prefix, cd->file_names[0]);
@@ -892,15 +1408,19 @@ int count_host_component_target_dependencies(struct bca_context *ctx,
  return count;
 }
 
+/* Generate the make file target for a given component on a given build
+   host configuration. */
 int generate_host_component_target_dependencies(struct bca_context *ctx,
                                                 struct component_details *cd,
                                                 char *output_file_name,
                                                 FILE *output)
 {
- int i, x, y, n_names, swapped;
+ int i, x, y, n_names, swapped, handled;
  char **names = NULL;
 
- /* any component type may have a FILE_DEPENDS key */
+ /* Any component type may have a .FILE_DEPENDS key. These are different
+    from .FILES as these are are simply extra source files that should
+    cause a component rebuild if changed. */
  fprintf(output, "# dependencies and build rules for %s-%s\n",
          cd->host, cd->project_component);
 
@@ -911,16 +1431,37 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
   fprintf(output, "%s ", cd->file_deps[i]);
  }
 
- for(i=0; i < cd->n_lib_headers; i++)
+ /* .LIB_HEADERS are almost the same as .FILE_DEPENDS, except they
+    have the additional meaning that for library components, those
+    files need to be made availble to consumers of the library
+    (i.e. in install time). */
+ if(cd->n_lib_headers > 0)
  {
-  fprintf(output, "%s ", cd->lib_headers[i]);
+  handled = 0;
+  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
+   handled = 1;
+
+  if(strcmp(cd->project_component_type, "STATICLIBRARY") == 0)
+   handled = 1;
+
+  if(handled == 0)
+  {
+   fprintf(stderr, "BCA: generate_host_component_target_dependencies(): "
+           "component type %s should not have .LIB_HEADERS.\n",
+           cd->project_component_type);
+   return 1;
+  }
+
+  for(i=0; i < cd->n_lib_headers; i++)
+  {
+   fprintf(output, "%s ", cd->lib_headers[i]);
+  }
  }
 
- /* look through the list of build configuration dependecies, and for the ones that are
-    from the internal deps list from the project configurtation, add the .pc
-    file as file dependency.
+ /* Look through the list of build configuration dependencies, and for the
+    ones that are from the internal deps list from the project configurtation,
+    add the .pc file as file dependency.
  */
-
  for(y=0; y < cd->n_dependencies; y++)
  {
   x = 0;
@@ -940,11 +1481,20 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
      i++;
     }
 
-    if(strcmp(cd->project_component_types[x], "SHAREDLIBRARY"))
+    handled = 0;
+
+    if(strcmp(cd->project_component_types[x], "SHAREDLIBRARY") == 0)
+     handled = 1;
+
+    if(strcmp(cd->project_component_types[x], "STATICLIBRARY") == 0)
+     handled = 1;
+
+    if(handled == 0)
     {
      fprintf(stderr,
              "BCA: project component \"%s\" has an internal dependency on component \"%s\" which "
-             "has an unknown dependency relationship. i.e. type \"%s\" is not a library\n",
+             "has an unknown dependency relationship. i.e. type \"%s\" is not a library. "
+             "Maybe you want .INPUT instead?\n",
              cd->project_component, cd->project_components[x], cd->project_component_types[x]);
      return 1;
     }
@@ -1024,6 +1574,10 @@ int object_from_c_file(struct bca_context *ctx,
 
   fprintf(output, "%s --cflags ", tc->pkg_config);
 
+  /* if the dependency is internal, then the pkg-config name (.pc sans the extension)
+     is not the component name, but the output name combined with the version.
+     (this also prevents having to change library component version in more than one place)
+   */
   for(y=0; y < cd->n_dependencies; y++)
   {
    yes = 0;
@@ -1535,15 +2089,15 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_gmake_host_component_file_rules()\n");
 
- if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+ if((tc = resolve_host_configuration(ctx, cd->host, cd->project_component)) == NULL)
  {
   fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
   return 1;
  }
 
- if(derive_file_dependencies_from_inputs(ctx, tc, cd))
+ if(derive_make_target_dependencies_from_inputs(ctx, tc, cd))
  {
-  fprintf(stderr, "BCA: derive_file_dependencies_from_inputs(%s.%s) failed\n",
+  fprintf(stderr, "BCA: derive_make_target_dependencies_from_inputs(%s.%s) failed\n",
           cd->host, cd->project_component);
   return 1;
  }
@@ -2358,7 +2912,7 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
     cd->project_component_output_name = cd->project_output_names[y];
     cd->host = hosts[x];
 
-    if((tc = resolve_host_configuration(ctx, cd)) == NULL)
+    if((tc = resolve_host_configuration(ctx, cd->host, cd->project_component)) == NULL)
     {
      fprintf(stderr, "BCA: resolve_host_configuration() failed\n");
      return 1;

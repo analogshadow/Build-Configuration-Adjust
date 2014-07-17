@@ -421,15 +421,15 @@ int gtk_interface(struct bca_context *ctx)
   return 1;
  }
 
- if((ctx->project_configuration_contents = 
-    read_file("./buildconfiguration/projectconfiguration", 
+ if((ctx->project_configuration_contents =
+    read_file("./buildconfiguration/projectconfiguration",
     &(ctx->project_configuration_length), 0)) == NULL)
  {
   return 1;
  }
 
- if((ctx->build_configuration_contents = 
-     read_file("./buildconfiguration/buildconfiguration", 
+ if((ctx->build_configuration_contents =
+     read_file("./buildconfiguration/buildconfiguration",
      &(ctx->build_configuration_length), 0)) == NULL)
  {
   fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
@@ -438,7 +438,7 @@ int gtk_interface(struct bca_context *ctx)
 
 
  i->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
- g_signal_connect(i->window, "delete_event", gtk_main_quit, (void *) ctx); 
+ g_signal_connect(i->window, "delete_event", gtk_main_quit, (void *) ctx);
  gtk_window_set_title((GtkWindow *) i->window, "Build Configuration Adjust");
 
  vbox = gtk_vbox_new(FALSE, 3);

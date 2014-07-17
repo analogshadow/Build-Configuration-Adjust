@@ -132,6 +132,7 @@ char *build_prefix_from_host_prefix(struct bca_context *ctx)
 }
 
 
+//this function is past ripe for refactoring
 int render_project_component_output_name(struct bca_context *ctx,
                                          char *host, char *component, int edition,
                                          char ***array_ptr, char ***extensions)
@@ -181,6 +182,10 @@ int render_project_component_output_name(struct bca_context *ctx,
   }
  }
 
+ /* We create a component details structure and fill it in with
+    list_project_components() for no other reason than we need the
+    component type, and output name. would be better from params
+  */
  if(list_project_components(ctx, &cd))
  {
   fprintf(stderr, "BCA: list_project_components() failed\n");
@@ -200,7 +205,7 @@ int render_project_component_output_name(struct bca_context *ctx,
      cd.project_component_type = cd.project_component_types[y];
      cd.host = hosts[x];
 
-     if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
+     if((tc = resolve_host_configuration(ctx, cd.host, cd.project_component)) == NULL)
       return -1;
 
      if((extension = component_type_file_extension(ctx, tc,
@@ -720,6 +725,7 @@ int file_to_C_source(struct bca_context *ctx, char *file_name)
 {
  char *contents, *array_name;
  int length, n_cols = 0, index = 0;
+ unsigned char byte;
 
  if(ctx->verbose > 0)
   fprintf(stderr, "BCA: file_to_c_source()\n");
@@ -751,7 +757,10 @@ int file_to_C_source(struct bca_context *ctx, char *file_name)
    n_cols = 0;
   }
 
-  fprintf(stdout, "0x%x", (unsigned char) contents[index]);
+  if((byte = (unsigned char) contents[index]) > 0xa)
+   fprintf(stdout, "0x%x", byte);
+  else
+   fprintf(stdout, "0x%x ", byte);
 
   n_cols++;
   index++;
