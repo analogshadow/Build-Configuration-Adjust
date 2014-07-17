@@ -203,13 +203,14 @@ struct document_handling_context_stack_frame
  int type, input_file_index, line_number;
 };
 
-#define DLEVEL_NONE    0
-#define DLEVEL_PART    1
-#define DLEVEL_CHAPTER 2
-#define DLEVEL_SECTION 3
-#define DLEVEL_SUB     4
-#define DLEVEL_INSET   5
-#define DLEVEL_LISTING 6
+#define DLEVEL_NONE     0
+#define DLEVEL_DOCUMENT 1
+#define DLEVEL_PART     2
+#define DLEVEL_CHAPTER  3
+#define DLEVEL_SECTION  4
+#define DLEVEL_SUB      5
+#define DLEVEL_INSET    6
+#define DLEVEL_LISTING  7
 
 #define DSTACK_TYPE_TAG   100
 #define DSTACK_TYPE_TABLE 101
@@ -242,7 +243,7 @@ struct document_handling_context
  struct document_handling_context_stack_frame stack[64];
 
  int current_level;
- int implied_levels_mask[7];
+ int implied_levels_mask[8];
 
  int tag_depth, tag_buffer_length;
  char *tags[32];

@@ -28,7 +28,10 @@ char *type_to_string(int type)
  switch(type)
  {
   case DLEVEL_NONE:
-       return "none/doc";
+       return "none";
+
+  case DLEVEL_DOCUMENT:
+       return "doc";
 
   case DLEVEL_PART:
        return "part";
@@ -100,7 +103,7 @@ int type_string_to_id(char *string)
  } else if(strcmp(string, "point") == 0) {
   return DSTACK_TYPE_POINT;
  } else if(strcmp(string, "doc") == 0) {
-  return DLEVEL_NONE;
+  return DLEVEL_DOCUMENT;
  }
 
  return -1;
@@ -121,7 +124,7 @@ int end_of_input_tests(struct document_handling_context *dctx)
  i = dctx->stack_depth;
  while(i > 0)
  {
-  frame = &(dctx->stack[i]);
+  frame = &(dctx->stack[i - 1]);
 
   fprintf(stderr, "(%s in %s, line %d) ",
           type_to_string(frame->type),
@@ -197,7 +200,16 @@ struct document_handling_context_stack_frame *
 
 int exit_level(struct document_handling_context *dctx)
 {
- int i = dctx->current_level;
+ int i;
+
+ if(dctx->current_level == 0)
+ {
+  fprintf(stderr, "BCA: exit_level()y already at level 0!\n");
+  return 1;
+ }
+
+ i = dctx->current_level - 1;
+
  while(i > 0)
  {
   if(dctx->implied_levels_mask[i] != 1)
@@ -226,6 +238,7 @@ int enter_level(struct document_handling_context *dctx, int level_value)
   dctx->implied_levels_mask[i] = 1;
  }
 
+
  dctx->implied_levels_mask[level_value] = 0;
  dctx->current_level = level_value;
 
@@ -240,7 +253,7 @@ int test_starting_level_correctly(struct document_handling_context *dctx, int le
   return 0;
 
  fprintf(stderr,
-         "BCA: %s, line %d: can not start %s, already inside a %s",
+         "BCA: %s, line %d: can not start %s, already inside a %s\n",
          dctx->ctx->input_files[dctx->ctx->input_file_index],
          dctx->ctx->line_number,
          type_to_string(level_value),
@@ -340,7 +353,7 @@ int function_close(struct document_handling_context *dctx, int type)
  struct document_handling_context_stack_frame *frame;
 
  if(dctx->ctx->verbose > 2)
-  fprintf(stderr, "BCA: function_close()\n");
+  fprintf(stderr, "BCA: function_close(%d)\n", type);
 
  if(dctx->stack_depth == 0)
  {
@@ -353,7 +366,9 @@ int function_close(struct document_handling_context *dctx, int type)
 
  if(frame->type != type)
  {
-  fprintf(stderr, "BCA: %s, line %d dc() was expecting to be closing opening %s in %s on %d.\n",
+  fprintf(stderr,
+          "BCA: %s, line %d @dc()@ was expected to be closing a %s "
+          "opened in %s on line %d.\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number,
           type_to_string(type),
           dctx->ctx->input_files[frame->input_file_index],
@@ -626,7 +641,10 @@ int function_dlist(struct document_handling_context *dctx,
 
 int function_close_dmode(struct document_handling_context *dctx, void *data)
 {
- dctx->dmode_depth--;
+
+ if(exit_level(dctx))
+  return 1;
+
  return 0;
 }
 
@@ -639,9 +657,12 @@ int function_dmode(struct document_handling_context *dctx,
  if(n_parameters != 1)
   return 1;
 
+ if(enter_level(dctx, DLEVEL_DOCUMENT))
+  return 1;
+
  dctx->dmode_depth++;
 
- return push_close_function(dctx, function_close_dmode, NULL, DLEVEL_NONE);
+ return push_close_function(dctx, function_close_dmode, NULL, DLEVEL_DOCUMENT);
 }
 
 int function_close_part(struct document_handling_context *dctx, void *data)
@@ -866,7 +887,7 @@ char *handle_document_functions(struct bca_context *ctx, char *key)
  if(parse_function_parameters(key, &parameters, &n_parameters))
   return NULL;
 
- if(strncmp(parameters[0] + 1, "mode", 4) == 0)
+ if(strncmp(parameters[0] + 1, "doc", 3) == 0)
   code = function_dmode(dctx, parameters, n_parameters);
 
  if(strncmp(parameters[0] + 1, "part", 5) == 0)
@@ -1141,6 +1162,7 @@ int document_mode(struct bca_context *ctx)
    if(process_file(ctx, dctx, contents_array[i], length_array[i]))
     return 1;
   }
+
   if(end_of_input_tests(dctx))
    return 1;
 

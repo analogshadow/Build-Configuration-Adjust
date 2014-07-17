@@ -15,6 +15,8 @@ struct plaintext_engine_context
  FILE *output;
 };
 
+int pe_advance_line(struct plaintext_engine_context *pe_ctx);
+
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
                               int type, char *name)
 {
@@ -23,9 +25,11 @@ int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
  if((e = new_toc_element(DLEVEL_PART, name)) == NULL)
   return 1;
 
+ snprintf(e->page, 16, "%d", pe_ctx->current_page + 1);
+
  if(pe_ctx->toc_root == NULL)
  {
-  pe_ctx->toc_root = e;
+  pe_ctx->toc_cursor = pe_ctx->toc_root = e;
  } else {
 
   /* walk up the parantage until we find a sibling type, a paraent type, or tree root */
@@ -53,15 +57,14 @@ int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
    i = i->parrent;
   }
 
-  fprintf(stderr, "BCA: plain text engine toc error: the first (and thus topmost) toc level used "
-          "was %s, yet attempt is made to use %s.\n",
+  fprintf(stderr, "BCA: plain text engine toc error: the first (and thus topmost) "
+          "toc level used was %s, yet attempt is made to use %s.\n",
           type_to_string(pe_ctx->toc_root->type), type_to_string(e->type));
   return 1;
  }
 
  return 0;
 }
-
 
 int pe_toc_cursor_advance(struct plaintext_engine_context *pe_ctx)
 {
@@ -108,20 +111,165 @@ int pe_toc_cursor_advance(struct plaintext_engine_context *pe_ctx)
  return 0;
 }
 
-int pe_advance_line(struct plaintext_engine_context *pe_ctx)
+int pe_advance_page(struct plaintext_engine_context *pe_ctx)
 {
- pe_ctx->current_row++;
- fprintf(pe_ctx->output, "\n");
+ int i;
+ int rows_left, page_number_length;
+ char temp[128];
+
+ rows_left = pe_ctx->page_length
+           - pe_ctx->top_margin
+           - pe_ctx->bottom_margin
+           - pe_ctx->current_row;
+
+ /* finish out the current line */
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+ {
+  if(pe_ctx->current_row != 0)
+  {
+   fprintf(pe_ctx->output, "\n");
+  }
+ }
+
+ /* finish out the current page */
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+ {
+  for(i=0; i<rows_left; i++)
+  {
+   fprintf(pe_ctx->output, "\n");
+  }
+ }
+
+ /* bottom margin */
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+ {
+  for(i=0; i<pe_ctx->bottom_margin; i++)
+  {
+   fprintf(pe_ctx->output, "\n");
+  }
+ }
+
+ /* top margin */
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+ {
+  page_number_length = snprintf(temp, 128, "%d", pe_ctx->current_page + 1);
+  for(i=0; i<pe_ctx->line_width - page_number_length; i++)
+  {
+   fprintf(pe_ctx->output, " ");
+  }
+  fprintf(pe_ctx->output, "%s\n", temp);
+
+  for(i=1; i<pe_ctx->bottom_margin; i++)
+  {
+   fprintf(pe_ctx->output, "\n");
+  }
+ }
+
+ pe_ctx->current_row = 0;
  pe_ctx->current_column = 0;
+ pe_ctx->current_page++;
 
  return 0;
+}
+
+int pe_advance_line(struct plaintext_engine_context *pe_ctx)
+{
+ int rows_left;
+
+ rows_left = pe_ctx->page_length
+           - pe_ctx->top_margin
+           - pe_ctx->bottom_margin
+           - pe_ctx->current_row;
+
+ if(rows_left < 1)
+  return pe_advance_page(pe_ctx);
+
+ pe_ctx->current_row++;
+ pe_ctx->current_column = 0;
+
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+  fprintf(pe_ctx->output, "\n");
+
+ return 0;
+}
+
+int pe_output(struct plaintext_engine_context *pe_ctx, char *utf8, int n_characters)
+{
+ int i, space_left_on_line;
+
+ if(n_characters == -1)
+  n_characters = strlen(utf8); //fix me
+
+ space_left_on_line = pe_ctx->line_width -
+                      pe_ctx->left_margin_width -
+                      pe_ctx->right_margin_width -
+                      pe_ctx->current_column;
+
+ /* unless this is the first word on the line, it will need a space */
+ if(pe_ctx->current_column > pe_ctx->left_margin_width)
+  space_left_on_line--;
+
+ if(n_characters > space_left_on_line)
+ {
+  if(pe_advance_line(pe_ctx))
+   return 1;
+
+  for(i=0; i<pe_ctx->left_margin_width; i++)
+  {
+   if(pe_ctx->dctx->ctx->pass_number == 1)
+    fprintf(pe_ctx->output, " ");
+
+   pe_ctx->current_column++;
+  }
+
+ } else {
+  if(pe_ctx->current_column > pe_ctx->left_margin_width)
+  {
+   if(strcmp(utf8, " ") != 0)
+   {
+    if(pe_ctx->dctx->ctx->pass_number == 1)
+     fprintf(pe_ctx->output, " ");
+
+    pe_ctx->current_column++;
+   }
+  }
+ }
+
+ if(pe_ctx->dctx->ctx->pass_number == 1)
+  fprintf(pe_ctx->output, "%s", utf8);
+
+ pe_ctx->current_column += n_characters;
+ return 0;
+}
+
+int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
+{
+ struct plaintext_engine_context *pe_ctx;
+ pe_ctx = (struct plaintext_engine_context *) data;
+
+ return pe_output(pe_ctx, uwc->word_buffer, uwc->n_characters);
 }
 
 int pe_print_toc(struct plaintext_engine_context *pe_ctx)
 {
  pe_ctx->toc_cursor = pe_ctx->toc_root;
- int type;
- char *title;
+ int i, type, length;
+ char temp[256], *title;
+
+ pe_advance_line(pe_ctx);
+
+ length = snprintf(temp, 256, "Table of Contents");
+ for(i=0; i < (pe_ctx->line_width - length) / 2; i++)
+ {
+  if(pe_output(pe_ctx, " ", 1))
+   return 1;
+ }
+
+ if(pe_output(pe_ctx, temp, length))
+  return 1;
+
+ pe_advance_line(pe_ctx);
+ pe_advance_line(pe_ctx);
 
  while(pe_ctx->toc_cursor != NULL)
  {
@@ -131,7 +279,9 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
   switch(type)
   {
    case DLEVEL_PART:
-        fprintf(pe_ctx->output, "Part %d", pe_ctx->toc_cursor->count);
+        length = snprintf(temp, 256, " Part %d", pe_ctx->toc_cursor->count);
+        if(pe_output(pe_ctx, temp, length))
+         return 1;
         break;
 
    case DLEVEL_CHAPTER:
@@ -151,7 +301,14 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
   }
 
   if(title != NULL)
-   fprintf(pe_ctx->output, ": %s", title);
+   length = snprintf(temp, 256, ": %s", title);
+
+  length +=
+   snprintf(temp + length, 256 - length,
+            ", page %s", pe_ctx->toc_cursor->page);
+
+  if(pe_output(pe_ctx, temp, length))
+   return 1;
 
   pe_advance_line(pe_ctx);
 
@@ -159,48 +316,7 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
    return 1;
  }
 
- return 0;
-}
-
-
-int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
-{
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) data;
- int i, space_left_on_line;
-
- space_left_on_line = pe_ctx->line_width -
-                      pe_ctx->left_margin_width -
-                      pe_ctx->right_margin_width -
-                      pe_ctx->current_column;
-
- /* unless this is the first word on the line, it will need a space */
- if(pe_ctx->current_column > pe_ctx->left_margin_width)
-  space_left_on_line--;
-
- if(uwc->n_characters > space_left_on_line)
- {
-  if(pe_advance_line(pe_ctx))
-   return 1;
-
-  for(i=0; i<pe_ctx->left_margin_width; i++)
-  {
-   fprintf(pe_ctx->output, " ");
-   pe_ctx->current_column++;
-  }
-
- } else {
-  if(pe_ctx->current_column > pe_ctx->left_margin_width)
-  {
-   fprintf(pe_ctx->output, " ");
-   pe_ctx->current_column++;
-  }
- }
-
- fprintf(pe_ctx->output, "%s", uwc->word_buffer);
- pe_ctx->current_column += uwc->n_characters;
-
- return 0;
+ return pe_advance_page(pe_ctx);
 }
 
 int plaintext_start_document(struct document_handling_context *dctx)
@@ -228,26 +344,32 @@ int plaintext_start_document(struct document_handling_context *dctx)
         return 1;
        }
 
-        memset(pe_ctx, 0, allocation_size);
-        pe_ctx->dctx = dctx;
+       memset(pe_ctx, 0, allocation_size);
+       pe_ctx->dctx = dctx;
+       if((pe_ctx->uwc =
+           unicode_word_engine_initialize(pe_ctx,
+                                          pe_consume_word)) == NULL)
+       {
+        fprintf(stderr,
+                "BCA: plaintext_start_document(): unicode_word_engine_initialize() failed.\n");
+        free(pe_ctx);
+        return 1;
+       }
 
-        if((pe_ctx->uwc =
-            unicode_word_engine_initialize(pe_ctx,
-                                           pe_consume_word)) == NULL)
-        {
-         fprintf(stderr,
-                 "BCA: plaintext_start_document(): unicode_word_engine_initialize() failed.\n");
-         free(pe_ctx);
-         return 1;
-        }
+       pe_ctx->output = stdout;
+       pe_ctx->line_width = 80;
+       pe_ctx->page_length = 10;
+       pe_ctx->top_margin = 1;
+       pe_ctx->bottom_margin = 1;
+       pe_ctx->paragraph_line_spacing = 1;
+       pe_ctx->paragraph_indent = 4;
+       pe_ctx->show_toc = 1;
+       dctx->render_engine_context = pe_ctx;
 
-        pe_ctx->output = stdout;
-        pe_ctx->line_width = 80;
-        pe_ctx->paragraph_line_spacing = 1;
-        pe_ctx->paragraph_indent = 4;
-        pe_ctx->show_toc = 1;
-        dctx->render_engine_context = pe_ctx;
-        break;
+       pe_ctx->current_column = 0;
+       pe_ctx->current_row = 0;
+       pe_ctx->current_page = 0;
+       break;
 
   case 1:
        if((pe_ctx = (struct plaintext_engine_context *)
@@ -257,13 +379,19 @@ int plaintext_start_document(struct document_handling_context *dctx)
                 " on start of first pass\n");
         return 1;
        }
+
+       pe_ctx->current_column = 0;
+       pe_ctx->current_row = 0;
+       pe_ctx->current_page = 0;
+
        if(pe_ctx->show_toc == 1)
         if(pe_print_toc(pe_ctx))
          return 1;
        break;
 
   default:
-       fprintf(stderr, "BCA: plaintext_start_document(): I should not have a pass %d\n",
+       fprintf(stderr,
+               "BCA: plaintext_start_document(): I should not have a pass %d\n",
                dctx->ctx->pass_number);
        return 1;
  }
@@ -279,13 +407,23 @@ int plaintext_finish_document(struct document_handling_context *dctx)
  if(pe_advance_line(pe_ctx))
   return 1;
 
- if(dctx->ctx->pass_number < 2)
+ switch(dctx->ctx->pass_number)
  {
-  /* proceede to next pass */
-  dctx->ctx->loop_inputs = 1;
- } else {
-  /* we're done. shutdown */
-  unicode_word_engine_finalize(pe_ctx->uwc);
+  case 0:
+       /* proceede to next pass */
+       dctx->ctx->loop_inputs = 1;
+       break;
+
+  case 1:
+       /* we're done. shutdown */
+       unicode_word_engine_finalize(pe_ctx->uwc);
+       break;
+
+  default:
+       fprintf(stderr,
+               "BCA: plaintext_finish_document(): I should not have a pass %d\n",
+               dctx->ctx->pass_number);
+       return 1;
  }
 
  return 0;
@@ -306,7 +444,8 @@ int plaintext_paragraph_open(struct plaintext_engine_context *pe_ctx)
 
  for(i=0; i<pe_ctx->paragraph_indent; i++)
  {
-  fprintf(pe_ctx->output, " ");
+  if(pe_ctx->dctx->ctx->pass_number == 1)
+   fprintf(pe_ctx->output, " ");
   pe_ctx->current_column++;
  }
 
