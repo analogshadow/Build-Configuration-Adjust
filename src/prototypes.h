@@ -218,6 +218,19 @@ struct document_handling_context_stack_frame
 #define DSTACK_TYPE_LIST  104
 #define DSTACK_TYPE_POINT 105
 
+struct toc_element
+{
+ int type;
+ int count;
+ char *name;
+ char page[16];
+ struct toc_element *last, *next, *child, *parrent;
+};
+
+struct toc_element *new_toc_element(int type, char *name);
+
+char *type_to_string(int type);
+
 struct document_handling_context
 {
  struct bca_context *ctx;
@@ -234,6 +247,7 @@ struct document_handling_context
  int tag_depth, tag_buffer_length;
  char *tags[32];
  char tag_buffer[1024];
+ char **tag_datas[32];
 
  char output_buffer[1024];
  int output_buffer_length;

@@ -384,20 +384,27 @@ int function_close_tag(struct document_handling_context *dctx, void *data)
    return 1;
 
  dctx->tag_depth--;
+
+ if(dctx->tag_datas[dctx->tag_depth] != NULL)
+ {
+  free(dctx->tag_datas[dctx->tag_depth]);
+  dctx->tag_datas[dctx->tag_depth] = NULL;
+ }
+
  return 0;
 }
 
 int function_dtag(struct document_handling_context *dctx,
                    char **parameters, int n_parameters)
 {
- int tag_length;
+ int tag_length, i;
 
  if(dctx->ctx->verbose > 2)
   fprintf(stderr, "BCA: function_dtag()\n");
 
- if(n_parameters != 2)
+ if(n_parameters < 2 || n_parameters > 3)
  {
-  fprintf(stderr, "BCA: %s, %d: tag() expectes 1 parameter, not %d\n",
+  fprintf(stderr, "BCA: %s, %d: tag() expectes 1 or 2 parameters, not %d\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number, n_parameters - 1);
   return 1;
  }
@@ -414,6 +421,23 @@ int function_dtag(struct document_handling_context *dctx,
   fprintf(stderr, "BCA: tag buffer full\n");
   return 1;
  }
+
+ for(i = dctx->tag_depth - 1; i > -1; i--)
+ {
+  if(strcmp(dctx->tags[i], parameters[1]) == 0)
+  {
+   fprintf(stderr, "BCA: function_dtag(): %s, %d already inside of tag %s\n",
+           current_file_name(dctx->ctx), dctx->ctx->line_number, parameters[1]);
+
+   return 1;
+  }
+ }
+
+ if(n_parameters == 2)
+  dctx->tag_datas[dctx->tag_depth] = NULL;
+
+ if(n_parameters == 3)
+  dctx->tag_datas[dctx->tag_depth] = strdup(parameters[2]);
 
  dctx->tags[dctx->tag_depth] = dctx->tag_buffer + dctx->tag_buffer_length;
  memcpy(dctx->tags[dctx->tag_depth], parameters[1], tag_length);
@@ -970,6 +994,10 @@ int process_file(struct bca_context *ctx,
  while(offset != length)
  {
   c = next_byte(contents, length, &offset);
+
+  if(c == '\n')
+   ctx->line_number++;
+
   if(c != '@')
   {
    if(add_to_output_buffer(ctx, dctx, &c, 1))
@@ -1138,3 +1166,38 @@ int document_mode(struct bca_context *ctx)
 
  return 0;
 }
+
+struct toc_element *
+new_toc_element(int type, char *name)
+{
+ struct toc_element *e;
+ int allocation_size, length = 0;
+
+ if(name != NULL)
+  length = strlen(name) + 1;
+
+ allocation_size = sizeof(struct toc_element)
+                 + length;
+
+ if((e = (struct toc_element *)
+         malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr,
+          "BCA: new_toc_element(): malloc(%d) failed.\n", allocation_size);
+  return NULL;
+ }
+
+ e->type = type;
+ e->name = ((char *) e) + sizeof(struct toc_element);
+ snprintf(e->name, length, "%s", name);
+ e->count = 0;
+ e->page[0] = 0;
+ e->last = NULL;
+ e->next = NULL;
+ e->child = NULL;
+ e->parrent = NULL;
+
+ return e;
+}
+
+

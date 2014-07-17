@@ -252,15 +252,6 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   fprintf(stderr, "BCA: resolve_string_replace_key(%s)\n", key);
  }
 
- if(strncmp(key, "ENV.", 4) == 0)
- {
-  if((value = getenv(key + 4)) == NULL)
-  {
-   return NULL;
-  }
-  return strdup(value);
- }
-
  if(key[0] == 'd')
  {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
@@ -274,6 +265,15 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 #endif
  }
 
+ if(strncmp(key, "ENV.", 4) == 0)
+ {
+  if((value = getenv(key + 4)) == NULL)
+  {
+   return NULL;
+  }
+  return strdup(value);
+ }
+
  if(strncmp(key, "CHECK(", 6) == 0)
  {
   return check_function(ctx, key);
@@ -284,7 +284,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   return file_to_C_source_function(ctx, key);
  }
 
- if(strncmp(key, "BCA.BUILDIR", 11) == 0)
+ if(strncmp(key, "BCA.BUILDDIR", 12) == 0)
  {
 #ifdef HAVE_CWD
   return strdup(ctx->cwd);
