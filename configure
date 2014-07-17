@@ -242,7 +242,7 @@ do
 done
 
 #attempt makefile generation
-echo "configure: generating Makefile.bca"
+echo "configure: generating Makefile.bca; calling ./bca --generate-gmakefile"
 ./bca --generate-gmakefile
 if [ $? != 0 ]
 then
