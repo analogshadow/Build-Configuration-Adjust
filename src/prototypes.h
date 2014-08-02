@@ -248,7 +248,7 @@ struct document_handling_context
  int tag_depth, tag_buffer_length;
  char *tags[32];
  char tag_buffer[1024];
- char **tag_datas[32];
+ char *tag_datas[32];
 
  char output_buffer[1024];
  int output_buffer_length;

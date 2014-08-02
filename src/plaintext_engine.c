@@ -1,7 +1,7 @@
 #include "plaintext.h"
 
 int plaintext_consume_text(struct document_handling_context *dctx,
-                           char *text, int length)
+                          char *text, int length)
 {
  struct plaintext_engine_context *pe_ctx;
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
@@ -34,7 +34,7 @@ int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
  struct plaintext_rendering_context *pr_ctx;
 
  pe_ctx = (struct plaintext_engine_context *) data;
- pr_ctx = pe_ctx->effective_rendering_context;
+ pr_ctx = pe_ctx->pr_ctx;
 
  /* we are inside some pass of the document loop, and within some
     hierchial element, and maybe within a tag stack. In all cases,
@@ -42,9 +42,8 @@ int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
     The content may actually be writing text output, or it may be
     just be performing formating calculations.
  */
- return pe_advance_word(pr_ctx, uwc);
+ return pr_advance_word(pr_ctx, uwc);
 }
-
 
 int plaintext_open_point(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
@@ -170,7 +169,7 @@ int plaintext_open_part(struct document_handling_context *dctx,
                         char **parameters, int n_parameters)
 {
  struct plaintext_engine_context *pe_ctx;
- char *part_name = NULL;
+ char *part_name = NULL, temp[256];
 
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
@@ -183,6 +182,32 @@ int plaintext_open_part(struct document_handling_context *dctx,
    return 1;
  }
 
+ snprintf(temp, 256, "Part ?: %s", part_name);
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width = 10;
+ pe_ctx->pr_ctx->right_margin_width = 10;
+
+ if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
 
  return 0;
 }
@@ -322,12 +347,10 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->show_toc = 1;
        dctx->render_engine_context = pe_ctx;
 
-       pe_ctx->current_column = 0;
-       pe_ctx->current_row = 0;
-       pe_ctx->current_page = 0;
-
-
-
+       if((pe_ctx->pr_ctx = plaintext_rendering_context_new(pe_ctx, NULL)) == NULL)
+       {
+        return 1;
+       }
 
        break;
 
@@ -340,13 +363,15 @@ int plaintext_start_document(struct document_handling_context *dctx)
         return 1;
        }
 
-       pe_ctx->current_column = 0;
-       pe_ctx->current_row = 0;
-       pe_ctx->current_page = 0;
+       pe_ctx->pr_ctx->output = stdout;
+       pe_ctx->pr_ctx->current_row = -1;
+       pe_ctx->pr_ctx->current_page = 0;
 
        if(pe_ctx->show_toc == 1)
         if(pe_print_toc(pe_ctx))
          return 1;
+
+       pe_ctx->pr_ctx->current_page = 0;
        break;
 
   default:
@@ -364,7 +389,10 @@ int plaintext_finish_document(struct document_handling_context *dctx)
  struct plaintext_engine_context *pe_ctx;
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
- if(pe_advance_line(pe_ctx))
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_page(pe_ctx->pr_ctx))
   return 1;
 
  switch(dctx->ctx->pass_number)
@@ -375,6 +403,7 @@ int plaintext_finish_document(struct document_handling_context *dctx)
        break;
 
   case 1:
+
        /* we're done. shutdown */
        unicode_word_engine_finalize(pe_ctx->uwc);
        break;
@@ -421,3 +450,89 @@ int activate_document_engine_plaintext(struct document_handling_context *dctx)
 
  return 0;
 }
+
+int plaintext_word_engine_stack_push(struct plaintext_engine_context *pe_ctx)
+{
+ struct unicode_word_context *uwc;
+
+ if(pe_ctx->word_engine_stack_depth > 14)
+ {
+  fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
+  return 1;
+ }
+
+ if((uwc =
+     unicode_word_engine_initialize(pe_ctx, pe_consume_word)) == NULL)
+ {
+  return 1;
+ }
+
+ pe_ctx->uwc_stack[pe_ctx->word_engine_stack_depth++] = pe_ctx->uwc;
+ pe_ctx->uwc = uwc;
+
+ return 0;
+}
+
+int plaintext_word_engine_stack_pop(struct plaintext_engine_context *pe_ctx)
+{
+ if(pe_ctx->word_engine_stack_depth < 1)
+ {
+  fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
+  return 1;
+ }
+
+ if(unicode_word_engine_finalize(pe_ctx->uwc))
+  return 1;
+
+ pe_ctx->uwc =
+  pe_ctx->uwc_stack[--pe_ctx->word_engine_stack_depth];
+
+ return 0;
+}
+
+int plaintext_rendering_stack_push(struct plaintext_engine_context *pe_ctx)
+{
+ struct plaintext_rendering_context *pr_ctx;
+
+ if(pe_ctx->rendering_context_stack_depth > 14)
+ {
+  fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
+  return 1;
+ }
+
+ if((pr_ctx = plaintext_rendering_context_copy(pe_ctx->pr_ctx)) == NULL)
+ {
+  return 1;
+ }
+
+ pe_ctx->pr_ctx_stack[pe_ctx->rendering_context_stack_depth++] = pe_ctx->pr_ctx;
+ pe_ctx->pr_ctx = pr_ctx;
+
+ return 0;
+}
+
+int plaintext_rendering_stack_pop(struct plaintext_engine_context *pe_ctx)
+{
+ struct plaintext_rendering_context *pr_ctx;
+
+ if(pe_ctx->rendering_context_stack_depth < 1)
+ {
+  fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
+  return 1;
+ }
+
+ pr_ctx = pe_ctx->pr_ctx;
+
+ pe_ctx->pr_ctx =
+  pe_ctx->pr_ctx_stack[--pe_ctx->rendering_context_stack_depth];
+
+ pe_ctx->pr_ctx->current_row = pr_ctx->current_row;
+ pe_ctx->pr_ctx->current_page = pr_ctx->current_page;
+
+ if(plaintext_rendering_context_finalize(pr_ctx))
+  return 1;
+
+ return 0;
+}
+
+

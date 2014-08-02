@@ -5,21 +5,33 @@
 
 struct plaintext_engine_context;
 
+#define PER_LEFT_JUSTIFY   2
+#define PER_CENTER_JUSTIFY 3
+#define PER_RIGHT_JUSTIFY  4
+#define PER_LEFT_TO_RIGHT  10
+#define PER_RIGHT_TO_LEFT  11
+#define PER_LINE_BUFFER_SIZE 512
+
 struct plaintext_rendering_context
 {
  int line_width, left_margin_width, right_margin_width;
- int current_column, current_row, current_page;
+ int current_row, current_page;
  int page_length, top_margin, bottom_margin;
+ int justification, direction, show_page_numbers;
  FILE *output;
  struct plaintext_engine_context *pe_ctx;
+ int n_bytes, n_characters;
+ char line_buffer[PER_LINE_BUFFER_SIZE];
 };
 
 struct plaintext_engine_context
 {
  struct document_handling_context *dctx;
- struct unicode_word_context *uwc;
+ struct unicode_word_context *uwc, *uwc_stack[16];
 
- struct plaintext_rendering_context *effective_rendering_context;
+ struct plaintext_rendering_context *pr_ctx, *pr_ctx_stack[16];
+
+ int rendering_context_stack_depth, word_engine_stack_depth;
 
  int paragraph_indent, paragraph_line_spacing;
 
@@ -27,6 +39,24 @@ struct plaintext_engine_context
  struct toc_element *toc_root, *toc_cursor, *index_head, *index_tail;
 };
 
+int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);
+
+int plaintext_consume_text(struct document_handling_context *dctx,
+                           char *text, int length);
+
+int plaintext_rendering_stack_push(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_rendering_stack_pop(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_word_engine_stack_push(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_word_engine_stack_pop(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_paragraph_open(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_paragraph_close(struct plaintext_engine_context *pe_ctx);
+
+int pe_print_toc(struct plaintext_engine_context *pe_ctx);
 
 /* render context */
 struct plaintext_rendering_context *
@@ -42,15 +72,10 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx);
 
 int pr_advance_page(struct plaintext_rendering_context *pr_ctx);
 
-int pr_advance_column(struct plaintext_rendering_context *pr_ctx, int n_cols);
-
 int pr_toc_cursor_advance(struct plaintext_engine_context *pe_ctx);
 
 int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                     struct unicode_word_context *uwc);
-
-int pr_right_justified_page_output(struct plaintext_rendering_context *pr_ctx,
-                                   char *temp, int temp_length);
 
 /* toc data structures */
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
