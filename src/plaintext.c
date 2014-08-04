@@ -136,7 +136,8 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
  /* finish out the current page */
  if(pr_ctx->output != NULL)
  {
-  for(i=0; i<rows_left; i++)
+  fprintf(pr_ctx->output, "\n");
+  for(i=1; i<rows_left; i++)
   {
    fprintf(pr_ctx->output, "\n");
   }
@@ -182,6 +183,76 @@ int pr_start_page(struct plaintext_rendering_context *pr_ctx)
  }
 
  pr_ctx->current_row = 0;
+ return 0;
+}
+
+int pr_third_way_down(struct plaintext_rendering_context *pr_ctx)
+{
+ int i, count;
+
+ if(pr_ctx->current_row == -1)
+  if(pr_start_page(pr_ctx))
+   return 1;
+
+ if(pr_flush_line_buffer(pr_ctx))
+  return 1;
+
+ if(pr_advance_page(pr_ctx))
+  return 1;
+
+ /* this needs to be conditional, since in the case of the page being
+    blank to start with, advance_page doesn't do anything */
+ if(pr_ctx->current_row == -1)
+  if(pr_start_page(pr_ctx))
+   return 1;
+
+ count = ((pr_ctx->page_length
+           - pr_ctx->top_margin
+           - pr_ctx->bottom_margin) / 3) - 1;
+
+ for(i=0; i<count; i++)
+ {
+  pr_ctx->current_row++;
+
+  if(pr_ctx->output != NULL)
+   fprintf(pr_ctx->output, "\n");
+ }
+
+ return 0;
+}
+
+int pr_center_row(struct plaintext_rendering_context *pr_ctx)
+{
+ int i, count;
+
+ if(pr_ctx->current_row == -1)
+  if(pr_start_page(pr_ctx))
+   return 1;
+
+ if(pr_flush_line_buffer(pr_ctx))
+  return 1;
+
+ if(pr_advance_page(pr_ctx))
+  return 1;
+
+ /* this needs to be conditional, since in the case of the page being
+    blank to start with, advance_page doesn't do anything */
+ if(pr_ctx->current_row == -1)
+  if(pr_start_page(pr_ctx))
+   return 1;
+
+ count = ((pr_ctx->page_length
+           - pr_ctx->top_margin
+           - pr_ctx->bottom_margin) / 2) - 1;
+
+ for(i=0; i<count; i++)
+ {
+  pr_ctx->current_row++;
+
+  if(pr_ctx->output != NULL)
+   fprintf(pr_ctx->output, "\n");
+ }
+
  return 0;
 }
 
@@ -265,7 +336,7 @@ int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
 {
  struct toc_element *e, *i;
 
- if((e = new_toc_element(DLEVEL_PART, name)) == NULL)
+ if((e = new_toc_element(type, name)) == NULL)
   return 1;
 
  snprintf(e->page, 16, "%d", pe_ctx->pr_ctx->current_page + 1);
@@ -273,20 +344,23 @@ int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
  if(pe_ctx->toc_root == NULL)
  {
   pe_ctx->toc_cursor = pe_ctx->toc_root = e;
+  e->count = 1;
  } else {
 
   /* walk up the parantage until we find a sibling type, a paraent type, or tree root */
   i = pe_ctx->toc_cursor;
   while(i != NULL)
   {
-   if(i->type > e->type)
+   if(i->type < e->type)
    {
     e->parrent = i;
+    e->count = 1;
     i->child = e;
     pe_ctx->toc_cursor = e;
     return 0;
    } else if(i->type == e->type) {
     e->last = pe_ctx->toc_cursor;
+    e->count = pe_ctx->toc_cursor->count + 1;
     pe_ctx->toc_cursor->next = e;
     pe_ctx->toc_cursor = e;
     return 0;
@@ -356,9 +430,11 @@ int pe_toc_cursor_advance(struct plaintext_engine_context *pe_ctx)
 
 int pe_print_toc(struct plaintext_engine_context *pe_ctx)
 {
- pe_ctx->toc_cursor = pe_ctx->toc_root;
  int type, length;
  char temp[256], *title;
+
+ if((pe_ctx->toc_cursor = pe_ctx->toc_root) == NULL)
+ return 0;
 
  if(plaintext_rendering_stack_push(pe_ctx))
   return 1;
@@ -400,6 +476,7 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
         break;
 
    case DLEVEL_SECTION:
+//dectect if using chapters and then do %d.%d
         length = snprintf(temp, 256, "Section %d", pe_ctx->toc_cursor->count);
         break;
 

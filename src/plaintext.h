@@ -70,6 +70,10 @@ int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_
 
 int pr_advance_line(struct plaintext_rendering_context *pr_ctx);
 
+int pr_center_row(struct plaintext_rendering_context *pr_ctx);
+
+int pr_third_way_down(struct plaintext_rendering_context *pr_ctx);
+
 int pr_advance_page(struct plaintext_rendering_context *pr_ctx);
 
 int pr_toc_cursor_advance(struct plaintext_engine_context *pe_ctx);

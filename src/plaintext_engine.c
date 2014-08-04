@@ -134,55 +134,26 @@ int plaintext_open_section(struct document_handling_context *dctx,
                            char **parameters, int n_parameters)
 {
  struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
-
- return 0;
-}
-
-int plaintext_close_section(struct document_handling_context *dctx)
-{
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
-
- return 0;
-}
-
-int plaintext_open_chapter(struct document_handling_context *dctx,
-                           char **parameters, int n_parameters)
-{
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
-
- return 0;
-}
-
-int plaintext_close_chapter(struct document_handling_context *dctx)
-{
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
-
- return 0;
-}
-
-
-int plaintext_open_part(struct document_handling_context *dctx,
-                        char **parameters, int n_parameters)
-{
- struct plaintext_engine_context *pe_ctx;
- char *part_name = NULL, temp[256];
+ char *section_name = NULL, temp[256];
 
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  if(n_parameters == 2)
-  part_name = parameters[1];
+  section_name = parameters[1];
 
  if(dctx->ctx->pass_number == 0)
  {
-  if(plaintext_add_toc_element(pe_ctx, DLEVEL_PART, part_name))
+  if(plaintext_add_toc_element(pe_ctx, DLEVEL_SECTION, section_name))
    return 1;
+ } else {
+  if(pe_ctx->toc_cursor->type != DLEVEL_SECTION)
+  {
+   fprintf(stderr, "BCA: toc logic fail\n");
+   return 1;
+  }
  }
 
- snprintf(temp, 256, "Part ?: %s", part_name);
+ snprintf(temp, 256, "Section %d: %s", pe_ctx->toc_cursor->count, section_name);
 
  if(plaintext_rendering_stack_push(pe_ctx))
   return 1;
@@ -208,6 +179,162 @@ int plaintext_open_part(struct document_handling_context *dctx,
 
  if(plaintext_rendering_stack_pop(pe_ctx))
   return 1;
+
+ if(dctx->ctx->pass_number != 0)
+ {
+  if(pe_toc_cursor_advance(pe_ctx))
+   return 1;
+ }
+
+ return 0;
+}
+
+int plaintext_close_section(struct document_handling_context *dctx)
+{
+ struct plaintext_engine_context *pe_ctx;
+ pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ return 0;
+}
+
+int plaintext_open_chapter(struct document_handling_context *dctx,
+                           char **parameters, int n_parameters)
+{
+ struct plaintext_engine_context *pe_ctx;
+ char *chapter_name = NULL, temp[256];
+
+ pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ if(n_parameters == 2)
+  chapter_name = parameters[1];
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->show_page_numbers = 1;
+ pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width = 10;
+ pe_ctx->pr_ctx->right_margin_width = 10;
+
+ if(pr_third_way_down(pe_ctx->pr_ctx))
+  return 1;
+
+ if(dctx->ctx->pass_number == 0)
+ {
+  /* this is done after the likely page advance, so the correct
+     page number is picked up*/
+  if(plaintext_add_toc_element(pe_ctx, DLEVEL_CHAPTER, chapter_name))
+   return 1;
+ } else {
+  if(pe_ctx->toc_cursor->type != DLEVEL_CHAPTER)
+  {
+   fprintf(stderr, "BCA: toc logic fail\n");
+   return 1;
+  }
+ }
+
+ snprintf(temp, 256, "Chapter %d: %s", pe_ctx->toc_cursor->count, chapter_name);
+
+ if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ if(dctx->ctx->pass_number != 0)
+ {
+  if(pe_toc_cursor_advance(pe_ctx))
+   return 1;
+ }
+
+ return 0;
+}
+
+int plaintext_close_chapter(struct document_handling_context *dctx)
+{
+ struct plaintext_engine_context *pe_ctx;
+ pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ return 0;
+}
+
+
+int plaintext_open_part(struct document_handling_context *dctx,
+                        char **parameters, int n_parameters)
+{
+ struct plaintext_engine_context *pe_ctx;
+ char *part_name = NULL, temp[256];
+
+ pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ if(n_parameters == 2)
+  part_name = parameters[1];
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->show_page_numbers = 0;
+ pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width = 10;
+ pe_ctx->pr_ctx->right_margin_width = 10;
+
+ if(pr_center_row(pe_ctx->pr_ctx))
+  return 1;
+
+ if(dctx->ctx->pass_number == 0)
+ {
+  /* this is done after the likely page advance, so the correct
+     page number is picked up*/
+  if(plaintext_add_toc_element(pe_ctx, DLEVEL_PART, part_name))
+   return 1;
+ } else {
+  if(pe_ctx->toc_cursor->type != DLEVEL_PART)
+  {
+   fprintf(stderr, "BCA: toc logic fail\n");
+   return 1;
+  }
+ }
+
+ snprintf(temp, 256, "Part %d: %s", pe_ctx->toc_cursor->count, part_name);
+
+ if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_page(pe_ctx->pr_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ if(dctx->ctx->pass_number != 0)
+ {
+  if(pe_toc_cursor_advance(pe_ctx))
+   return 1;
+ }
 
  return 0;
 }
@@ -371,6 +498,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
         if(pe_print_toc(pe_ctx))
          return 1;
 
+       pe_ctx->toc_cursor = pe_ctx->toc_root;
        pe_ctx->pr_ctx->current_page = 0;
        break;
 
