@@ -72,6 +72,20 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
+int pr_hard_full_line(struct plaintext_rendering_context *pr_ctx)
+{
+ int i;
+
+ for(i=0; i<pr_ctx->line_width; i++)
+ {
+  fprintf(pr_ctx->output, " ");
+ }
+
+ pr_ctx->n_bytes = 0;
+ pr_ctx->n_characters = 0;
+ return 0;
+}
+
 int pr_page_number(struct plaintext_rendering_context *pr_ctx)
 {
  char temp[128];
@@ -84,13 +98,28 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
 
  //this will grow in complexity, page names, etc;
  snprintf(temp, 128, "%d", pr_ctx->current_page + 1);
- //this rendered temp needs to be keept somewhere for use by toc and index structures
+ //this rendered temp needs to be keept somewhere for use by toc and index structures;
+ //remember to change the anchor tags when this happens
 
  if(pr_ctx->output == NULL)
   return 0;
 
  if(pr_ctx->show_page_numbers == 0)
-  return 0;
+ {
+  switch(pr_ctx->output_mode)
+  {
+   case PER_OUTPUT_MODE_TEXT_FILE:
+        return 0;
+        break;
+
+   case PER_OUTPUT_MODE_HTML_FILE:
+        /* the page number is the only full width line that can be certain,
+           so even no turned off, we still need a guaranteed full line for
+           the widths to match up */
+        return pr_hard_full_line(pr_ctx);
+        break;
+  }
+ }
 
  if(plaintext_rendering_stack_push(pr_ctx->pe_ctx))
   return 1;
@@ -152,6 +181,20 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
   }
  }
 
+ switch(pr_ctx->output_mode)
+ {
+  case PER_OUTPUT_MODE_HTML_FILE:
+       if(pr_ctx->output != NULL)
+       {
+        fprintf(pr_ctx->output,
+                "    </pre>\n"
+                "   </td>\n"
+                "  </tr>\n"
+                " </table>\n");
+       }
+       break;
+ }
+
  pr_ctx->current_row = -1;
  pr_ctx->current_page++;
 
@@ -166,6 +209,22 @@ int pr_start_page(struct plaintext_rendering_context *pr_ctx)
  {
   fprintf(stderr, "BCA: pr_start_page() page already started\n");
   return 1;
+ }
+
+ switch(pr_ctx->output_mode)
+ {
+  case PER_OUTPUT_MODE_HTML_FILE:
+       if(pr_ctx->output != NULL)
+       {
+        fprintf(pr_ctx->output,
+                " <a name=\"%d\"></a>\n"
+                " <table border=1 cellpadding=10>\n"
+                "  <tr>\n"
+                "   <td>\n"
+                "    <pre>",
+                pr_ctx->current_page + 1);
+       }
+       break;
  }
 
  /* top margin */
@@ -286,7 +345,7 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
 int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                     struct unicode_word_context *uwc)
 {
- int space_this_line;
+ int space_this_line, rows_left, characters_left;
 
  /* enough bytes left in the line buffer? */
  if(pr_ctx->n_bytes + uwc->buffer_length + 1 > PER_LINE_BUFFER_SIZE)
@@ -301,15 +360,78 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                    pr_ctx->left_margin_width -
                    pr_ctx->right_margin_width;
 
-
  /* need to line wrap? */
  if(pr_ctx->n_characters + uwc->n_characters + 1 > space_this_line)
  {
-  /* if we added word hyphenation / line wrapping to the word engine,
-     here is where it would be invoked */
 
-  if(pr_advance_line(pr_ctx))
-   return 1;
+  if(pr_ctx->current_row == -1)
+  {
+   rows_left = 2;
+  } else {
+   rows_left = pr_ctx->page_length
+             - pr_ctx->top_margin
+             - pr_ctx->bottom_margin
+             - pr_ctx->current_row;
+  }
+
+  characters_left = space_this_line - pr_ctx->n_characters - 1;
+
+  if( (pr_ctx->pe_ctx->hc != NULL) &&
+      (rows_left > 1) &&
+      (characters_left > 2) )
+  {
+
+   switch(hyphenation_engine_attempt(pr_ctx->pe_ctx->hc,
+                                     characters_left,
+                                     uwc,
+                                     &(pr_ctx->pe_ctx->first),
+                                     &(pr_ctx->pe_ctx->second)))
+   {
+    case -1:
+         fprintf(stderr, "BCA: pr_advace_word(): hyphentation_engine_attempt() failed\n");
+         return 1;
+         break;
+
+    case 0:
+         fprintf(stderr, "n %d '%s'\n",
+                 characters_left,
+                 uwc->word_buffer);
+         if(pr_advance_line(pr_ctx))
+          return 1;
+         break;
+
+    case 1:
+         fprintf(stderr, "y %d '%s' -> '%s' & '%s'\n",
+                 characters_left,
+                 uwc->word_buffer,
+                 pr_ctx->pe_ctx->first.word_buffer,
+                 pr_ctx->pe_ctx->second.word_buffer);
+
+         /* the word in uwc has been split into a two hyphenated parsts for line wrap,
+            first and second. Now recursively call into advance_word with the first
+            part of the line (that should now fit) */
+         if(pr_advance_word(pr_ctx, &(pr_ctx->pe_ctx->first)))
+          return 1;
+
+         if(pr_advance_line(pr_ctx))
+          return 1;
+
+         /* now contine on with next line with the word portion in 'second' */
+         memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
+                pr_ctx->pe_ctx->second.word_buffer,
+                pr_ctx->pe_ctx->second.buffer_length + 1);
+
+         pr_ctx->n_characters += pr_ctx->pe_ctx->second.n_characters;
+         pr_ctx->n_bytes += pr_ctx->pe_ctx->second.buffer_length;
+         pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
+         return 0;
+         break;
+   }
+
+  } else {
+   if(pr_advance_line(pr_ctx))
+    return 1;
+  }
  }
 
  /* unless this is the first word on the line, it will need a space in between words */
@@ -601,6 +723,9 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->direction = PER_LEFT_TO_RIGHT;
  pr_ctx->show_page_numbers = 1;
 
+ pr_ctx->output_mode = PER_OUTPUT_MODE_TEXT_FILE;
+// pr_ctx->output_mode = PER_OUTPUT_MODE_HTML_FILE;
+
  return pr_ctx;
 }
 
@@ -621,8 +746,10 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source)
 
  pr_ctx->pe_ctx = source->pe_ctx;
  pr_ctx->output = source->output;
+ pr_ctx->output_mode = source->output_mode;
  pr_ctx->current_row = source->current_row;
  pr_ctx->current_page = source->current_page;
+ pr_ctx->show_page_numbers = source->show_page_numbers;
  pr_ctx->n_bytes = 0;
  pr_ctx->n_characters = 0;
  pr_ctx->line_buffer[0] = 0;

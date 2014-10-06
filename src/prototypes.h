@@ -566,5 +566,19 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
 
 int is_white_space(char *utf8_character);
 
+/* hyphenation_engine.c -------------------- */
+
+struct hyphenation_context;
+
+struct hyphenation_context *
+hyphenation_engine_initialize(char *language);
+
+int hyphenation_engine_finalize(struct hyphenation_context *hc);
+
+int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
+                               struct unicode_word_context *source,
+                               struct unicode_word_context *first,
+                               struct unicode_word_context *second);
+
 #endif
 

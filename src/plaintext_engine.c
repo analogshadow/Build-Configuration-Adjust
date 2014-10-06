@@ -469,6 +469,11 @@ int plaintext_start_document(struct document_handling_context *dctx)
         return 1;
        }
 
+       if((pe_ctx->hc = hyphenation_engine_initialize("en_US")) == NULL)
+       {
+        fprintf(stderr, "BCA: Warning: hyphenation engine not available\n");
+       }
+
        pe_ctx->paragraph_line_spacing = 1;
        pe_ctx->paragraph_indent = 4;
        pe_ctx->show_toc = 1;
@@ -493,6 +498,21 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->pr_ctx->output = stdout;
        pe_ctx->pr_ctx->current_row = -1;
        pe_ctx->pr_ctx->current_page = 0;
+
+       switch(pe_ctx->pr_ctx->output_mode)
+       {
+        case PER_OUTPUT_MODE_HTML_FILE:
+        if(pe_ctx->pr_ctx->output != NULL)
+        {
+         fprintf(pe_ctx->pr_ctx->output,
+                 "<html>\n"
+                 " <head>\n"
+                 "  <meta charset=\"UTF-8\">\n"
+                 " </head>\n"
+                 " <body>\n");
+        }
+        break;
+       }
 
        if(pe_ctx->show_toc == 1)
         if(pe_print_toc(pe_ctx))
@@ -525,14 +545,24 @@ int plaintext_finish_document(struct document_handling_context *dctx)
 
  switch(dctx->ctx->pass_number)
  {
-  case 0:
-       /* proceede to next pass */
+  case 0: /* proceede to next pass */
        dctx->ctx->loop_inputs = 1;
        break;
 
-  case 1:
+  case 1: /* we're done. shutdown */
+       switch(pe_ctx->pr_ctx->output_mode)
+       {
+        case PER_OUTPUT_MODE_HTML_FILE:
+        if(pe_ctx->pr_ctx->output != NULL)
+        {
+         fprintf(pe_ctx->pr_ctx->output,
+                 " </body>\n"
+                 "</html>\n");
+        }
+        break;
+       }
 
-       /* we're done. shutdown */
+       hyphenation_engine_finalize(pe_ctx->hc);
        unicode_word_engine_finalize(pe_ctx->uwc);
        break;
 

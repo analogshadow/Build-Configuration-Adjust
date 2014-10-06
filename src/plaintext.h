@@ -12,6 +12,9 @@ struct plaintext_engine_context;
 #define PER_RIGHT_TO_LEFT  11
 #define PER_LINE_BUFFER_SIZE 512
 
+#define PER_OUTPUT_MODE_TEXT_FILE 800
+#define PER_OUTPUT_MODE_HTML_FILE 801
+
 struct plaintext_rendering_context
 {
  int line_width, left_margin_width, right_margin_width;
@@ -19,6 +22,7 @@ struct plaintext_rendering_context
  int page_length, top_margin, bottom_margin;
  int justification, direction, show_page_numbers;
  FILE *output;
+ int output_mode;
  struct plaintext_engine_context *pe_ctx;
  int n_bytes, n_characters;
  char line_buffer[PER_LINE_BUFFER_SIZE];
@@ -28,6 +32,9 @@ struct plaintext_engine_context
 {
  struct document_handling_context *dctx;
  struct unicode_word_context *uwc, *uwc_stack[16];
+
+ struct hyphenation_context *hc;
+ struct unicode_word_context first, second;
 
  struct plaintext_rendering_context *pr_ctx, *pr_ctx_stack[16];
 
