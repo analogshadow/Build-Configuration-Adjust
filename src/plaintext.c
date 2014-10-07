@@ -22,6 +22,9 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  int i, space, width, allocation_size;
  char *realloc_ptr;
 
+if(pr_ctx->pe_ctx->footnote_pr != NULL)
+fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
+
  if( (pr_ctx->output == NULL) &&
      (pr_ctx->output_buffer == NULL) )
  {
@@ -734,13 +737,89 @@ int plaintext_paragraph_close(struct plaintext_engine_context *pe_ctx)
  return 0;
 }
 
+int superscript_number(char *number, int length, char **superscript_ptr, int *out_length)
+{
+ int i, allocation_size, j = 0;
+ char *superscript;
+
+ if(length == -1)
+  length = strlen(number);
+
+ if(*superscript_ptr != NULL)
+ {
+  superscript = *superscript_ptr;
+  allocation_size = *out_length;
+ } else {
+  allocation_size = (length * 4) + 1;
+  if((superscript = (char *) malloc(allocation_size)) == NULL)
+  {
+   fprintf(stderr, "BCA: superscript_number() malloc(%d) failed: %s\n",
+           allocation_size, strerror(errno));
+   return 1;
+  }
+ }
+
+ for(i=0; i<length; i++)
+ {
+  switch(number[i])
+  {
+   case '0':
+        /* not the same as the degree symbol '°' */
+        j += snprintf(superscript + j, allocation_size - j, "⁰");
+        break;
+
+   case '1':
+        j += snprintf(superscript + j, allocation_size - j, "¹");
+        break;
+
+   case '2':
+        j += snprintf(superscript + j, allocation_size - j, "²");
+        break;
+
+   case '3':
+        j += snprintf(superscript + j, allocation_size - j, "³");
+        break;
+
+   case '4':
+        j += snprintf(superscript + j, allocation_size - j, "⁴");
+        break;
+
+   case '5':
+        j += snprintf(superscript + j, allocation_size - j, "⁵");
+        break;
+
+   case '6':
+        j += snprintf(superscript + j, allocation_size - j, "⁶");
+        break;
+
+   case '7':
+        j += snprintf(superscript + j, allocation_size - j, "⁷");
+        break;
+
+   case '8':
+        j += snprintf(superscript + j, allocation_size - j, "⁸");
+        break;
+
+   case '9':
+        j += snprintf(superscript + j, allocation_size - j, "⁹");
+        break;
+
+   default:
+        j += snprintf(superscript + j, allocation_size - j, "%c", number[i]);
+  }
+ }
+
+ *superscript_ptr = superscript;
+ *out_length = j;
+ return 0;
+}
+
 int plaintext_footnote_open(struct plaintext_engine_context *pe_ctx)
 {
  struct plaintext_footnote *f;
  struct plaintext_rendering_context *pr_ctx;
- int allocation_size;
-
-fprintf(stderr, "_footnote_open()\n");
+ int allocation_size, length;
+ char number[16], *superscript;
 
  if(pe_ctx->footnote_pr != NULL)
  {
@@ -771,7 +850,13 @@ fprintf(stderr, "_footnote_open()\n");
   pe_ctx->footnotes_tail = f;
  }
 
-fprintf(stderr, "0a1 pe_ctx->pr_ctx = %llx\n");
+ length = snprintf(number, 16, "%d", f->number);
+ superscript = NULL;
+ if(superscript_number(number, length, &superscript, &length))
+  return 1;
+
+fprintf(stderr, "-- '%s'\n", superscript);
+//free() takes place when used by word engine
 
  if(plaintext_rendering_stack_push(pe_ctx))
   return 1;
@@ -779,11 +864,11 @@ fprintf(stderr, "0a1 pe_ctx->pr_ctx = %llx\n");
  if(plaintext_word_engine_stack_push(pe_ctx))
   return 1;
 
-fprintf(stderr, "0a2 pe_ctx->pr_ctx = %llx\n");
-
  pr_ctx = pe_ctx->pr_ctx;
 
  pe_ctx->footnote_pr = pr_ctx;
+ fprintf(stderr, "= %llx\n", pe_ctx->pr_ctx);
+
 
  pr_ctx->justification = PER_LEFT_JUSTIFY;
  pr_ctx->left_margin_width += 2;
@@ -799,6 +884,7 @@ fprintf(stderr, "0a2 pe_ctx->pr_ctx = %llx\n");
   free(f);
   return 1;
  }
+ pr_ctx->output_buffer[0] = 0;
  pr_ctx->output_buffer_size = allocation_size;
 
  return 0;
@@ -817,6 +903,9 @@ fprintf(stderr, "_footnote_close()\n");
   return 1;
  }
 
+ if(pr_flush_line_buffer(pe_ctx->pr_ctx))
+  return 1;
+
 fprintf(stderr, "0b0 : '%s'\n", pe_ctx->pr_ctx->output_buffer);
 
  f->n_lines = pe_ctx->pr_ctx->output_buffer_lines;
@@ -828,7 +917,7 @@ fprintf(stderr, "0b0 : '%s'\n", pe_ctx->pr_ctx->output_buffer);
  }
  memcpy(f->buffer, pe_ctx->pr_ctx->output_buffer, allocation_size);
 
-fprintf(stderr, "0b1 pe_ctx->pr_ctx = %llx\n");
+fprintf(stderr, "0b1 pe_ctx->pr_ctx = %llx\n", pe_ctx->pr_ctx);
 
  if(plaintext_word_engine_stack_pop(pe_ctx))
   return 1;
@@ -836,7 +925,7 @@ fprintf(stderr, "0b1 pe_ctx->pr_ctx = %llx\n");
  if(plaintext_rendering_stack_pop(pe_ctx))
   return 1;
 
-fprintf(stderr, "0b2 pe_ctx->pr_ctx = %llx\n");
+fprintf(stderr, "0b2 pe_ctx->pr_ctx = %llx\n", pe_ctx->pr_ctx);
 
  pe_ctx->footnote_pr = NULL;
 

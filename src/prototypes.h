@@ -553,6 +553,8 @@ struct unicode_word_context
 
  void *data;
  int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
+
+ char *suffix;
 };
 
 struct unicode_word_context *

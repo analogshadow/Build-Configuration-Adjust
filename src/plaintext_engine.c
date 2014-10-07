@@ -724,7 +724,15 @@ int plaintext_rendering_stack_push(struct plaintext_engine_context *pe_ctx)
 
  pe_ctx->pr_ctx_stack[pe_ctx->rendering_context_stack_depth++] = pe_ctx->pr_ctx;
  pe_ctx->pr_ctx = pr_ctx;
-
+/*
+int i;
+fprintf(stderr, "_stack_push() %llx: ", pe_ctx->pr_ctx);
+for(i=0; i<pe_ctx->rendering_context_stack_depth; i++)
+{
+ fprintf(stderr, "%d) %llx ", i, pe_ctx->pr_ctx_stack[i]);
+}
+fprintf(stderr, "\n");
+*/
  return 0;
 }
 
@@ -742,6 +750,15 @@ int plaintext_rendering_stack_pop(struct plaintext_engine_context *pe_ctx)
 
  pe_ctx->pr_ctx =
   pe_ctx->pr_ctx_stack[--pe_ctx->rendering_context_stack_depth];
+/*
+int i;
+fprintf(stderr, "_stack_pop(): %llx", pe_ctx->pr_ctx);
+for(i=0; i<pe_ctx->rendering_context_stack_depth; i++)
+{
+ fprintf(stderr, "%d) %llx ", i, pe_ctx->pr_ctx_stack[i]);
+}
+fprintf(stderr, "\n");
+*/
 
  pe_ctx->pr_ctx->current_row = pr_ctx->current_row;
  pe_ctx->pr_ctx->current_page = pr_ctx->current_page;

@@ -101,6 +101,25 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
   /* if it is white space, does this terminate a word? */
   if(uwc->n_characters > 0)
   {
+
+   if(uwc->suffix != NULL)
+   {
+    if(uwc->buffer_length + uwc->suffix_buffer_length > 255)
+    {
+     fprintf(stderr,
+             "BCA: unicode_word_engine_consume_byte(): word buffer would overflow on suffix handling\n");
+     return 1;
+    }
+
+    memcpy(uwc->word_buffer + uwc->buffer_length, uwc->suffix, uwc->suffix_buffer_length);
+    uwc->buffer_length += uwc->suffix_buffer_length;
+    //hmm, this wont do utf8, this should be a recursive call
+
+    free(uwc->suffix);
+    uwc->suffix = NULL;
+    uwc->suffix_buffer_length = 0;
+   }
+
    uwc->word_buffer[uwc->buffer_length] = 0;
    if(uwc->consume_word(uwc, uwc->data, UWC_WORD))
     return 1;
