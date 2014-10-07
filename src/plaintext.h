@@ -27,7 +27,7 @@ struct plaintext_footnote
 struct plaintext_rendering_context
 {
  int line_width, left_margin_width, right_margin_width;
- int current_row, current_page;
+ int current_col, current_row, current_page;
  int page_length, top_margin, bottom_margin;
  int justification, direction, show_page_numbers;
  FILE *output;
@@ -97,7 +97,9 @@ int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_
 
 int pr_advance_line(struct plaintext_rendering_context *pr_ctx);
 
-int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx, 
+int pr_advance_buffer(struct plaintext_rendering_context *pr_ctx);
+
+int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx,
                                 int minimum);
 
 int pr_center_row(struct plaintext_rendering_context *pr_ctx);
@@ -117,6 +119,6 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
                               int type, char *name);
 
-
+int superscript_number(char *number, int length, char **superscript_ptr, int *out_length);
 
 #endif

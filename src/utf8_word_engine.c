@@ -28,6 +28,8 @@ unicode_word_engine_initialize(void *data,
  uwc->direction = 0;
  uwc->character_buffer_length = 0;
  uwc->expected_character_length = 0;
+ uwc->suffix = NULL;
+ uwc->suffix_buffer_length = 0;
 
  return uwc;
 }
@@ -41,6 +43,8 @@ int unicode_word_engine_finalize(struct unicode_word_context *uwc)
 int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte)
 {
  uwc->character_buffer[uwc->character_buffer_length++] = (char) byte;
+ int white_space_length, suffix_buffer_length, i;
+ char *suffix;
 
  if(uwc->expected_character_length == 0)
  {
@@ -96,7 +100,7 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
  /* NULL terminate */
  uwc->character_buffer[uwc->character_buffer_length] = 0;
 
- if(is_white_space((char *) uwc->character_buffer))
+ if((white_space_length = is_white_space((char *) uwc->character_buffer)) > 0)
  {
   /* if it is white space, does this terminate a word? */
   if(uwc->n_characters > 0)
@@ -104,20 +108,29 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
 
    if(uwc->suffix != NULL)
    {
-    if(uwc->buffer_length + uwc->suffix_buffer_length > 255)
+    /* we want the suffix before this white space, not after */
+    uwc->character_buffer_length -= white_space_length;
+    uwc->character_buffer[uwc->character_buffer_length] = 0;
+
+    /* recursively call into ourselves */
+    suffix_buffer_length = uwc->suffix_buffer_length;
+    suffix = uwc->suffix;
+    uwc->suffix_buffer_length = 0;
+    uwc->suffix = NULL;
+    uwc->expected_character_length = 0;
+
+    for(i=0; i<suffix_buffer_length; i++)
     {
-     fprintf(stderr,
-             "BCA: unicode_word_engine_consume_byte(): word buffer would overflow on suffix handling\n");
-     return 1;
+     if(unicode_word_engine_consume_byte(uwc, suffix[i]))
+     {
+      fprintf(stderr, "BCA: unicode_word_engine_consume_byte() "
+              "failed on recursive call for handling byte index %d of suffix '%s' (%d bytes)\n",
+              i, suffix, suffix_buffer_length);
+      return 1;
+     }
     }
 
-    memcpy(uwc->word_buffer + uwc->buffer_length, uwc->suffix, uwc->suffix_buffer_length);
-    uwc->buffer_length += uwc->suffix_buffer_length;
-    //hmm, this wont do utf8, this should be a recursive call
-
-    free(uwc->suffix);
-    uwc->suffix = NULL;
-    uwc->suffix_buffer_length = 0;
+    free(suffix);
    }
 
    uwc->word_buffer[uwc->buffer_length] = 0;
@@ -157,6 +170,20 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
  return 0;
 }
 
+int unicode_word_engine_suffix(struct unicode_word_context *uwc, char *buffer, int buffer_length)
+{
+ if(uwc->suffix != NULL)
+ {
+  fprintf(stderr, "BCA: unicode_word_engine_suffix() suffix already present\n");
+  return 1;
+ }
+
+ uwc->suffix = buffer;
+ uwc->suffix_buffer_length = buffer_length;
+ return 0;
+}
+
+/* returns 0 for non-whitespace, positive for nbytes of whitespace */
 int is_white_space(char *utf8_character)
 {
  /* space */

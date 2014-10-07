@@ -555,6 +555,7 @@ struct unicode_word_context
  int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
 
  char *suffix;
+ int suffix_buffer_length;
 };
 
 struct unicode_word_context *
@@ -567,6 +568,9 @@ int unicode_word_engine_finalize(struct unicode_word_context *uwc);
 int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte);
 
 int is_white_space(char *utf8_character);
+
+int unicode_word_engine_suffix(struct unicode_word_context *uwc, char *buffer, int buffer_length);
+
 
 /* hyphenation_engine.c -------------------- */
 

@@ -22,12 +22,10 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  int i, space, width, allocation_size;
  char *realloc_ptr;
 
-if(pr_ctx->pe_ctx->footnote_pr != NULL)
-fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
-
  if( (pr_ctx->output == NULL) &&
      (pr_ctx->output_buffer == NULL) )
  {
+  /* do nothing fast path */
   pr_ctx->n_bytes = 0;
   pr_ctx->n_characters = 0;
   return 0;
@@ -36,9 +34,14 @@ fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
  if(pr_ctx->n_bytes == 0)
   return 0;
 
- width = pr_ctx->line_width -
-         pr_ctx->left_margin_width -
-         pr_ctx->right_margin_width;
+ if(pr_ctx->current_col > pr_ctx->left_margin_width)
+  width = pr_ctx->line_width -
+          pr_ctx->current_col -
+          pr_ctx->right_margin_width;
+ else
+  width = pr_ctx->line_width -
+          pr_ctx->left_margin_width -
+          pr_ctx->right_margin_width;
 
  if(pr_ctx->n_characters > width)
  {
@@ -49,7 +52,12 @@ fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
  switch(pr_ctx->justification)
  {
   case PER_LEFT_JUSTIFY:
-       space = pr_ctx->left_margin_width;
+       if(pr_ctx->current_col > pr_ctx->left_margin_width)
+        space = 0;
+       else if(pr_ctx->current_col > 0)
+        space = pr_ctx->left_margin_width - pr_ctx->current_col;
+       else
+        space = pr_ctx->left_margin_width;
        break;
 
   case PER_CENTER_JUSTIFY:
@@ -57,7 +65,15 @@ fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
        break;
 
   case PER_RIGHT_JUSTIFY:
-       space = pr_ctx->left_margin_width + width - pr_ctx->n_characters;
+       if(pr_ctx->current_col > pr_ctx->left_margin_width)
+        space = pr_ctx->left_margin_width + width - pr_ctx->n_characters;
+       else if(pr_ctx->current_col > 0)
+        space = pr_ctx->left_margin_width +
+                width -
+                pr_ctx->n_characters -
+                pr_ctx->current_col;
+       else
+        space = pr_ctx->left_margin_width + width - pr_ctx->n_characters;
        break;
 
   default:
@@ -77,7 +93,7 @@ fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
  {
   fprintf(pr_ctx->output, "%s", pr_ctx->line_buffer);
  } else {
-  if(pr_ctx->output_buffer_length + pr_ctx->n_bytes + 1 >= pr_ctx->output_buffer_size)
+  if(pr_ctx->output_buffer_length + pr_ctx->n_bytes + 2 >= pr_ctx->output_buffer_size)
   {
    allocation_size = pr_ctx->output_buffer_size + PER_LINE_BUFFER_SIZE;
    if((realloc_ptr = realloc(pr_ctx->output_buffer, allocation_size)) == NULL)
@@ -89,11 +105,12 @@ fprintf(stderr, "_flush_line_buffer(%llx)\n", pr_ctx);
    pr_ctx->output_buffer_size = allocation_size;
   }
 
+  pr_ctx->output_buffer[pr_ctx->output_buffer_length++] = ' ';
   memcpy(pr_ctx->output_buffer + pr_ctx->output_buffer_length,
          pr_ctx->line_buffer, pr_ctx->n_bytes);
   pr_ctx->output_buffer_length += pr_ctx->n_bytes;
   pr_ctx->output_buffer[pr_ctx->output_buffer_length] = 0;
-fprintf(stderr, "a1: '%s'\n", pr_ctx->output_buffer);
+  pr_ctx->output_buffer_lines++;
  }
 
  pr_ctx->n_bytes = 0;
@@ -345,7 +362,7 @@ int pr_center_row(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
-int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx, 
+int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx,
                                 int minimum)
 {
  int rows_left;
@@ -361,9 +378,104 @@ int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx,
  return 0;
 }
 
+int pr_render_foot_notes(struct plaintext_engine_context *pe_ctx, int limit)
+{
+ struct plaintext_footnote *f;
+ int count, length, right_margin;
+ char number[16], *superscript;
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width += 1;
+
+ right_margin = pe_ctx->pr_ctx->right_margin_width;
+ pe_ctx->pr_ctx->right_margin_width += 2;
+
+ pe_ctx->footnote_pr = pe_ctx->pr_ctx;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ count = 0;
+ while(1)
+ {
+  if( (limit != 0) && (count == limit) )
+   break;
+
+  if((f = pe_ctx->footnotes_head) == NULL)
+  {
+   if(limit != 0)
+   {
+    fprintf(stderr, "BCA: pr_render_foot_notes() I should not be here\n");
+    return 1;
+   }
+   break;
+  }
+
+  length = snprintf(number, 16, "%d", f->number);
+  superscript = NULL;
+  if(superscript_number(number, length, &superscript, &length))
+   return 1;
+
+  if(pr_feed_generated_words(pe_ctx, superscript))
+   return 1;
+
+  if(pr_advance_buffer(pe_ctx->pr_ctx))
+   return 1;
+
+  free(superscript);
+
+  if(plaintext_rendering_stack_push(pe_ctx))
+   return 1;
+
+  if(plaintext_word_engine_stack_push(pe_ctx))
+   return 1;
+
+  pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
+  pe_ctx->pr_ctx->left_margin_width += 1;
+  pe_ctx->pr_ctx->right_margin_width = right_margin + 1;
+
+  if(pr_feed_generated_words(pe_ctx, f->buffer))
+   return 1;
+
+  if(pr_advance_line(pe_ctx->pr_ctx))
+   return 1;
+
+  if(plaintext_word_engine_stack_pop(pe_ctx))
+   return 1;
+
+  if(plaintext_rendering_stack_pop(pe_ctx))
+   return 1;
+
+  pe_ctx->footnotes_head = f->next;
+
+  if(pe_ctx->footnotes_tail == f)
+   pe_ctx->footnotes_tail = NULL;
+
+  free(f->buffer);
+  free(f);
+  count++;
+ }
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ pe_ctx->footnote_pr = NULL;
+ return 0;
+}
+
 int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
 {
- int rows_left;
+ int rows_left, rows_consumable_by_foot_notes, n_notes;
+ struct plaintext_footnote *f;
 
  if(pr_ctx->current_row == -1)
   if(pr_start_page(pr_ctx))
@@ -371,6 +483,8 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
 
  if(pr_flush_line_buffer(pr_ctx))
   return 1;
+
+ pr_ctx->current_col = 0;
 
  rows_left = pr_ctx->page_length
            - pr_ctx->top_margin
@@ -380,6 +494,30 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
  if(rows_left < 1)
   return pr_advance_page(pr_ctx);
 
+ if(pr_ctx->pe_ctx->footnote_pr == NULL)
+ {
+  n_notes = 0;
+  rows_consumable_by_foot_notes = 1;
+  for(f = pr_ctx->pe_ctx->footnotes_head; f != NULL; f = f->next)
+  {
+   n_notes++;
+   rows_consumable_by_foot_notes += f->n_lines;
+
+   if(rows_left == rows_consumable_by_foot_notes)
+   {
+    pr_ctx->current_row++;
+
+    if(pr_ctx->output != NULL)
+     fprintf(pr_ctx->output, "\n");
+
+    if(pr_render_foot_notes(pr_ctx->pe_ctx, n_notes))
+     return 1;
+
+    return pr_advance_page(pr_ctx);
+   }
+  }
+ }
+
  pr_ctx->current_row++;
 
  if(pr_ctx->output != NULL)
@@ -388,22 +526,52 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
+/* Normally, either the line is explicitly advanced with advance_line()
+   or advance_line() is called as a side effect of advance_word(). In
+   either case, the buffer is written as a whole line. (This is part
+   of handling left/right/center justification.) However, in some cases
+   we want to advance what is in the line buffer with out moving to a
+   new line. Generally this would be in cases where we need to output
+   part of a line before going deeper into the rendering context stack.
+*/
+int pr_advance_buffer(struct plaintext_rendering_context *pr_ctx)
+{
+ int n_characters;
+
+ if(pr_ctx->current_row == -1)
+  if(pr_start_page(pr_ctx))
+   return 1;
+
+ n_characters = pr_ctx->n_characters;
+
+ if(pr_flush_line_buffer(pr_ctx))
+  return 1;
+
+ pr_ctx->current_col += n_characters;
+ return 0;
+}
+
 int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                     struct unicode_word_context *uwc)
 {
- int space_this_line, rows_left, characters_left;
+ int space_this_line, rows_left, characters_left, effective_left;
 
  /* enough bytes left in the line buffer? */
  if(pr_ctx->n_bytes + uwc->buffer_length + 1 > PER_LINE_BUFFER_SIZE)
  {
-  fprintf(stderr, "BCA: plaintext engine -  pr_advance_word(): "
+  fprintf(stderr, "BCA: plaintext engine - pr_advance_word(): "
           "line buffer would overrun\n");
   return 1;
  }
 
  /* how many characters will fit on this line? */
+ if(pr_ctx->current_col > pr_ctx->left_margin_width)
+  effective_left = pr_ctx->current_col;
+ else
+  effective_left = pr_ctx->left_margin_width;
+
  space_this_line = pr_ctx->line_width -
-                   pr_ctx->left_margin_width -
+                   effective_left -
                    pr_ctx->right_margin_width;
 
  /* need to line wrap? */
@@ -855,8 +1023,9 @@ int plaintext_footnote_open(struct plaintext_engine_context *pe_ctx)
  if(superscript_number(number, length, &superscript, &length))
   return 1;
 
-fprintf(stderr, "-- '%s'\n", superscript);
-//free() takes place when used by word engine
+ /* free() takes place when used by word engine */
+ if(unicode_word_engine_suffix(pe_ctx->uwc, superscript, length))
+  return 1;
 
  if(plaintext_rendering_stack_push(pe_ctx))
   return 1;
@@ -867,8 +1036,6 @@ fprintf(stderr, "-- '%s'\n", superscript);
  pr_ctx = pe_ctx->pr_ctx;
 
  pe_ctx->footnote_pr = pr_ctx;
- fprintf(stderr, "= %llx\n", pe_ctx->pr_ctx);
-
 
  pr_ctx->justification = PER_LEFT_JUSTIFY;
  pr_ctx->left_margin_width += 2;
@@ -895,18 +1062,19 @@ int plaintext_footnote_close(struct plaintext_engine_context *pe_ctx)
  struct plaintext_footnote *f;
  int allocation_size;
 
-fprintf(stderr, "_footnote_close()\n");
-
  if((f = pe_ctx->footnotes_tail) == NULL)
  {
   fprintf(stderr, "BCA: plaintext_footnote_close() should not be here\n");
   return 1;
  }
 
- if(pr_flush_line_buffer(pe_ctx->pr_ctx))
+ /* flush word */
+ if(unicode_word_engine_consume_byte(pe_ctx->uwc, ' '))
   return 1;
 
-fprintf(stderr, "0b0 : '%s'\n", pe_ctx->pr_ctx->output_buffer);
+ /* flush line */
+ if(pr_flush_line_buffer(pe_ctx->pr_ctx))
+  return 1;
 
  f->n_lines = pe_ctx->pr_ctx->output_buffer_lines;
  allocation_size = pe_ctx->pr_ctx->output_buffer_length + 1;
@@ -917,19 +1085,14 @@ fprintf(stderr, "0b0 : '%s'\n", pe_ctx->pr_ctx->output_buffer);
  }
  memcpy(f->buffer, pe_ctx->pr_ctx->output_buffer, allocation_size);
 
-fprintf(stderr, "0b1 pe_ctx->pr_ctx = %llx\n", pe_ctx->pr_ctx);
-
  if(plaintext_word_engine_stack_pop(pe_ctx))
   return 1;
 
  if(plaintext_rendering_stack_pop(pe_ctx))
   return 1;
 
-fprintf(stderr, "0b2 pe_ctx->pr_ctx = %llx\n", pe_ctx->pr_ctx);
-
  pe_ctx->footnote_pr = NULL;
 
-fprintf(stderr, "got here: '%s'\n", f->buffer);
  return 0;
 }
 
@@ -952,6 +1115,7 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->pe_ctx = pe_ctx;
  pr_ctx->output = output;
  pr_ctx->current_row = -1;
+ pr_ctx->current_col = 0;
  pr_ctx->current_page = 0;
  pr_ctx->n_bytes = 0;
  pr_ctx->n_characters = 0;
@@ -973,6 +1137,8 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->output_buffer = NULL;
  pr_ctx->output_buffer_length = 0;
  pr_ctx->output_buffer_size = 0;
+ pr_ctx->output_buffer_lines = 0;
+
  return pr_ctx;
 }
 
@@ -995,6 +1161,7 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source)
  pr_ctx->output = source->output;
  pr_ctx->output_mode = source->output_mode;
  pr_ctx->current_row = source->current_row;
+ pr_ctx->current_col = source->current_col;
  pr_ctx->current_page = source->current_page;
  pr_ctx->show_page_numbers = source->show_page_numbers;
  pr_ctx->n_bytes = 0;
@@ -1012,8 +1179,9 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source)
 
  /* buffer output is explicitly setup, so don't propagate */
  pr_ctx->output_buffer = NULL;
- pr_ctx->output_buffer_length = 0;
+ pr_ctx->output_buffer_lines = 0;
  pr_ctx->output_buffer_size = 0;
+ pr_ctx->output_buffer_length = 0;
 
  return pr_ctx;
 }
