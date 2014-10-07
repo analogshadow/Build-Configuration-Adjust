@@ -92,6 +92,29 @@ int is_capitalized(char *utf8_string, int n_bytes)
  return 0;
 }
 
+/* hyphenation logic
+
+ After word isolation (white space based), UTF-8 validation & character counting, hyphenation
+ can take place.
+
+ If the word is capitalized, it is considered either a proper noun or the first word of a sentence,
+ and as a matter of style not hyphenated.
+
+ If a word is less than four letters it is not hyphenated.
+
+ If the word has an em dash in it, a warning is printed (since that is not correct) and the word
+ is not hyphenated.
+
+ If the word has an other hyphenation marks, those are used for hyphenation points.
+
+ If enabled, and with a supported langauge, soft hyphenation are added to the word.
+
+ Rendering engines then hyphenate or soft or real hyphens, and never printing soft hyphens unless
+ they are used.
+
+*/
+
+
 /* Hyphenate words for splitting across lines.
    -1 failure, 0 hyphenation not found, 1 hyphenation found */
 int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
@@ -174,7 +197,7 @@ int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
      first->word_buffer[i] = 0;
      first->buffer_length = first->n_characters = i;
 
-     second->buffer_length = second->n_characters = source->n_characters - i;
+     second->buffer_length = second->n_characters = source->n_characters - (i - 1);
      memcpy(second->word_buffer, source->word_buffer + (i - 1), second->n_characters);
      second->word_buffer[second->n_characters] = 0;
      return 1;

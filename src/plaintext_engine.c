@@ -117,7 +117,60 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
                               char **parameters, int n_parameters)
 {
  struct plaintext_engine_context *pe_ctx;
+ char *subsection_name = NULL, temp[256];
+
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ if(n_parameters == 2)
+  subsection_name = parameters[1];
+
+ if(dctx->ctx->pass_number == 0)
+ {
+  if(plaintext_add_toc_element(pe_ctx, DLEVEL_SUB, subsection_name))
+   return 1;
+ } else {
+  if(pe_ctx->toc_cursor->type != DLEVEL_SUB)
+  {
+   fprintf(stderr, "BCA: toc logic fail\n");
+   return 1;
+  }
+ }
+
+ snprintf(temp, 256, "Subsection %d: %s", pe_ctx->toc_cursor->count, subsection_name);
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width = 3;
+ pe_ctx->pr_ctx->right_margin_width = 10;
+
+ if(pr_ensure_minimum_rows_left(pe_ctx->pr_ctx, 3))
+  return 1;
+
+ if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ if(dctx->ctx->pass_number != 0)
+ {
+  if(pe_toc_cursor_advance(pe_ctx))
+   return 1;
+ }
 
  return 0;
 }
@@ -410,6 +463,9 @@ int plaintext_open_tag(struct document_handling_context *dctx,
  if(strcmp(tag_name, "p") == 0)
   return plaintext_paragraph_open(pe_ctx);
 
+ if(strcmp(tag_name, "f") == 0)
+  return plaintext_footnote_open(pe_ctx);
+
  fprintf(stderr,
          "BCA: plaintext_open_tag(): warning, plain text engine does "
          "not support tag '%s'.\n",
@@ -428,6 +484,9 @@ int plaintext_close_tag(struct document_handling_context *dctx)
 
  if(strcmp(tag_name, "p") == 0)
   return plaintext_paragraph_close(pe_ctx);
+
+ if(strcmp(tag_name, "f") == 0)
+  return plaintext_footnote_close(pe_ctx);
 
  return 0;
 }

@@ -19,9 +19,11 @@ int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffe
 
 int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
 {
- int i, space, width;
+ int i, space, width, allocation_size;
+ char *realloc_ptr;
 
- if(pr_ctx->output == NULL)
+ if( (pr_ctx->output == NULL) &&
+     (pr_ctx->output_buffer == NULL) )
  {
   pr_ctx->n_bytes = 0;
   pr_ctx->n_characters = 0;
@@ -60,12 +62,37 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
        return 1;
  }
 
- for(i=0; i<space; i++)
+ if(pr_ctx->output != NULL)
  {
-  fprintf(pr_ctx->output, " ");
+  for(i=0; i<space; i++)
+  {
+   fprintf(pr_ctx->output, " ");
+  }
  }
 
- fprintf(pr_ctx->output, "%s", pr_ctx->line_buffer);
+ if(pr_ctx->output != NULL)
+ {
+  fprintf(pr_ctx->output, "%s", pr_ctx->line_buffer);
+ } else {
+  if(pr_ctx->output_buffer_length + pr_ctx->n_bytes + 1 >= pr_ctx->output_buffer_size)
+  {
+   allocation_size = pr_ctx->output_buffer_size + PER_LINE_BUFFER_SIZE;
+   if((realloc_ptr = realloc(pr_ctx->output_buffer, allocation_size)) == NULL)
+   {
+    fprintf(stderr, "BCA: pr_flush_line_buffer() realloc(%d) failed\n", allocation_size);
+    return 1;
+   }
+   pr_ctx->output_buffer = realloc_ptr;
+   pr_ctx->output_buffer_size = allocation_size;
+  }
+
+  memcpy(pr_ctx->output_buffer + pr_ctx->output_buffer_length,
+         pr_ctx->line_buffer, pr_ctx->n_bytes);
+  pr_ctx->output_buffer_length += pr_ctx->n_bytes;
+  pr_ctx->output_buffer[pr_ctx->output_buffer_length] = 0;
+fprintf(stderr, "a1: '%s'\n", pr_ctx->output_buffer);
+ }
+
  pr_ctx->n_bytes = 0;
  pr_ctx->n_characters = 0;
 
@@ -315,6 +342,22 @@ int pr_center_row(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
+int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx, 
+                                int minimum)
+{
+ int rows_left;
+
+ rows_left = pr_ctx->page_length
+           - pr_ctx->top_margin
+           - pr_ctx->bottom_margin
+           - pr_ctx->current_row;
+
+ if(minimum < rows_left)
+  return pr_advance_page(pr_ctx);
+
+ return 0;
+}
+
 int pr_advance_line(struct plaintext_rendering_context *pr_ctx)
 {
  int rows_left;
@@ -393,20 +436,23 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
          break;
 
     case 0:
+/*
          fprintf(stderr, "n %d '%s'\n",
                  characters_left,
                  uwc->word_buffer);
+*/
          if(pr_advance_line(pr_ctx))
           return 1;
          break;
 
     case 1:
+/*
          fprintf(stderr, "y %d '%s' -> '%s' & '%s'\n",
                  characters_left,
                  uwc->word_buffer,
                  pr_ctx->pe_ctx->first.word_buffer,
                  pr_ctx->pe_ctx->second.word_buffer);
-
+*/
          /* the word in uwc has been split into a two hyphenated parsts for line wrap,
             first and second. Now recursively call into advance_word with the first
             part of the line (that should now fit) */
@@ -688,6 +734,115 @@ int plaintext_paragraph_close(struct plaintext_engine_context *pe_ctx)
  return 0;
 }
 
+int plaintext_footnote_open(struct plaintext_engine_context *pe_ctx)
+{
+ struct plaintext_footnote *f;
+ struct plaintext_rendering_context *pr_ctx;
+ int allocation_size;
+
+fprintf(stderr, "_footnote_open()\n");
+
+ if(pe_ctx->footnote_pr != NULL)
+ {
+  fprintf(stderr,
+          "BCA: plaintext_footnote_open() foot note starting inside another foot note\n");
+  return 1;
+ }
+
+ allocation_size = sizeof(struct plaintext_footnote);
+ if((f = (struct plaintext_footnote *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: plaintext_footnote_open() malloc(%d) failed.\n",
+          allocation_size);
+  return 1;
+ }
+ memset(f, 0, allocation_size);
+
+ f->number = ++pe_ctx->n_footnotes;
+
+ if(pe_ctx->footnotes_head == NULL)
+  pe_ctx->footnotes_head = f;
+
+ if(pe_ctx->footnotes_tail == NULL)
+ {
+  pe_ctx->footnotes_tail = f;
+ } else {
+  pe_ctx->footnotes_tail->next = f;
+  pe_ctx->footnotes_tail = f;
+ }
+
+fprintf(stderr, "0a1 pe_ctx->pr_ctx = %llx\n");
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+fprintf(stderr, "0a2 pe_ctx->pr_ctx = %llx\n");
+
+ pr_ctx = pe_ctx->pr_ctx;
+
+ pe_ctx->footnote_pr = pr_ctx;
+
+ pr_ctx->justification = PER_LEFT_JUSTIFY;
+ pr_ctx->left_margin_width += 2;
+ pr_ctx->right_margin_width += 2;
+
+ /* this rendering context will write to ->output_buffer */
+ pr_ctx->output = NULL;
+ allocation_size = PER_LINE_BUFFER_SIZE;
+ if((pr_ctx->output_buffer = (char *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: plaintext_footnote_open() malloc(%d) failed.\n",
+          allocation_size);
+  free(f);
+  return 1;
+ }
+ pr_ctx->output_buffer_size = allocation_size;
+
+ return 0;
+}
+
+int plaintext_footnote_close(struct plaintext_engine_context *pe_ctx)
+{
+ struct plaintext_footnote *f;
+ int allocation_size;
+
+fprintf(stderr, "_footnote_close()\n");
+
+ if((f = pe_ctx->footnotes_tail) == NULL)
+ {
+  fprintf(stderr, "BCA: plaintext_footnote_close() should not be here\n");
+  return 1;
+ }
+
+fprintf(stderr, "0b0 : '%s'\n", pe_ctx->pr_ctx->output_buffer);
+
+ f->n_lines = pe_ctx->pr_ctx->output_buffer_lines;
+ allocation_size = pe_ctx->pr_ctx->output_buffer_length + 1;
+ if((f->buffer = (char *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: plaintext_footnote_close() malloc(%d)\n", allocation_size);
+  return 1;
+ }
+ memcpy(f->buffer, pe_ctx->pr_ctx->output_buffer, allocation_size);
+
+fprintf(stderr, "0b1 pe_ctx->pr_ctx = %llx\n");
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+fprintf(stderr, "0b2 pe_ctx->pr_ctx = %llx\n");
+
+ pe_ctx->footnote_pr = NULL;
+
+fprintf(stderr, "got here: '%s'\n", f->buffer);
+ return 0;
+}
 
 struct plaintext_rendering_context *
 plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
@@ -726,6 +881,9 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->output_mode = PER_OUTPUT_MODE_TEXT_FILE;
 // pr_ctx->output_mode = PER_OUTPUT_MODE_HTML_FILE;
 
+ pr_ctx->output_buffer = NULL;
+ pr_ctx->output_buffer_length = 0;
+ pr_ctx->output_buffer_size = 0;
  return pr_ctx;
 }
 
@@ -763,12 +921,24 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source)
  pr_ctx->justification = source->justification;
  pr_ctx->direction = source->direction;
 
+ /* buffer output is explicitly setup, so don't propagate */
+ pr_ctx->output_buffer = NULL;
+ pr_ctx->output_buffer_length = 0;
+ pr_ctx->output_buffer_size = 0;
+
  return pr_ctx;
 }
 
 int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_ctx)
 {
- free(pr_ctx);
+ if(pr_ctx)
+ {
+  if(pr_ctx->output_buffer != NULL)
+   free(pr_ctx->output_buffer);
+
+  free(pr_ctx);
+ }
+
  return 0;
 }
 
