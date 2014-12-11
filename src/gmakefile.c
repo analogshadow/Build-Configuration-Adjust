@@ -551,7 +551,8 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     add_temp_to_files = 1;
    }
 
-   if(strcmp(extension, "cpp") == 0)
+   if( (strcmp(extension, "cpp") == 0) ||
+       (strcmp(extension, "cc") == 0) )
    {
     handled = 1;
     add_temp_to_files = 1;
@@ -1060,11 +1061,168 @@ int object_from_c_file(struct bca_context *ctx,
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
   fprintf(output, "%s ", tc->cc_compile_shared_library_obj_flag);
 
+ if(tc->cxxflags != NULL)
+  fprintf(output, "%s ", tc->ccflags);
+
  fprintf(output, "%s ", source_file_name);
 
  fprintf(output, "%s ", tc->cc_output_flag);
 
  fprintf(output, "%s\n\n", temp);
+
+ return 0;
+}
+
+int object_from_cxx_file(struct bca_context *ctx,
+                         struct component_details *cd,
+                         struct host_configuration *tc,
+                         char *source_file_base_name,
+                         char *source_file_name,
+                         char *output_file_name,
+                         FILE *output)
+{
+ int x, y, yes;
+ char temp[1024];
+ struct component_details cd_d;
+
+ memset(&cd_d, 0, sizeof(struct component_details));
+
+ snprintf(temp, 1024, "%s/obj/%s-%s%s",
+          tc->build_prefix, cd->project_component,
+          source_file_base_name, tc->obj_suffix);
+
+ fprintf(output, "%s : %s", temp, source_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, " $(%s-FILE_DEPENDENCIES)", output_file_name);
+
+ fprintf(output, "\n");
+
+ fprintf(output, "\t%s ", tc->cxx);
+
+ if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
+  return 1;
+
+ /* handle dependencies (internal and extrnal) */
+ if(cd->n_dependencies > 0)
+ {
+  fprintf(output, "`");
+
+  if(component_pkg_config_path(ctx, cd, tc, output))
+   return 1;
+
+  if(tc->pkg_config_libdir != NULL)
+   fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
+
+  fprintf(output, "%s --cflags ", tc->pkg_config);
+
+  for(y=0; y < cd->n_dependencies; y++)
+  {
+   yes = 0;
+   x = 0;
+   while(x < cd->n_components)
+   {
+    if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
+    {
+     resolve_component_version(ctx, ctx->project_configuration_contents,
+                               ctx->project_configuration_length, &cd_d,
+                               "SHAREDLIBRARY", cd->project_components[x]);
+     fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
+     yes = 1;
+     break;
+    }
+    x++;
+   }
+
+   if(yes == 0)
+    fprintf(output, "%s ", cd->dependencies[y]);
+  }
+
+  fprintf(output, "` ");
+ }
+
+ for(y=0; y< cd->n_include_dirs; y++)
+ {
+  fprintf(output, "%s %s ", tc->cc_include_dir_flag, cd->include_dirs[y]);
+ }
+
+ if(strcmp(cd->project_component_type, "BINARY") == 0)
+  fprintf(output, "%s ", tc->cc_compile_bin_obj_flag);
+
+ if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
+  fprintf(output, "%s ", tc->cc_compile_shared_library_obj_flag);
+
+ if(tc->cxxflags != NULL)
+  fprintf(output, "%s ", tc->cxxflags);
+
+ fprintf(output, "%s ", source_file_name);
+
+ fprintf(output, "%s ", tc->cc_output_flag);
+
+ fprintf(output, "%s\n\n", temp);
+
+ return 0;
+}
+
+int decide_cxx_runtime_requirement(struct bca_context *ctx,
+                                   struct component_details *cd,
+                                   struct host_configuration *tc)
+{
+ int i, x, handled;
+ char *extension;
+
+ /* This is hacky as "all get out". For now just see if component had any files
+    that were C++ sources.
+ */
+
+ for(i=0; i < cd->n_file_names; i++)
+ {
+  if( (strcmp(cd->file_extensions[i], "cc") == 0) ||
+      (strcmp(cd->file_extensions[i], "cxx") == 0) ||
+      (strcmp(cd->file_extensions[i], "cpp") == 0) )
+  {
+   return 1;
+  }
+ }
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  x = 0;
+
+  /* this test is done in multiple places when the opertunity comes up */
+  while(x < cd->n_components)
+  {
+   if(strcmp(cd->inputs[i], cd->project_components[x]) == 0)
+   {
+    handled = 1;
+    break;
+   }
+   x++;
+  }
+
+  if(handled == 0)
+  {
+   fprintf(stderr,
+           "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  if(path_extract(cd->project_output_names[x], NULL, &extension))
+  {
+   return 1;
+  }
+
+  if( (strcmp(extension, "cc") == 0) ||
+      (strcmp(extension, "cxx") == 0) ||
+      (strcmp(extension, "cpp") == 0) )
+  {
+   free(extension);
+   return 1;
+  }
+
+  free(extension);
+ }
 
  return 0;
 }
@@ -1078,9 +1236,15 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                             FILE *output,
                                             int installed_version)
 {
- int x, i, yes;
+ int x, i, yes, need_cxx_runtime = 0;
  struct component_details cd_d;
  char *build_prefix, *package_name = NULL, *package_description = NULL, *link_name;
+
+ if((need_cxx_runtime = decide_cxx_runtime_requirement(ctx, cd, tc)) == -1)
+ {
+  fprintf(stderr, "BCA: decide_cxx_runtime_requirement() failed\n");
+  return 1;
+ }
 
 /*
    Idea / question:
@@ -1215,6 +1379,11 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
  }
 
+ if(need_cxx_runtime)
+ {
+  fprintf(output, " -lstdc++"); //this needs to be in the build configuration (per host)
+ }
+
  if(tc->ldflags != NULL)
   fprintf(output, " %s", tc->ldflags);
 
@@ -1289,6 +1458,25 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
    {
     fprintf(stderr,
             "BCA: object_from_c_file(%s.%s.%s) failed\n",
+            cd->project_component_type, cd->host, cd->project_component);
+    return 1;
+   }
+
+   handled = 1;
+  }
+
+  if( (strcmp(cd->file_extensions[i], "cc") == 0) ||
+      (strcmp(cd->file_extensions[i], "cxx") == 0) ||
+      (strcmp(cd->file_extensions[i], "cpp") == 0) )
+  {
+   if(object_from_cxx_file(ctx, cd, tc,
+                           cd->file_base_names[i],
+                           cd->file_names[i],
+                           build_file_names[0],
+                           output))
+   {
+    fprintf(stderr,
+            "BCA: object_from_cxx_file(%s.%s.%s) failed\n",
             cd->project_component_type, cd->host, cd->project_component);
     return 1;
    }
@@ -1504,7 +1692,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
 
-  fprintf(output, "%s : %s\n",
+  fprintf(output, "%s : %s Makefile.bca\n",
           build_file_names[1], build_file_names[0]);
 
   if(generate_host_component_pkg_config_file(ctx, cd, tc,
@@ -2045,7 +2233,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
                           cd.project_component_types[component_i],
                           cd.project_components[component_i], "INCLUDE_DIRS")) == NULL)
    {
-    if(ctx->verbose)
+    if(ctx->verbose > 1)
      printf("BCA: No project level include directories for %s.%s\n",
             cd.project_component_types[component_i], cd.project_components[component_i]);
    } else {
@@ -2080,7 +2268,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
                            ctx->build_configuration_length,
                            hosts[host_i], "ALL", "WITHOUTS")) == NULL)
     {
-     if(ctx->verbose)
+     if(ctx->verbose > 1)
       printf("BCA: Could not find %s.%s.WITHOUTS\n",
              cd.project_component_types[component_i], cd.project_components[component_i]);
     }
@@ -2567,15 +2755,46 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+char *genearte_tar_name(struct bca_context *ctx)
+{
+ int length = strlen(ctx->project_name), i;
+ char *t;
+
+ if((t = malloc(length + 1)) == NULL)
+  return NULL;
+
+ for(i=0; i<length; i++)
+ {
+  if(ctx->project_name[i] == ' ')
+   t[i] = '_';
+  else if(!isalnum(ctx->project_name[i]))
+   t[i] = '_';
+  else if(isupper(ctx->project_name[i]))
+   t[i] = tolower(ctx->project_name[i]);
+  else
+   t[i] = ctx->project_name[i];
+ }
+ t[length] = 0;
+
+ return t;
+}
+
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  int x, y, z, n_strings, n_files;
- char temp[512], subdir[512], *value, **strings, **files, *major, *minor;
+ char temp[512], subdir[512], *value, **strings, **files, *major, *minor,
+      *tar_name;
  struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_create_tarball_rules()\n");
+
+ if((tar_name = genearte_tar_name(ctx)) == NULL)
+ {
+  fprintf(stderr, "BCA: generate_tar_name() failed\n");
+  return 1;
+ }
 
  memset(&cd_d, 0, sizeof(struct component_details));
 
@@ -2648,7 +2867,7 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
  }
  fprintf(output, "\n");
 
- snprintf(temp, 512, "name.%s.%s", major, minor);
+ snprintf(temp, 512, "%s.%s.%s", tar_name, major, minor);
  free(major);
  free(minor);
 
@@ -2725,6 +2944,8 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 
  free_string_array(files, n_files);
  fprintf(output, "\n\n");
+
+ free(tar_name);
 #else
  fprintf(output, "#source distribution tarball creation support is not in single file distribution\n");
 #endif

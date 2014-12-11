@@ -266,7 +266,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
  if(key[0] == 'd')
  {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-  return handle_document_functions(ctx, key);
+  return NULL;
 #else
   fprintf(stderr,
           "BCA: macro key startint with 'd' is likely a document handling function. "

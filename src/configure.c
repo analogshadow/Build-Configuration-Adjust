@@ -71,17 +71,18 @@ int detect_platform(struct bca_context *ctx,
  return 0;
 }
 
-int is_file_of_type_used(struct bca_context *ctx,
-                         struct component_details *cd,
-                         char *type_extension)
+int assemble_list_of_used_source_files(struct bca_context *ctx,
+                                       struct component_details *cd,
+                                       char ***file_list_ptr,
+                                       char ***extensions_list_ptr,
+                                       int *count_ptr)
 {
- int i, j, x, handled, skip, pre_loaded, yes = 0;
- char *extension;
+ char **names = NULL, **extensions = NULL, *extension;
+ int i, j, x, handled, skip, count = 0;
 
- if(ctx->verbose > 1)
+ if(ctx->verbose > 0)
  {
-  printf("BCA: Looking for a project file for an enabled component with extension '%s'.\n",
-         type_extension);
+  printf("BCA: Gathering list of source files in use...\n");
  }
 
  /* iterate over non-disabled components */
@@ -107,22 +108,20 @@ int is_file_of_type_used(struct bca_context *ctx,
   /* first consider the .FILES of a component */
   if(resolve_component_file_dependencies(ctx, cd, i))
   {
-   return -1;
+   return 1;
   }
 
   for(j=0; j < cd->n_file_names; j++)
   {
-   if(cd->file_extensions[j] != NULL)
-   {
-    if(strcmp(cd->file_extensions[j], type_extension) == 0)
-    {
-     if(ctx->verbose)
-      fprintf(stderr, "BCA: File %s satisfies condition to find a *.%s file.\n",
-              cd->file_names[j], type_extension);
-     yes = 1;
-     break;
-    }
-   }
+   /* duplicates may arise, since files can be used for more than one
+      component, here that is ok */
+   if(add_to_string_array(&names, count, cd->file_names[j], -1, 0))
+    return 1;
+
+   if(add_to_string_array(&extensions, count, cd->file_extensions[j], -1, 0))
+    return 1;
+
+   count++;
   }
 
   if(cd->n_file_names > 0)
@@ -133,13 +132,10 @@ int is_file_of_type_used(struct bca_context *ctx,
   }
   cd->n_file_names = 0;
 
-  if(yes)
-   return 1;
-
   /* now consider the .INPUT */
   if(resolve_component_input_dependencies(ctx, cd, i))
   {
-   return -1;
+   return 1;
   }
 
   for(j=0; j < cd->n_inputs; j++)
@@ -171,14 +167,13 @@ int is_file_of_type_used(struct bca_context *ctx,
     return 1;
    }
 
-   if(strcmp(extension, type_extension) == 0)
-   {
-    if(ctx->verbose)
-     fprintf(stderr, "BCA: %s -> %s satisfies condition to find a *.%s file.\n",
-             cd->inputs[j], cd->project_output_names[j], type_extension);
+   if(add_to_string_array(&names, count, cd->project_output_names[j], -1, 0))
+    return 1;
 
-    yes = 1;
-   }
+   if(add_to_string_array(&extensions, count, extension, -1, 0))
+    return 1;
+
+   count++;
 
    free(extension);
   }
@@ -188,10 +183,41 @@ int is_file_of_type_used(struct bca_context *ctx,
    free_string_array(cd->inputs, cd->n_inputs);
   }
   cd->n_inputs = 0;
+ }
 
-  if(yes)
-   return 1;
+ *file_list_ptr = names;
+ *extensions_list_ptr = extensions;
+ *count_ptr = count;
 
+ return 0;
+}
+
+int is_file_of_type_used(struct bca_context *ctx,
+                         struct component_details *cd,
+                         char **files, char **extensions, int count,
+                         char *type_extension)
+{
+ int i;
+
+ if(ctx->verbose > 1)
+ {
+  printf("BCA: Looking for a project sourdce file for an enabled component with extension '%s'...\n",
+         type_extension);
+ }
+
+ for(i=0; i<count; i++)
+ {
+  if(extensions[i] != NULL)
+  {
+   if(strcmp(extensions[i], type_extension) == 0)
+   {
+    if(ctx->verbose)
+     fprintf(stderr,
+             "BCA: File %s satisfies condition to find a *.%s file.\n",
+             files[i], type_extension);
+    return 1;
+   }
+  }
  }
 
  if(ctx->verbose > 2)
@@ -201,39 +227,49 @@ int is_file_of_type_used(struct bca_context *ctx,
 }
 
 int is_c_compiler_needed(struct bca_context *ctx,
-                         struct component_details *cd)
+                         struct component_details *cd,
+                         char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C source files to see if C compiler is needed.\n");
+  printf("BCA: Looking for a C source files to see if C compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "c");
+ return is_file_of_type_used(ctx, cd, files, extensions, count, "c");
 }
 
 int is_cxx_compiler_needed(struct bca_context *ctx,
-                           struct component_details *cd)
+                           struct component_details *cd,
+                           char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed.\n");
+  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "cpp");
+ if(is_file_of_type_used(ctx, cd, files, extensions, count, "cc"))
+  return 1;
+ else if(is_file_of_type_used(ctx, cd, files, extensions, count, "cpp"))
+  return 1;
+ else if(is_file_of_type_used(ctx, cd, files, extensions, count, "cxx"))
+  return 1;
+ else
+ return 0;
 }
 
 int is_erlang_compiler_needed(struct bca_context *ctx,
-                              struct component_details *cd)
+                              struct component_details *cd,
+                              char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed.\n");
+  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "erl");
+ return is_file_of_type_used(ctx, cd, files, extensions, count, "erl");
 }
 
 int is_pkg_config_needed(struct bca_context *ctx,
@@ -244,7 +280,7 @@ int is_pkg_config_needed(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: Looking for dependences to see if pkg-config is needed.\n");
+  printf("BCA: Looking for dependences to see if pkg-config is needed...\n");
   fflush(stdout);
  }
 
@@ -637,15 +673,16 @@ int host_cxx_configuration(struct bca_context *ctx,
 
 int c_family_configuration(struct bca_context *ctx,
                            struct host_configuration *tc,
-                           struct component_details *cd)
+                           struct component_details *cd,
+                           char **files, char **extensions, int count)
 {
  int code, need_cc, need_cxx;
  char *s;
 
- if((need_cxx = is_cxx_compiler_needed(ctx, cd)) == -1)
+ if((need_cxx = is_cxx_compiler_needed(ctx, cd, files, extensions, count)) == -1)
   return 1;
 
- if((need_cc = is_c_compiler_needed(ctx, cd)) == -1)
+ if((need_cc = is_c_compiler_needed(ctx, cd, files, extensions, count)) == -1)
   return 1;
 
  if(need_cc)
@@ -699,6 +736,27 @@ int c_family_configuration(struct bca_context *ctx,
    /* here we want to overide regardless */
    tc->cflags = strdup(s);
   }
+
+  /* CCFLAGS */
+  if((s = getenv("CCFLAGS")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
+  {
+   /* here we want to overide regardless */
+   tc->ccflags = strdup(s);
+  }
+
+  /* CXXFLAGS */
+  if((s = getenv("CXXFLAGS")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
+  {
+   /* here we want to overide regardless */
+   tc->cxxflags = strdup(s);
+  }
+
  }
 
  return 0;
@@ -768,12 +826,13 @@ int host_erlc_configuration(struct bca_context *ctx,
 
 int erlang_family_configuration(struct bca_context *ctx,
                                 struct host_configuration *tc,
-                                struct component_details *cd)
+                                struct component_details *cd,
+                                char **files, char **extensions, int count)
 {
- int code, need_erlc;
+ int need_erlc;
  char *s;
 
- if((need_erlc = is_erlang_compiler_needed(ctx, cd)) == -1)
+ if((need_erlc = is_erlang_compiler_needed(ctx, cd, files, extensions, count)) == -1)
   return 1;
 
  if(need_erlc == 0)
@@ -1536,12 +1595,14 @@ int disables_and_enables(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: found (%d) project components: ", cd->n_components);
+  printf("BCA: Found (%d) project components: ", cd->n_components);
   for(i=0; i < cd->n_components; i++)
   {
-   printf("%s ", cd->project_components[i]);
+   if(i != 0)
+    printf(" ");
+   printf("%s", cd->project_components[i]);
   }
-  printf("\n");
+  printf(".\n");
  }
 
  /* 1) Start with disable by default components - the NONE.NONE.DISABLES. */
@@ -1854,9 +1915,10 @@ int append_host_configuration(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: append_host_configuration()\n");
 
- char *host_updates[51] =
+ char *host_updates[54] =
 
  { "CC", tc->cc,
+   "CXX", tc->cxx,
    "BUILD_PREFIX", tc->build_prefix,
    "CC_SPECIFY_OUTPUT_FLAG", tc->cc_output_flag,
    "CC_COMPILE_BIN_OBJ_FLAG", tc->cc_compile_bin_obj_flag,
@@ -1871,6 +1933,8 @@ int append_host_configuration(struct bca_context *ctx,
    "PKG_CONFIG_PATH", tc->pkg_config_path,
    "PKG_CONFIG_LIBDIR", tc->pkg_config_libdir,
    "CFLAGS", tc->cflags,
+   "CCFLAGS", tc->ccflags,
+   "CXXFLAGS", tc->cxxflags,
    "LDFLAGS", tc->ldflags,
    "INSTALL_PREFIX", tc->install_prefix,
    "INSTALL_BIN_DIR", tc->install_bin_dir,
@@ -1886,7 +1950,7 @@ int append_host_configuration(struct bca_context *ctx,
  p_length = strlen(ctx->principle);
  q_length = strlen(ctx->qualifier);
 
- for(i=0; i < 50; i += 2)
+ for(i=0; i < 53; i += 2)
  {
   if(append_host_configuration_helper(n_modify_records,
                                       mod_principles, mod_components,
@@ -1936,6 +2000,8 @@ int configure(struct bca_context *ctx)
  struct component_details cd;
  struct host_configuration *tc;
  char *platform = "", *host_root;
+ char **source_files_in_use = NULL, **source_file_extensions;
+ int n_source_files_in_use = 0;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: configure()\n");
@@ -2043,11 +2109,33 @@ int configure(struct bca_context *ctx)
  if(swap_checks(ctx))
   return 1;
 
- if(c_family_configuration(ctx, tc, &cd))
+ if(assemble_list_of_used_source_files(ctx, &cd,
+                                       &source_files_in_use,
+                                       &source_file_extensions,
+                                       &n_source_files_in_use))
   return 1;
 
- if(erlang_family_configuration(ctx, tc, &cd))
+ if(c_family_configuration(ctx, tc, &cd,
+                           source_files_in_use,
+                           source_file_extensions,
+                           n_source_files_in_use))
   return 1;
+
+ if(erlang_family_configuration(ctx, tc, &cd,
+                                source_files_in_use,
+                                source_file_extensions,
+                                n_source_files_in_use))
+  return 1;
+
+ if(free_string_array(source_files_in_use, n_source_files_in_use))
+  return 1;
+
+ if(free_string_array(source_file_extensions, n_source_files_in_use))
+  return 1;
+
+ source_files_in_use = NULL;
+ source_file_extensions = NULL;
+ n_source_files_in_use = 0;
 
  if(pkg_config_tests(ctx, tc, &cd))
   return 1;
