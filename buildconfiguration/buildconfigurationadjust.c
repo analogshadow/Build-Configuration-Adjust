@@ -2,8 +2,13 @@
 #define WITHOUT_LIBNEWT
 #define WITHOUT_MONGOOSE
 #define WITHOUT_GTK__2_0
-#define BCA_MAJOR "0"
-#define BCA_MINOR "2"
+
+#if 1
+#define BCA_VERSION "0.3"
+#else
+#define BCA_VERSION "0.3"
+#endif
+
 
 /* GPLv3
 
@@ -105,6 +110,10 @@ struct bca_context
  char *project_configuration_contents;
  int build_configuration_length;
  int project_configuration_length;
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+ struct document_handling_context *dctx;
+#endif
 };
 
 struct component_details
@@ -158,7 +167,8 @@ struct host_configuration
 
  /* flags for tools */
  char *cppflags;                           /* C & C++ preprocessor flags */
- char *cflags;                             /* C compiler flags */
+ char *cflags;                             /* generic "compiler" flags; ie pkg-config --cflags */
+ char *ccflags;                            /* C compiler flags */
  char *cxxflags;                           /* C++ compiler flags */
  char *ldflags;                            /* C & C++ linker flags */
  char *cc_output_flag;                     /* C & C++ specify output filename flag (ie -o) */
@@ -167,6 +177,7 @@ struct host_configuration
  char *cc_include_dir_flag;                /* C & C++ add include dir flag (ie -I) */
  char *cc_define_macro_flag;               /* C & C++ define preprocessor macro (ie -D) */
  char *erlc_flags;                         /* erlang compiler flags */
+ char *erlc_output_dir_flag;               /* erlc change output directory (ie -o) */
  char *python_flags;                       /* python flags */
 
  /* output file characteristics */
@@ -192,6 +203,11 @@ int self_test(struct bca_context *ctx);
 
 /* replace.c ------------------------------------ */
 int string_replace(struct bca_context *ctx);
+
+int parse_function_parameters(char *string, char ***array, int *array_length);
+
+/* documents.c ---------------------------------- */
+char * handle_document_functions(struct bca_context *ctx, char *key);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
@@ -257,6 +273,10 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
 int list_unique_principles(struct bca_context *ctx, char *qualifier,
                            char *contents, int length,
                            char ***principle_list, int *n_principles);   // selftested
+
+int list_unique_qualifiers(struct bca_context *ctx,
+                           char *contents, int length,
+                           char ***list, int *n_elements);
 
 int output_modifications(struct bca_context *ctx, FILE *output,
                          char *contents, int length, int n_records,
@@ -351,7 +371,12 @@ int is_project_using_config_h(struct bca_context *ctx);
 
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx,
-                         struct component_details *cd);
+                         struct component_details *cd,
+                         char **files, char **extensions, int count);
+
+int is_cxx_compiler_needed(struct bca_context *ctx,
+                           struct component_details *cd,
+                           char **files, char **extensions, int count);
 
 int is_pkg_config_needed(struct bca_context *ctx,
                          struct component_details *cd);
@@ -374,6 +399,17 @@ int append_host_configuration(struct bca_context *ctx,
                               char ***mod_keys,
                               char ***mod_values);
 
+int assemble_list_of_used_source_files(struct bca_context *ctx,
+                                       struct component_details *cd,
+                                       char ***file_list_ptr,
+                                       char ***extensions_list_ptr,
+                                       int *count_ptr);
+
+int is_file_of_type_used(struct bca_context *ctx,
+                         struct component_details *cd,
+                         char **files, char **extensions, int count,
+                         char *type_extension);
+
 /* gmakefile.c ---------------------------------- */
 int generate_gmakefile_mode(struct bca_context *ctx);
 
@@ -392,6 +428,9 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
                                  int uninstall_version);
 
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output);
+
+int count_host_component_target_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd);
 
 /* graphviz.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,
@@ -460,7 +499,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  int start, index, equals, in_quotes, end, value_length, offset;
 
  if(ctx->verbose > 3)
-  fprintf(stderr, "BCA: lookup_key()\n");
+  fprintf(stderr, "BCA: lookup_key(, %s.%s.%s)\n", principle_filter, component_filter, key_filter);
 
  offset = -1;
  if(iterate_key_primitives(ctx, file, file_length, &offset,
@@ -616,7 +655,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
    case 1:  /* copy original */
         fprintf(output, "%s.%s.%s = ", o_principle, o_component, o_key);
         temp = o_value;
- 
+
         if((output_value = escape_value(ctx, temp, -1)) == NULL)
         {
          /* bail */
@@ -625,7 +664,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
         }
         fprintf(output, "%s\n", output_value);
 
-        if(ctx->verbose > 3) 
+        if(ctx->verbose > 3)
          fprintf(stderr, "BCA: keeping record not in modify array %s.%s.%s = %s\n",
                  o_principle, o_component, o_key, output_value);
 
@@ -645,7 +684,7 @@ int output_modifications(struct bca_context *ctx, FILE *output,
         }
         fprintf(output, "%s\n", output_value);
 
-        if(ctx->verbose > 3) 
+        if(ctx->verbose > 3)
          fprintf(stderr, "BCA: updating record %s.%s.%s = %s\n",
                  principle[i], component[i], key[i], output_value);
 
@@ -855,8 +894,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(principle, file + start, principle_length);
-  principle[principle_length] = 0;
+  if(principle != NULL)
+  {
+   memcpy(principle, file + start, principle_length);
+   principle[principle_length] = 0;
+  }
 
   if(component_filter[0] != '*')
   {
@@ -866,8 +908,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(component, file + periods[0] + 1, component_length);
-  component[component_length] = 0;
+  if(component != NULL)
+  {
+   memcpy(component, file + periods[0] + 1, component_length);
+   component[component_length] = 0;
+  }
 
   if(key_filter[0] != '*')
   {
@@ -877,8 +922,11 @@ int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length,
     continue;
   }
 
-  memcpy(key, file + periods[1] + 1, key_length);
-  key[key_length] = 0;
+  if(key != NULL)
+  {
+   memcpy(key, file + periods[1] + 1, key_length);
+   key[key_length] = 0;
+  }
 
   if(equals_pos != NULL)
    *equals_pos = equals;
@@ -895,7 +943,7 @@ int list_component_internal_dependencies(struct bca_context *ctx,
 {
  char *value = NULL;
 
- if(ctx->verbose > 1)
+ if(ctx->verbose > 2)
   fprintf(stderr, "BCA: list_component_internal_dependencies()\n");
 
  if((value = lookup_key(ctx,
@@ -905,7 +953,7 @@ int list_component_internal_dependencies(struct bca_context *ctx,
                         cd->project_component,
                         "INT_DEPENDS")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: No internal dependencies found for component \"%s\".\n",
           cd->project_component);
 
@@ -940,7 +988,7 @@ int list_component_external_dependencies(struct bca_context *ctx,
                         cd->project_component,
                         "EXT_DEPENDS")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: No external dependencies found for component \"%s\".\n",
           cd->project_component);
 
@@ -1168,8 +1216,8 @@ int check_project_component_types(struct bca_context *ctx)
  int handled, offset = -1, i;
  char type[256], component[256], key[256];
 
- char *component_types[9] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
-                              "MACROEXPAND", "PYTHONMODULE", "CUSTOM" };
+ char *component_types[10] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
+                              "MACROEXPAND", "PYTHONMODULE", "CUSTOM", "BEAM" };
 
  char *component_keys[20] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
                               "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS",
@@ -1183,7 +1231,7 @@ int check_project_component_types(struct bca_context *ctx)
  {
   handled = 0;
   i=0;
-  while(i<8)
+  while(i<9)
   {
    if(strcmp(type, component_types[i]) == 0)
    {
@@ -1220,140 +1268,145 @@ int check_project_component_types(struct bca_context *ctx)
  return 0;
 }
 
+/* does some error checking and fills in
+   cd->project_components
+   cd->project_ouput_names
+   cd->project_component_types
+   cd->n_components
+*/
 int list_project_components(struct bca_context *ctx,
                             struct component_details *cd)
 {
- int pass = 0, allocation_size, string_length, offset, i, disabled, ok;
- char *string, type[256], component[256], key[256];
+ char **list = NULL, *name, *source, *base_file_name, **source_files;
+ int n_elements = 0, x, i, disabled, allocation_size, offset, n_source_files;
+ char principle[256];
 
- if(ctx->verbose > 2)
+ if(ctx->verbose > 1)
   fprintf(stderr, "BCA: list_project_components()\n");
 
- while(pass < 2)
+ if(list_unique_qualifiers(ctx,
+                           ctx->project_configuration_contents,
+                           ctx->project_configuration_length,
+                           &list, &n_elements))
  {
-  offset = -1;
-  cd->n_components = 0;
-  while(iterate_key_primitives(ctx, ctx->project_configuration_contents,
-                               ctx->project_configuration_length, &offset,
-                               NULL, NULL, "NAME",
-                               type, component, key, NULL))
-  {
-   i = 0;
-   disabled = 0;
-   while(i < ctx->n_disables)
-   {
-    if(strcmp(component, ctx->disabled_components[i]) == 0)
-    {
-     disabled = 1;
-     break;
-    }
-    i++;
-   }
-
-   if(pass == 0)
-   {
-    /* validate and count */
-    if(disabled == 0)
-    {
-     ok = 1;
-
-     if(strcmp(component, "ALL") == 0)
-      ok = 0;
-
-     if(strcmp(component, "NONE") == 0)
-      ok = 0;
-
-     if(ok == 0)
-     {
-      fprintf(stderr,
-              "BCA: component name is a reserved word, %s.%s.%s\n",
-              type, component, key);
-      return 1;
-     }
-
-     cd->n_components++;
-    }
-   }
-
-   if( (pass == 1) && (disabled == 0) )
-   {
-    string_length = strlen(component);
-    allocation_size = string_length + 1;
-    if((string = (char *) malloc(allocation_size)) == NULL)
-    {
-     fprintf(stderr, "BCA: malloc(%d) failed 1\n", allocation_size);
-//free array
-     return 1;
-    }
-
-    snprintf(string, allocation_size, "%s", component);
-    cd->project_components[cd->n_components] = string;
-
-
-    string_length = strlen(type);
-    allocation_size = string_length + 1;
-    if((string = (char *) malloc(allocation_size)) == NULL)
-    {
-     fprintf(stderr, "BCA: malloc(%d) failed 2\n", allocation_size);
-//free array
-     return 1;
-    }
-
-    snprintf(string, allocation_size, "%s", type);
-    cd->project_component_types[cd->n_components] = string;
-
-
-    if((cd->project_output_names[cd->n_components] =
-        lookup_key(ctx, ctx->project_configuration_contents,
-                   ctx->project_configuration_length, type, component, "NAME")) == NULL)
-    {
-     fprintf(stderr, "BCA: lookup_key() failed 3\n");
-     return 1;
-    }
-
-    cd->n_components++;
-   }
-
-  }
-
-  if(pass == 0)
-  {
-   if(cd->n_components == 0)
-   {
-    cd->project_components = NULL;
-    cd->project_component_types = NULL;
-    cd->project_output_names = NULL;
-    return 0;
-   }
-
-   /* allocate array of pointers */
-   allocation_size = cd->n_components * sizeof(char *);
-   if((cd->project_components = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 4\n", allocation_size);
-    return 1;
-   }
-
-   if((cd->project_component_types = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 5\n", allocation_size);
-    free(cd->project_components);
-    return 1;
-   }
-
-   if((cd->project_output_names = (char **) malloc(allocation_size)) == NULL)
-   {
-    fprintf(stderr, "BCA: malloc(%d) failed 6\n", allocation_size);
-    free(cd->project_components);
-    free(cd->project_component_types);
-    return 1;
-   }
-
-  }
-
-  pass++;
+  fprintf(stderr, "BCA: list_unique_principles() failed.\n");
+  return 1;
  }
 
+ cd->n_components = 0;
+ cd->project_components = NULL;
+
+ for(x=0; x<n_elements; x++)
+ {
+  disabled = 0;
+  for(i=0; i < ctx->n_disables; i++)
+  {
+   if(strcmp(list[x], ctx->disabled_components[i]) == 0)
+   {
+    disabled = 1;
+    break;
+   }
+  }
+
+  if(disabled)
+   continue;
+
+  if(strcmp(list[x], "ALL") == 0)
+   continue;
+
+  if(strcmp(list[x], "NONE") == 0)
+   continue;
+
+  if(add_to_string_array(&(cd->project_components),
+                         cd->n_components,
+                         list[x], -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  offset = -1;
+  if(iterate_key_primitives(ctx,
+                            ctx->project_configuration_contents,
+                            ctx->project_configuration_length,
+                            &offset, NULL, list[x], NULL,
+                            principle, NULL, NULL, NULL) == 0)
+  {
+   fprintf(stderr, "BCA: iterate_key_primitives(*, %s, *) failed \n", list[x]);
+   return 1;
+  }
+
+  name = NULL;
+  if(strcmp(principle, "BEAM") == 0)
+  {
+   if((source = lookup_key(ctx,
+                           ctx->project_configuration_contents,
+                           ctx->project_configuration_length,
+                           principle, list[x], "FILES")) == NULL)
+   {
+    fprintf(stderr, "BCA: lookup_key(%s, %s, FILES) failed\n", principle, list[x]);
+    return 1;
+   }
+
+   if(split_strings(ctx, source, -1, &n_source_files, &source_files))
+   {
+    fprintf(stderr, "BCA: split_strings() failed on '%s'\n", source);
+    return 1;
+   }
+   free_string_array(source_files, n_source_files);
+
+   if(n_source_files > 1)
+   {
+    fprintf(stderr,
+            "BCA: BEAM component %s should only have one input file, not \"%s\"\n",
+            list[x], source);
+    return 1;
+   }
+
+   if(path_extract(source, &base_file_name, NULL))
+   {
+    fprintf(stderr, "BCA: path_extract(%s) failed\n", list[x]);
+    return 1;
+   }
+
+   allocation_size = strlen(base_file_name) + 6;
+   name = malloc(allocation_size);
+   snprintf(name, allocation_size, "%s", base_file_name);
+   free(base_file_name);
+   free(source);
+  }
+
+  if(name == NULL)
+  {
+   if((name = lookup_key(ctx, ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         principle, list[x], "NAME")) == NULL)
+   {
+    fprintf(stderr, "BCA: warning: no .NAME for component %s of %s.\n",
+            list[x], principle);
+    name = strdup(list[x]);
+   }
+  }
+
+  if(add_to_string_array(&(cd->project_component_types),
+                         cd->n_components, principle, -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  if(add_to_string_array(&(cd->project_output_names),
+                         cd->n_components, name, -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  free(name);
+  cd->n_components++;
+ }
+
+ free_string_array(list, n_elements);
  return 0;
 }
 
@@ -1428,6 +1481,46 @@ int list_unique_principles(struct bca_context *ctx, char *search_qualifier,
  return 0;
 }
 
+int list_unique_qualifiers(struct bca_context *ctx,
+                           char *contents, int length,
+                           char ***list, int *n_elements)
+{
+ char principle[256], qualifier[256], key[256];
+ int offset, code;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: list_unique_qualifiers()\n");
+
+ *list = NULL;
+ *n_elements = 0;
+
+ offset = -1;
+ while(iterate_key_primitives(ctx, contents, length, &offset,
+                              NULL, NULL, NULL,
+                              principle, qualifier, key, NULL))
+ {
+  if(strcmp(qualifier, "ALL") == 0)
+   continue;
+
+  if(strcmp(qualifier, "NONE") == 0)
+   continue;
+
+  if((code = add_to_string_array(list, *n_elements,
+                                    qualifier, -1, 1)) == -1)
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+
+  if(code == 0)
+  {
+   (*n_elements)++;
+  }
+ }
+
+ return 0;
+}
+
 char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *host,
                                   char *project_component,
@@ -1472,16 +1565,19 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
  }
  memset(tc, 0, allocation_size);
 
- char **host_resolve_vars[24] =
+ char **host_resolve_vars[30] =
  {
   &(tc->build_prefix),
   &(tc->cc),
+  &(tc->cxx),
   &(tc->cc_output_flag),
   &(tc->cc_compile_bin_obj_flag),
   &(tc->cc_compile_shared_library_obj_flag),
   &(tc->cc_include_dir_flag),
   &(tc->cc_define_macro_flag),
   &(tc->cflags),
+  &(tc->ccflags),
+  &(tc->cxxflags),
   &(tc->pkg_config),
   &(tc->pkg_config_path),
   &(tc->pkg_config_libdir),
@@ -1496,19 +1592,25 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   &(tc->install_include_dir),
   &(tc->install_pkg_config_dir),
   &(tc->install_locale_data_dir),
-  &(tc->python)
+  &(tc->python),
+  &(tc->erlc),
+  &(tc->erlc_flags),
+  &(tc->erlc_output_dir_flag)
  };
 
- char *host_resolve_keys[24] =
+ char *host_resolve_keys[30] =
  {
   "BUILD_PREFIX",
   "CC",
+  "CXX",
   "CC_SPECIFY_OUTPUT_FLAG",
   "CC_COMPILE_BIN_OBJ_FLAG",
   "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG",
   "CC_INCLUDE_DIR_FLAG",
   "CC_DEFINE_MACRO_FLAG",
   "CFLAGS",
+  "CCFLAGS",
+  "CXXFLAGS",
   "PKG_CONFIG",
   "PKG_CONFIG_PATH",
   "PKG_CONFIG_LIBDIR",
@@ -1523,10 +1625,13 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
   "INSTALL_INCLUDE_DIR",
   "INSTALL_PKG_CONFIG_DIR",
   "INSTALL_LOCALE_DATA_DIR",
-  "PYTHON"
+  "PYTHON",
+  "ERLC",
+  "ERLCFLAGS",
+  "ERLC_OUTPUT_DIR_FLAG"
  };
 
- for(i=0; i<23; i++)
+ for(i=0; i<29; i++)
  {
   *(host_resolve_vars[i]) = resolve_build_host_variable(ctx, cd->host,
                                                         cd->project_component,
@@ -1535,7 +1640,7 @@ resolve_host_configuration(struct bca_context *ctx, struct component_details *cd
 
  if(ctx->verbose > 2)
  {
-  for(i=0; i<23; i++)
+  for(i=0; i<26; i++)
   {
    printf("BCA: %s.%s.%s resolves to %s\n",
           cd->host, cd->project_component,  host_resolve_keys[i], *(host_resolve_vars[i]));
@@ -1555,8 +1660,17 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
   if(tc->cc != NULL)
    free(tc->cc);
 
+  if(tc->cxx != NULL)
+   free(tc->cxx);
+
   if(tc->cflags != NULL)
    free(tc->cflags);
+
+  if(tc->ccflags != NULL)
+   free(tc->ccflags);
+
+  if(tc->cxxflags != NULL)
+   free(tc->cxxflags);
 
   if(tc->ldflags != NULL)
    free(tc->ldflags);
@@ -1617,6 +1731,15 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
 
   if(tc->python != NULL)
    free(tc->python);
+
+  if(tc->erlc != NULL)
+   free(tc->erlc);
+
+  if(tc->erlc_flags != NULL)
+   free(tc->erlc_flags);
+
+  if(tc->erlc_output_dir_flag != NULL)
+   free(tc->erlc_output_dir_flag);
 
   free(tc);
  }
@@ -1777,7 +1900,7 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
                         cd->project_components[component_index],
                         "INPUT")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: Could not find %s.%s.INPUT\n",
           cd->project_component_types[component_index],
           cd->project_components[component_index]);
@@ -1846,6 +1969,8 @@ int resolve_component_version(struct bca_context *ctx,
                               char *component_type,
                               char *project_component)
 {
+ int generated = 0;
+
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: resolve_component_version()\n");
 
@@ -1856,6 +1981,7 @@ int resolve_component_version(struct bca_context *ctx,
                              "NONE", "NONE", "MAJOR")) == NULL)
   {
    cd->major = strdup("0");
+   generated = 1;
   }
  }
 
@@ -1866,13 +1992,20 @@ int resolve_component_version(struct bca_context *ctx,
                              "NONE", "NONE", "MINOR")) == NULL)
   {
    cd->minor = strdup("0");
+   generated = 1;
   }
  }
 
-
- if(ctx->verbose)
-    printf("BCA: Component \"%s\" version string set to %s.%s\n",
-           project_component, cd->major, cd->minor);
+ if(generated)
+ {
+  if(ctx->verbose)
+     printf("BCA: Component \"%s\" version string artificialy set to %s.%s\n",
+            project_component, cd->major, cd->minor);
+ } else {
+  if(ctx->verbose > 1)
+     printf("BCA: Component \"%s\" version string set to %s.%s\n",
+            project_component, cd->major, cd->minor);
+ }
 
  return 0;
 }
@@ -2376,7 +2509,10 @@ int resolve_project_name(struct bca_context *ctx)
  if((ctx->project_name =
      lookup_key(ctx, ctx->project_configuration_contents, ctx->project_configuration_length,
                 "NONE", "NONE", "PROJECT_NAME")) == NULL)
+ {
+  fprintf(stderr, "BCA: Project name not set!\n");
   return 1;
+ }
 
  return 0;
 }
@@ -2597,9 +2733,9 @@ int is_project_using_config_h(struct bca_context *ctx)
   fprintf(stderr, "BCA: is_project_using_config_h()\n");
 
  value = lookup_key(ctx,
-                    ctx->build_configuration_contents,
-                    ctx->build_configuration_length,
-                    "*", "*", "config.h");
+                    ctx->project_configuration_contents,
+                    ctx->project_configuration_length,
+                    "*", "config_h", "NAME");
 
  if(value != NULL)
  {
@@ -2686,7 +2822,6 @@ int split_strings(struct bca_context *ctx, char *source, int length,
 
    if(pass == 1)
    {
-
     substring_length = (index - start) - 1;
 
     allocation_size = substring_length + 1;
@@ -3112,7 +3247,7 @@ int free_string_array(char **array, int n_elements)
 void help(void)
 {
  printf("\n                         Build Configuration Adjust\n"
-        "This is part of the build system, and not part of the project it builds.\n"
+        "                            Version: %s\n"
         "\nusage:\n"
         " --version\n"
         " --showvalue key\n"
@@ -3172,7 +3307,8 @@ void help(void)
 
         "\n Copyright 2012,2013,2014 Stover Enterprises. All rights reserved. "
         "Licensed under the terms of GNU GPLv3.\n"
-        "\tSee http://bca.stoverenterprises.com for more information.\n\n");
+        "\tSee http://bca.stoverenterprises.com for more information.\n\n",
+        BCA_VERSION);
 
 }
 
@@ -3191,8 +3327,7 @@ int main(int argc, char **argv)
   return 1;
 
  if(ctx->verbose)
-  fprintf(stderr, "BCA: Version %s.%s\n",
-          BCA_MAJOR, BCA_MINOR);
+  fprintf(stderr, "BCA: Version %s\n", BCA_VERSION);
 
  switch(ctx->manipulation_type)
  {
@@ -3242,7 +3377,7 @@ int main(int argc, char **argv)
 #endif
 
   case VERSION_MODE:
-       printf("%s.%s\n", BCA_MAJOR, BCA_MINOR);
+       printf("%s\n", BCA_VERSION);
        break;
 
   case NEW_PROJECT_MODE:
@@ -3688,7 +3823,9 @@ struct bca_context *setup(int argc, char **argv)
  struct bca_context *ctx;
  struct component_details cd;
  int allocation_size, current_arg = 1, handled, i;
-
+#ifdef HAVE_CWD
+ size_t cwd_size = 0;
+#endif
  allocation_size = sizeof(struct bca_context);
  if((ctx = (struct bca_context *) malloc(allocation_size)) == NULL)
  {
@@ -3702,7 +3839,8 @@ struct bca_context *setup(int argc, char **argv)
  memset(&cd, 0, sizeof(struct component_details));
 
 #ifdef HAVE_CWD
- ctx->cwd = getcwd(NULL, 0);
+ cwd_size = pathconf(".", _PC_PATH_MAX);
+ ctx->cwd = getcwd(NULL, cwd_size);
 #endif
 
 #ifdef HAVE_GTK
@@ -4400,6 +4538,13 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
  if(strcmp(project_component_type, "SHAREDLIBRARY") == 0)
   return tc->shared_library_suffix;
 
+ if(strcmp(project_component_type, "BEAM") == 0)
+  return ".beam";
+
+ if(strcmp(project_component_type, "PYTHONMODULE") == 0)
+  return ".py";
+
+ /* CAT and MACROEXPAND might need the same logic as CUSTOM */
  if(strcmp(project_component_type, "CAT") == 0)
   return "";
 
@@ -4419,9 +4564,6 @@ char *component_type_file_extension(struct bca_context *ctx, struct host_configu
   }
   return "";
  }
-
- if(strcmp(project_component_type, "PYTHONMODULE") == 0)
-  return ".py";
 
  fprintf(stderr, "BCA: unknown component type \"%s\"\n",
          project_component_type);
@@ -4561,7 +4703,8 @@ int render_project_component_output_name(struct bca_context *ctx,
      if((tc = resolve_host_configuration(ctx, &cd)) == NULL)
       return -1;
 
-     if((extension = component_type_file_extension(ctx, tc, cd.project_component_types[y],
+     if((extension = component_type_file_extension(ctx, tc,
+                                                   cd.project_component_types[y],
                                                    cd.project_output_names[y])) == NULL)
      {
       fprintf(stderr, "BCA: component_type_file_extension(%s) failed\n",
@@ -4654,23 +4797,23 @@ int render_project_component_output_name(struct bca_context *ctx,
       n_names++;
      }
 
-     if(strcmp(cd.project_component_types[y], "BINARY") == 0)
+     if(strcmp(cd.project_component_types[y], "BEAM") == 0)
      {
       handled = 1;
       snprintf(temp + prefix_length, 1024 - prefix_length,
-               "%s%s", cd.project_output_names[y], extension);
+               "%s.beam", cd.project_output_names[y]);
 
       if((code = add_to_string_array(&names, n_names, temp, -1, 0)) < 0)
        return -1;
 
       if(extensions != NULL)
-       if((code = add_to_string_array(extensions, n_names, extension, -1, 0)) < 0)
+       if((code = add_to_string_array(extensions, n_names, ".beam", -1, 0)) < 0)
         return -1;
 
       n_names++;
      }
 
-     if(strcmp(cd.project_component_types[y], "BUILDBINARY") == 0)
+     if(strcmp(cd.project_component_types[y], "BINARY") == 0)
      {
       handled = 1;
       snprintf(temp + prefix_length, 1024 - prefix_length,
@@ -5196,153 +5339,152 @@ int detect_platform(struct bca_context *ctx,
  return 0;
 }
 
+int assemble_list_of_used_source_files(struct bca_context *ctx,
+                                       struct component_details *cd,
+                                       char ***file_list_ptr,
+                                       char ***extensions_list_ptr,
+                                       int *count_ptr)
+{
+ char **names = NULL, **extensions = NULL, *extension;
+ int i, j, x, handled, skip, count = 0;
+
+ if(ctx->verbose > 0)
+ {
+  printf("BCA: Gathering list of source files in use...\n");
+ }
+
+ /* iterate over non-disabled components */
+ for(i=0; i < cd->n_components; i++)
+ {
+  skip = 0;
+  for(j=0; j < ctx->n_disables; j++)
+  {
+   if(strcmp(cd->project_components[i], ctx->disabled_components[j]) == 0)
+   {
+    skip = 1;
+    break;
+   }
+  }
+
+  if(skip)
+   continue;
+
+  /* CAT components don't count here */
+  if(strcmp(cd->project_component_types[i], "CAT") == 0)
+   continue;
+
+  /* first consider the .FILES of a component */
+  if(resolve_component_file_dependencies(ctx, cd, i))
+  {
+   return 1;
+  }
+
+  for(j=0; j < cd->n_file_names; j++)
+  {
+   /* duplicates may arise, since files can be used for more than one
+      component, here that is ok */
+   if(add_to_string_array(&names, count, cd->file_names[j], -1, 0))
+    return 1;
+
+   if(add_to_string_array(&extensions, count, cd->file_extensions[j], -1, 0))
+    return 1;
+
+   count++;
+  }
+
+  if(cd->n_file_names > 0)
+  {
+   free_string_array(cd->file_names, cd->n_file_names);
+   free_string_array(cd->file_base_names, cd->n_file_names);
+   free_string_array(cd->file_extensions, cd->n_file_names);
+  }
+  cd->n_file_names = 0;
+
+  /* now consider the .INPUT */
+  if(resolve_component_input_dependencies(ctx, cd, i))
+  {
+   return 1;
+  }
+
+  for(j=0; j < cd->n_inputs; j++)
+  {
+   handled = 0;
+   x = 0;
+
+   /* this test is done in multiple places when the opertunity comes up */
+   while(x < cd->n_components)
+   {
+    if(strcmp(cd->inputs[j], cd->project_components[x]) == 0)
+    {
+     handled = 1;
+     break;
+    }
+    x++;
+   }
+
+   if(handled == 0)
+   {
+    fprintf(stderr,
+            "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+            cd->project_component, cd->host, cd->inputs[j]);
+    return 1;
+   }
+
+   if(path_extract(cd->project_output_names[j], NULL, &extension))
+   {
+    return 1;
+   }
+
+   if(add_to_string_array(&names, count, cd->project_output_names[j], -1, 0))
+    return 1;
+
+   if(add_to_string_array(&extensions, count, extension, -1, 0))
+    return 1;
+
+   count++;
+
+   free(extension);
+  }
+
+  if(cd->n_inputs > 0)
+  {
+   free_string_array(cd->inputs, cd->n_inputs);
+  }
+  cd->n_inputs = 0;
+ }
+
+ *file_list_ptr = names;
+ *extensions_list_ptr = extensions;
+ *count_ptr = count;
+
+ return 0;
+}
+
 int is_file_of_type_used(struct bca_context *ctx,
                          struct component_details *cd,
+                         char **files, char **extensions, int count,
                          char *type_extension)
 {
- int i, j, x, handled, skip, pre_loaded, yes = 0;
- char *extension;
+ int i;
 
  if(ctx->verbose > 1)
  {
-  printf("BCA: Looking for a project file for an enabled component with extension '%s'.\n",
+  printf("BCA: Looking for a project sourdce file for an enabled component with extension '%s'...\n",
          type_extension);
-  fflush(stdout);
  }
 
-//this needs to be commented. has some mysteries. needs to considered disables
-
- /* first consider the FILES of a component */
- for(i=0; i < cd->n_components; i++)
+ for(i=0; i<count; i++)
  {
-  skip = 0;
-
-  if(cd->project_component != NULL)
-   if(strcmp(cd->project_component, cd->project_components[i]) != 0)
-    skip = 1;
-
-  if(strcmp(cd->project_component_types[i], "CAT") == 0)
-   skip = 1;
-
-  if(skip == 0)
+  if(extensions[i] != NULL)
   {
-   if(cd->n_file_names > 0)
-   {
-    pre_loaded = 1;
-   } else {
-    if(resolve_component_file_dependencies(ctx, cd, i))
-    {
-     return -1;
-    }
-    pre_loaded = 0;
-   }
-
-   j=0;
-   while(j < cd->n_file_names)
-   {
-    if(cd->file_extensions[j] != NULL)
-    {
-     if(strcmp(cd->file_extensions[j], type_extension) == 0)
-     {
-      yes = 1;
-      break;
-     }
-    }
-
-    j++;
-   }
-
-   if(yes)
+   if(strcmp(extensions[i], type_extension) == 0)
    {
     if(ctx->verbose)
-     fprintf(stderr, "BCA: File %s satisfies condition to find a *.%s file.\n",
-             cd->file_names[j], type_extension);
-   }
-
-   if(pre_loaded == 0)
-   {
-    if(cd->n_file_names > 0)
-    {
-     free_string_array(cd->file_names, cd->n_file_names);
-     free_string_array(cd->file_base_names, cd->n_file_names);
-     free_string_array(cd->file_extensions, cd->n_file_names);
-    }
-    cd->n_file_names = 0;
-   }
-
-   if(yes)
-    return 1;
-
-  }
- }
-
- /* now consider the INPUT */
- for(i=0; i < cd->n_components; i++)
- {
-  skip = 0;
-
-  if(cd->project_component != NULL)
-   if(strcmp(cd->project_component, cd->project_components[i]) != 0)
-    skip = 1;
-
-  if(skip == 0)
-  {
-   if(cd->n_inputs > 0)
-   {
-    pre_loaded = 1;
-   } else {
-    if(resolve_component_input_dependencies(ctx, cd, i))
-    {
-     return -1;
-    }
-    pre_loaded = 0;
-   }
-
-   for(j=0; j < cd->n_inputs; j++)
-   {
-    handled = 0;
-    x = 0;
-    while(x < cd->n_components)
-    {
-     if(strcmp(cd->inputs[j], cd->project_components[x]) == 0)
-     {
-      handled = 1;
-      break;
-     }
-     x++;
-    }
-
-    if(handled == 0)
-    {
      fprintf(stderr,
-             "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
-             cd->project_component, cd->host, cd->inputs[j]);
-     return 1;
-    }
-
-
-    if(path_extract(cd->project_output_names[x], NULL, &extension))
-    {
-     return 1;
-    }
-
-    if(strcmp(extension, type_extension) == 0)
-     yes = 1;
-
-    free(extension);
-   }
-
-   if(pre_loaded == 0)
-   {
-    if(cd->n_inputs > 0)
-    {
-     free_string_array(cd->inputs, cd->n_inputs);
-    }
-    cd->n_inputs = 0;
-   }
-
-   if(yes)
+             "BCA: File %s satisfies condition to find a *.%s file.\n",
+             files[i], type_extension);
     return 1;
+   }
   }
  }
 
@@ -5353,39 +5495,49 @@ int is_file_of_type_used(struct bca_context *ctx,
 }
 
 int is_c_compiler_needed(struct bca_context *ctx,
-                         struct component_details *cd)
+                         struct component_details *cd,
+                         char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C source files to see if C compiler is needed.\n");
+  printf("BCA: Looking for a C source files to see if C compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "c");
+ return is_file_of_type_used(ctx, cd, files, extensions, count, "c");
 }
 
 int is_cxx_compiler_needed(struct bca_context *ctx,
-                           struct component_details *cd)
+                           struct component_details *cd,
+                           char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed.\n");
+  printf("BCA: Looking for a C++ source files to see if C++ compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "cpp");
+ if(is_file_of_type_used(ctx, cd, files, extensions, count, "cc"))
+  return 1;
+ else if(is_file_of_type_used(ctx, cd, files, extensions, count, "cpp"))
+  return 1;
+ else if(is_file_of_type_used(ctx, cd, files, extensions, count, "cxx"))
+  return 1;
+ else
+ return 0;
 }
 
 int is_erlang_compiler_needed(struct bca_context *ctx,
-                              struct component_details *cd)
+                              struct component_details *cd,
+                              char **files, char **extensions, int count)
 {
  if(ctx->verbose)
  {
-  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed.\n");
+  printf("BCA: Looking for an Erlang source files to see if Erlang compiler is needed...\n");
   fflush(stdout);
  }
 
- return is_file_of_type_used(ctx, cd, "erl");
+ return is_file_of_type_used(ctx, cd, files, extensions, count, "erl");
 }
 
 int is_pkg_config_needed(struct bca_context *ctx,
@@ -5396,7 +5548,7 @@ int is_pkg_config_needed(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: Looking for dependences to see if pkg-config is needed.\n");
+  printf("BCA: Looking for dependences to see if pkg-config is needed...\n");
   fflush(stdout);
  }
 
@@ -5723,7 +5875,7 @@ int host_cc_configuration(struct bca_context *ctx,
  if(test_runnable(ctx, temp))
  {
   fprintf(stderr,
-          "BCA: Specify alternative with C compiler with the CC environment variable.\n");
+          "BCA: Specify alternative C compiler with the CC environment variable.\n");
   return 1;
  }
 
@@ -5762,7 +5914,7 @@ int host_cxx_configuration(struct bca_context *ctx,
   snprintf(temp, 512, "%s%s", host_prefix, s);
  } else {
   /* here we guess only if we have to */
-  if(tc->cc != NULL)
+  if(tc->cxx != NULL)
   {
    snprintf(temp, 512, "%s", tc->cxx);
   } else {
@@ -5773,7 +5925,7 @@ int host_cxx_configuration(struct bca_context *ctx,
  if(test_runnable(ctx, temp))
  {
   fprintf(stderr,
-          "BCA: Specify alternative with C++ compiler with the CXX environment variable.\n");
+          "BCA: Specify alternative C++ compiler with the CXX environment variable.\n");
   return 1;
  }
 
@@ -5789,15 +5941,16 @@ int host_cxx_configuration(struct bca_context *ctx,
 
 int c_family_configuration(struct bca_context *ctx,
                            struct host_configuration *tc,
-                           struct component_details *cd)
+                           struct component_details *cd,
+                           char **files, char **extensions, int count)
 {
  int code, need_cc, need_cxx;
  char *s;
 
- if((need_cxx = is_cxx_compiler_needed(ctx, cd)) == -1)
+ if((need_cxx = is_cxx_compiler_needed(ctx, cd, files, extensions, count)) == -1)
   return 1;
 
- if((need_cc = is_c_compiler_needed(ctx, cd)) == -1)
+ if((need_cc = is_c_compiler_needed(ctx, cd, files, extensions, count)) == -1)
   return 1;
 
  if(need_cc)
@@ -5851,10 +6004,128 @@ int c_family_configuration(struct bca_context *ctx,
    /* here we want to overide regardless */
    tc->cflags = strdup(s);
   }
+
+  /* CCFLAGS */
+  if((s = getenv("CCFLAGS")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
+  {
+   /* here we want to overide regardless */
+   tc->ccflags = strdup(s);
+  }
+
+  /* CXXFLAGS */
+  if((s = getenv("CXXFLAGS")) != NULL)
+   if(s[0] == 0)
+    s = NULL;
+  if(s != NULL)
+  {
+   /* here we want to overide regardless */
+   tc->cxxflags = strdup(s);
+  }
+
  }
 
  return 0;
 }
+
+int host_erlc_configuration(struct bca_context *ctx,
+                            struct host_configuration *tc,
+                            struct component_details *cd)
+{
+ char *s;
+ char host_prefix[512];
+
+ /* Normally we think of cross compilation for compilers that output
+    machine code. We also think of host prefixes (as in foo-bar-baz-gcc)
+    as identifying one of multiple compilers. Different versions of
+    the same compiler are generally suffixes (ie gcc-4.4). Typically,
+    multiple versions of erlang are installed in different paths,
+    and we would select which one with "ERLC=/full/path/of/erlc ./configure".
+    Sense the logic is already in place in bca, for consistancy erlc
+    can also leverage the host prefix. For example,
+    "ERLC=abc123 ./configure --host=custombranch" would attempt
+    to use an erlc binary named custombranch-abc123.
+
+    If there was an erlang compiler that created non-portable output,
+    being used to cross compile, this would be the model. Also as expected,
+    build_prefix would based on host_prefix unless otherwise specified.
+    (When neither option is specified, build_prefix defaults to "native".)
+ */
+
+ /* host prefix */
+ if(ctx->host_prefix == NULL)
+ {
+  host_prefix[0] = 0;
+ } else {
+  snprintf(host_prefix, 512, "%s-", ctx->host_prefix);
+ }
+
+ /* erlang compiler */
+ if((s = getenv("ERLC")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
+ {
+  /* here we want to overwrite regardless */
+  snprintf(temp, 512, "%s%s", host_prefix, s);
+ } else {
+  /* here we guess only if we have to */
+  if(tc->erlc != NULL)
+  {
+   snprintf(temp, 512, "%s", tc->erlc);
+  } else {
+   snprintf(temp, 512, "%serlc", host_prefix);
+  }
+ }
+
+ if(test_runnable(ctx, temp))
+ {
+  fprintf(stderr,
+          "BCA: Specify alternative Erlang compiler with the ERLC environment variable.\n");
+  return 1;
+ }
+
+ tc->erlc = strdup(temp);
+ return 0;
+}
+
+
+int erlang_family_configuration(struct bca_context *ctx,
+                                struct host_configuration *tc,
+                                struct component_details *cd,
+                                char **files, char **extensions, int count)
+{
+ int need_erlc;
+ char *s;
+
+ if((need_erlc = is_erlang_compiler_needed(ctx, cd, files, extensions, count)) == -1)
+  return 1;
+
+ if(need_erlc == 0)
+  return 0;
+
+ if(host_erlc_configuration(ctx, tc, cd))
+  return 1;
+
+ /* erlang compiler output directory flag */
+ if(tc->erlc_output_dir_flag == NULL)
+  tc->erlc_output_dir_flag = "-o";
+
+ /* ERLCFLAGS */
+ if((s = getenv("ERLCFLAGS")) != NULL)
+  if(s[0] == 0)
+   s = NULL;
+ if(s != NULL)
+ {
+  /* here we want to overide regardless */
+  tc->erlc_flags = strdup(s);
+ }
+
+ return 0;
+}
+
 
 int pkg_config_tests(struct bca_context *ctx,
                      struct host_configuration *tc,
@@ -6592,12 +6863,14 @@ int disables_and_enables(struct bca_context *ctx,
 
  if(ctx->verbose)
  {
-  printf("BCA: found (%d) project components: ", cd->n_components);
+  printf("BCA: Found (%d) project components: ", cd->n_components);
   for(i=0; i < cd->n_components; i++)
   {
-   printf("%s ", cd->project_components[i]);
+   if(i != 0)
+    printf(" ");
+   printf("%s", cd->project_components[i]);
   }
-  printf("\n");
+  printf(".\n");
  }
 
  /* 1) Start with disable by default components - the NONE.NONE.DISABLES. */
@@ -6910,9 +7183,10 @@ int append_host_configuration(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: append_host_configuration()\n");
 
- char *host_updates[45] =
+ char *host_updates[(28 * 2) + 1] =
 
  { "CC", tc->cc,
+   "CXX", tc->cxx,
    "BUILD_PREFIX", tc->build_prefix,
    "CC_SPECIFY_OUTPUT_FLAG", tc->cc_output_flag,
    "CC_COMPILE_BIN_OBJ_FLAG", tc->cc_compile_bin_obj_flag,
@@ -6927,19 +7201,24 @@ int append_host_configuration(struct bca_context *ctx,
    "PKG_CONFIG_PATH", tc->pkg_config_path,
    "PKG_CONFIG_LIBDIR", tc->pkg_config_libdir,
    "CFLAGS", tc->cflags,
+   "CCFLAGS", tc->ccflags,
+   "CXXFLAGS", tc->cxxflags,
    "LDFLAGS", tc->ldflags,
    "INSTALL_PREFIX", tc->install_prefix,
    "INSTALL_BIN_DIR", tc->install_bin_dir,
    "INSTALL_LIB_DIR", tc->install_lib_dir,
    "INSTALL_INCLUDE_DIR", tc->install_include_dir,
    "INSTALL_PKG_CONFIG_DIR", tc->install_pkg_config_dir,
-   "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir } ;
-
+   "INSTALL_LOCALE_DATA_DIR", tc->install_locale_data_dir,
+   "ERLC", tc->erlc,
+   "ERLCFLAGS", tc->erlc_flags,
+   "ERLC_OUTPUT_DIR_FLAG", tc->erlc_output_dir_flag
+ };
 
  p_length = strlen(ctx->principle);
  q_length = strlen(ctx->qualifier);
 
- for(i=0; i < 44; i += 2)
+ for(i=0; i < (28 * 2); i += 2)
  {
   if(append_host_configuration_helper(n_modify_records,
                                       mod_principles, mod_components,
@@ -6989,6 +7268,8 @@ int configure(struct bca_context *ctx)
  struct component_details cd;
  struct host_configuration *tc;
  char *platform = "", *host_root;
+ char **source_files_in_use = NULL, **source_file_extensions;
+ int n_source_files_in_use = 0;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: configure()\n");
@@ -7096,8 +7377,33 @@ int configure(struct bca_context *ctx)
  if(swap_checks(ctx))
   return 1;
 
- if(c_family_configuration(ctx, tc, &cd))
+ if(assemble_list_of_used_source_files(ctx, &cd,
+                                       &source_files_in_use,
+                                       &source_file_extensions,
+                                       &n_source_files_in_use))
   return 1;
+
+ if(c_family_configuration(ctx, tc, &cd,
+                           source_files_in_use,
+                           source_file_extensions,
+                           n_source_files_in_use))
+  return 1;
+
+ if(erlang_family_configuration(ctx, tc, &cd,
+                                source_files_in_use,
+                                source_file_extensions,
+                                n_source_files_in_use))
+  return 1;
+
+ if(free_string_array(source_files_in_use, n_source_files_in_use))
+  return 1;
+
+ if(free_string_array(source_file_extensions, n_source_files_in_use))
+  return 1;
+
+ source_files_in_use = NULL;
+ source_file_extensions = NULL;
+ n_source_files_in_use = 0;
 
  if(pkg_config_tests(ctx, tc, &cd))
   return 1;
@@ -7133,7 +7439,7 @@ int configure(struct bca_context *ctx)
 /* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013 Stover Enterprises, LLC
+    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
     (an Alabama Limited Liability Corporation), All rights reserved.
     See http://bca.stoverenterprises.com for more information.
 
@@ -7154,6 +7460,8 @@ int configure(struct bca_context *ctx)
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "prototypes.h"
 #endif
+
+int line_number = 1;
 
 int parse_function_parameters(char *string, char ***array, int *array_length)
 {
@@ -7210,14 +7518,17 @@ int parse_function_parameters(char *string, char ***array, int *array_length)
   i++;
  }
 
- if(add_to_string_array(array, *array_length,
-                        string + mark, i - mark, 0))
+ if(i - mark > 0)
  {
-  fprintf(stderr, "BCA: add_to_string_array() failed\n");
-  free_string_array(*array, *array_length);
-  return 1;
+  if(add_to_string_array(array, *array_length,
+                         string + mark, i - mark, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   free_string_array(*array, *array_length);
+   return 1;
+  }
+  (*array_length)++;
  }
- (*array_length)++;
 
  return 0;
 }
@@ -7249,12 +7560,13 @@ char *check_function(struct bca_context *ctx, char *key)
     2) CURRENT | HOSTNAME
     3) COMPONENT | ALL
     4) KEY
+   ----------------------
     5) CHECK-VALUE
  */
 
- if(n_parameters != 6)
+ if( (n_parameters < 5) || (n_parameters > 6) )
  {
-  fprintf(stderr, "BCA: CHECK() macro function expects 5 parameters, not %d\n", n_parameters - 1);
+  fprintf(stderr, "BCA: CHECK() macro function expects 4 or 5 parameters, not %d\n", n_parameters - 1);
   free_string_array(parameters, n_parameters);
   return NULL;
  }
@@ -7307,13 +7619,29 @@ char *check_function(struct bca_context *ctx, char *key)
  }
  q = parameters[3];
  k = parameters[4];
- c = parameters[5];
 
- if((code = check_value_inline(ctx, contents, length,
-                               p, q, k, c)) < 0)
+
+ if(n_parameters == 6)
  {
-  fprintf(stderr, "BCA: check_function(%s): check_value_inline() failed\n", key);
-  return NULL;
+  c = parameters[5];
+
+  if((code = check_value_inline(ctx, contents, length,
+                                p, q, k, c)) < 0)
+  {
+   fprintf(stderr, "BCA: check_function(%s): check_value_inline() failed\n", key);
+   return NULL;
+  }
+ } else {
+
+  if((result = lookup_key(ctx, contents, length, p, q, k)) == NULL)
+  {
+   code = 0;
+  } else {
+   free(result);
+   result = NULL;
+   code = 1;
+  }
+
  }
 
  free_string_array(parameters, n_parameters);
@@ -7326,6 +7654,102 @@ char *check_function(struct bca_context *ctx, char *key)
  snprintf(result, 3, "%d", code);
  return result;
 }
+
+char *lookupor_function(struct bca_context *ctx, char *key)
+{
+ char **parameters, *contents, *p, *q, *k, *result;
+ int n_parameters, code, length, i;
+
+ if(parse_function_parameters(key, &parameters, &n_parameters))
+ {
+  fprintf(stderr, "BCA: parse_function_parameters(%s) failed\n", key);
+  return NULL;
+ }
+
+ if(ctx->verbose > 1)
+ {
+  fprintf(stderr, "BCA: trying LKUPOR(");
+  for(i=1; i<n_parameters; i++)
+  {
+   fprintf(stderr, "%s", parameters[i]);
+   if(i + 1 < n_parameters)
+    fprintf(stderr, ",");
+  }
+  fprintf(stderr, ")\n");
+ }
+  /* 0) CHECK
+    1) BUILD | PROJECT
+    2) CURRENT | HOSTNAME
+    3) COMPONENT | ALL
+    4) KEY
+    5) return value if not found
+ */
+
+ if(n_parameters != 6)
+ {
+  fprintf(stderr, "BCA: LKUPOR() macro function expects 5 parameters, not %d\n", n_parameters - 1);
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[1], "BUILD") == 0)
+ {
+
+  if(ctx->build_configuration_contents == NULL)
+  {
+   if((ctx->build_configuration_contents =
+       read_file("./buildconfiguration/buildconfiguration",
+                 &(ctx->build_configuration_length), 0)) == NULL)
+   {
+    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->build_configuration_contents;
+  length = ctx->build_configuration_length;
+
+ } else if(strcmp(parameters[1], "PROJECT") == 0) {
+
+  if(ctx->project_configuration_contents == NULL)
+  {
+   if((ctx->project_configuration_contents =
+        read_file("./buildconfiguration/projectconfiguration",
+                  &(ctx->project_configuration_length), 0)) == NULL)
+   {
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->project_configuration_contents;
+  length = ctx->project_configuration_length;
+
+ } else {
+  fprintf(stderr, "BCA: FILL() first parameters should be BUILD or PROJECT\n");
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[2], "CURRENT") == 0)
+ {
+  p = ctx->principle;
+ } else {
+  p = parameters[2];
+ }
+ q = parameters[3];
+ k = parameters[4];
+
+ if((result = lookup_key(ctx, contents, length, p, q, k)) == NULL)
+ {
+  result = strdup(parameters[5]);
+ }
+
+ free_string_array(parameters, n_parameters);
+ return result;
+}
+
 
 char *file_to_C_source_function(struct bca_context *ctx, char *key)
 {
@@ -7390,9 +7814,26 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
   return strdup(value);
  }
 
+ if(key[0] == 'd')
+ {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  return NULL;
+#else
+  fprintf(stderr,
+          "BCA: macro key startint with 'd' is likely a document handling function. "
+          "Document processing macros are not in the single file distribution.\n");
+  return NULL;
+#endif
+ }
+
  if(strncmp(key, "CHECK(", 6) == 0)
  {
   return check_function(ctx, key);
+ }
+
+ if(strncmp(key, "LKUPOR(", 7) == 0)
+ {
+  return lookupor_function(ctx, key);
  }
 
  if(strncmp(key, "FILE_TO_C_SOURCE(", 17) == 0)
@@ -7470,8 +7911,9 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
                           ctx->build_configuration_length,
                           ctx->principle, "ALL", "WITHOUTS")) == NULL)
    {
-    if(ctx->verbose)
-     printf("BCA: Could not find %s.%s.WITHOUTS\n", ctx->principle, a);
+    fprintf(stderr,
+            "BCA: WARNING: Could not find %s.[%s|ALL].WITHOUTS as needed for @%s@. Are you sure you mean component name \"%s\"?\n",
+            ctx->principle, a, key, a);
    }
   }
 
@@ -7505,6 +7947,7 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
    fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
    return NULL;
   }
+  value[0] = 0;
 
   length = 0;
   for(i=0; i<n_items; i++)
@@ -7768,6 +8211,10 @@ int string_replace(struct bca_context *ctx)
    while(!feof(stdin))
    {
     fscanf(stdin, "%c", &c);
+
+    if(c == '\n')
+     line_number++;
+
     if(c != '@')
     {
      if(index > 255)
@@ -7791,7 +8238,9 @@ int string_replace(struct bca_context *ctx)
 
     if((value = resolve_string_replace_key(ctx, key)) == NULL)
     {
-     fprintf(stderr, "BCA: string_replace(): could not resolve key \"%s\"\n", key);
+     fprintf(stderr,
+             "BCA: string_replace(): could not resolve key \"%s\", line %d\n",
+             key, line_number);
      return 1;
     }
 
@@ -8061,7 +8510,7 @@ int gmake_help(struct bca_context *ctx, FILE *output,
  }
 
  fprintf(output, "\t@echo \"This Makefile was generated with Build Configuration Adjust "
-         "version %s.%s\"\n\n\n", BCA_MAJOR, BCA_MINOR);
+         "version %s\"\n\n\n", BCA_VERSION);
 
  return 0;
 }
@@ -8175,7 +8624,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
   fprintf(output, "%s ", tc->cflags);
  }
 
- if(is_project_using_config_h(ctx) == 0)
+ if(is_project_using_config_h(ctx))
   return 0;
 
  for(i=0; i < cd->n_withouts; i++)
@@ -8197,7 +8646,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
 /* .INPUT is a list of other components from which to dynamically translate
    the output file name of into elements on the .FILES list.
 
-   Note that there is no inheritance for thigs like: dependencies, .FILE_DEPS,
+   Note that there is no inheritance for things like: dependencies, .FILE_DEPS,
    and .INCLUDE_DIRS. Those must and can be added to the component(s)
    using other components as an input.
 
@@ -8215,8 +8664,9 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
                                          struct host_configuration *tc,
                                          struct component_details *cd)
 {
- int i, x, y, handled, valid_input, process_file_name, add_temp_to_files, n_output_names;
- char temp[1024], *base_file_name, *extension, **output_names;
+ int i, x, y, handled, valid_input, process_file_name, add_temp_to_files,
+     n_output_names, original_n_files;
+ char temp[1024], *base_file_name, *extension, **output_names, *ptr;
 
  if(cd->n_file_names == 0)
  {
@@ -8224,6 +8674,8 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   cd->file_base_names = NULL;
   cd->file_extensions = NULL;
  }
+
+ original_n_files = cd->n_file_names;
 
  for(i=0; i < cd->n_inputs; i++)
  {
@@ -8359,7 +8811,8 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     add_temp_to_files = 1;
    }
 
-   if(strcmp(extension, "cpp") == 0)
+   if( (strcmp(extension, "cpp") == 0) ||
+       (strcmp(extension, "cc") == 0) )
    {
     handled = 1;
     add_temp_to_files = 1;
@@ -8468,6 +8921,34 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   }
  }
 
+ /* hack to put .INPUTS before .FILES (matters for CAT)*/
+ if(original_n_files == 0)
+  return 0;
+
+ for(y=0; y<cd->n_file_names - original_n_files; y++)
+ {
+  ptr = cd->file_names[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_names[x + y + 1] = cd->file_names[x + y];
+  }
+  cd->file_names[y] = ptr;
+
+  ptr = cd->file_base_names[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_base_names[x + y + 1] = cd->file_base_names[x + y];
+  }
+  cd->file_base_names[y] = ptr;
+
+  ptr = cd->file_extensions[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_extensions[x + y + 1] = cd->file_extensions[x + y];
+  }
+  cd->file_extensions[y] = ptr;
+ }
+
  return 0;
 }
 
@@ -8494,6 +8975,41 @@ int generate_gmake_host_component_pythonmodule(struct bca_context *ctx,
    return 1;
   }
  }
+
+ return 0;
+}
+
+int generate_gmake_host_component_erlangbeam(struct bca_context *ctx,
+                                             struct component_details *cd,
+                                             struct host_configuration *tc,
+                                             char *output_file_name,
+                                             FILE *output)
+{
+ if(cd->n_file_names != 1)
+ {
+  fprintf(stderr,
+          "BCA: I should have exactly one input file for BEAM component %s.\n",
+          cd->project_component);
+  return 1;
+ }
+
+ fprintf(output, "%s : ",  output_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+ {
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
+ }
+
+ fprintf(output, "%s\n", cd->file_names[0]);
+
+
+ fprintf(output, "\t%s ", tc->erlc);
+
+ if(tc->erlc_flags != NULL)
+  fprintf(output, "%s ", tc->erlc_flags);
+
+ fprintf(output, "%s %s %s\n\n",
+         tc->erlc_output_dir_flag, tc->build_prefix, cd->file_names[0]);
 
  return 0;
 }
@@ -8549,8 +9065,11 @@ int generate_gmake_host_component_custom(struct bca_context *ctx,
   return 1;
  }
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+ {
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
+ }
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -8594,8 +9113,9 @@ int generate_gmake_host_component_macroexpand(struct bca_context *ctx,
 {
  int i;
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -8629,8 +9149,9 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
 {
  int i;
 
- fprintf(output, "%s : $(%s-FILE_DEPENDENCIES) ",
-         output_file_name, output_file_name);
+ fprintf(output, "%s : ", output_file_name);
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, "$(%s-FILE_DEPENDENCIES) ", output_file_name);
 
  for(i=0; i<cd->n_file_names; i++)
  {
@@ -8646,6 +9167,18 @@ int generate_gmake_host_component_concatenate(struct bca_context *ctx,
 
  fprintf(output, "> %s\n\n", output_file_name);
  return 0;
+}
+
+int count_host_component_target_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd)
+{
+ int count = 0;
+
+ count += cd->n_file_deps;
+ count += cd->n_lib_headers;
+ count += cd->n_dependencies;
+
+ return count;
 }
 
 int generate_host_component_target_dependencies(struct bca_context *ctx,
@@ -8755,9 +9288,12 @@ int object_from_c_file(struct bca_context *ctx,
           tc->build_prefix, cd->project_component,
           source_file_base_name, tc->obj_suffix);
 
- fprintf(output,
-         "%s : %s $(%s-FILE_DEPENDENCIES)\n",
-         temp, source_file_name, output_file_name);
+ fprintf(output, "%s : %s", temp, source_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, " $(%s-FILE_DEPENDENCIES)", output_file_name);
+
+ fprintf(output, "\n");
 
  fprintf(output, "\t%s ", tc->cc);
 
@@ -8813,11 +9349,168 @@ int object_from_c_file(struct bca_context *ctx,
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
   fprintf(output, "%s ", tc->cc_compile_shared_library_obj_flag);
 
+ if(tc->cxxflags != NULL)
+  fprintf(output, "%s ", tc->ccflags);
+
  fprintf(output, "%s ", source_file_name);
 
  fprintf(output, "%s ", tc->cc_output_flag);
 
  fprintf(output, "%s\n\n", temp);
+
+ return 0;
+}
+
+int object_from_cxx_file(struct bca_context *ctx,
+                         struct component_details *cd,
+                         struct host_configuration *tc,
+                         char *source_file_base_name,
+                         char *source_file_name,
+                         char *output_file_name,
+                         FILE *output)
+{
+ int x, y, yes;
+ char temp[1024];
+ struct component_details cd_d;
+
+ memset(&cd_d, 0, sizeof(struct component_details));
+
+ snprintf(temp, 1024, "%s/obj/%s-%s%s",
+          tc->build_prefix, cd->project_component,
+          source_file_base_name, tc->obj_suffix);
+
+ fprintf(output, "%s : %s", temp, source_file_name);
+
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
+  fprintf(output, " $(%s-FILE_DEPENDENCIES)", output_file_name);
+
+ fprintf(output, "\n");
+
+ fprintf(output, "\t%s ", tc->cxx);
+
+ if(gmake_host_component_file_rule_cflags(ctx, output, cd, tc))
+  return 1;
+
+ /* handle dependencies (internal and extrnal) */
+ if(cd->n_dependencies > 0)
+ {
+  fprintf(output, "`");
+
+  if(component_pkg_config_path(ctx, cd, tc, output))
+   return 1;
+
+  if(tc->pkg_config_libdir != NULL)
+   fprintf(output, "PKG_CONFIG_LIBDIR=%s ", tc->pkg_config_libdir);
+
+  fprintf(output, "%s --cflags ", tc->pkg_config);
+
+  for(y=0; y < cd->n_dependencies; y++)
+  {
+   yes = 0;
+   x = 0;
+   while(x < cd->n_components)
+   {
+    if(strcmp(cd->dependencies[y], cd->project_components[x]) == 0)
+    {
+     resolve_component_version(ctx, ctx->project_configuration_contents,
+                               ctx->project_configuration_length, &cd_d,
+                               "SHAREDLIBRARY", cd->project_components[x]);
+     fprintf(output, "%s-%s ", cd->project_output_names[x], cd_d.major);
+     yes = 1;
+     break;
+    }
+    x++;
+   }
+
+   if(yes == 0)
+    fprintf(output, "%s ", cd->dependencies[y]);
+  }
+
+  fprintf(output, "` ");
+ }
+
+ for(y=0; y< cd->n_include_dirs; y++)
+ {
+  fprintf(output, "%s %s ", tc->cc_include_dir_flag, cd->include_dirs[y]);
+ }
+
+ if(strcmp(cd->project_component_type, "BINARY") == 0)
+  fprintf(output, "%s ", tc->cc_compile_bin_obj_flag);
+
+ if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
+  fprintf(output, "%s ", tc->cc_compile_shared_library_obj_flag);
+
+ if(tc->cxxflags != NULL)
+  fprintf(output, "%s ", tc->cxxflags);
+
+ fprintf(output, "%s ", source_file_name);
+
+ fprintf(output, "%s ", tc->cc_output_flag);
+
+ fprintf(output, "%s\n\n", temp);
+
+ return 0;
+}
+
+int decide_cxx_runtime_requirement(struct bca_context *ctx,
+                                   struct component_details *cd,
+                                   struct host_configuration *tc)
+{
+ int i, x, handled;
+ char *extension;
+
+ /* This is hacky as "all get out". For now just see if component had any files
+    that were C++ sources.
+ */
+
+ for(i=0; i < cd->n_file_names; i++)
+ {
+  if( (strcmp(cd->file_extensions[i], "cc") == 0) ||
+      (strcmp(cd->file_extensions[i], "cxx") == 0) ||
+      (strcmp(cd->file_extensions[i], "cpp") == 0) )
+  {
+   return 1;
+  }
+ }
+
+ for(i=0; i < cd->n_inputs; i++)
+ {
+  x = 0;
+
+  /* this test is done in multiple places when the opertunity comes up */
+  while(x < cd->n_components)
+  {
+   if(strcmp(cd->inputs[i], cd->project_components[x]) == 0)
+   {
+    handled = 1;
+    break;
+   }
+   x++;
+  }
+
+  if(handled == 0)
+  {
+   fprintf(stderr,
+           "BCA: component %s on host %s has an unresolved .INPUT of %s.\n",
+           cd->project_component, cd->host, cd->inputs[i]);
+   return 1;
+  }
+
+  if(path_extract(cd->project_output_names[x], NULL, &extension))
+  {
+   return 1;
+  }
+
+  if( (strcmp(extension, "cc") == 0) ||
+      (strcmp(extension, "cxx") == 0) ||
+      (strcmp(extension, "cpp") == 0) )
+  {
+   free(extension);
+   return 1;
+  }
+
+  free(extension);
+ }
 
  return 0;
 }
@@ -8831,9 +9524,15 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
                                             FILE *output,
                                             int installed_version)
 {
- int x, i, yes;
+ int x, i, yes, need_cxx_runtime = 0;
  struct component_details cd_d;
  char *build_prefix, *package_name = NULL, *package_description = NULL, *link_name;
+
+ if((need_cxx_runtime = decide_cxx_runtime_requirement(ctx, cd, tc)) == -1)
+ {
+  fprintf(stderr, "BCA: decide_cxx_runtime_requirement() failed\n");
+  return 1;
+ }
 
 /*
    Idea / question:
@@ -8968,6 +9667,11 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   fprintf(output, "\techo 'Libs: $${libdir}/%s", output_file_names[0]);
  }
 
+ if(need_cxx_runtime)
+ {
+  fprintf(output, " -lstdc++"); //this needs to be in the build configuration (per host)
+ }
+
  if(tc->ldflags != NULL)
   fprintf(output, " %s", tc->ldflags);
 
@@ -9042,6 +9746,25 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
    {
     fprintf(stderr,
             "BCA: object_from_c_file(%s.%s.%s) failed\n",
+            cd->project_component_type, cd->host, cd->project_component);
+    return 1;
+   }
+
+   handled = 1;
+  }
+
+  if( (strcmp(cd->file_extensions[i], "cc") == 0) ||
+      (strcmp(cd->file_extensions[i], "cxx") == 0) ||
+      (strcmp(cd->file_extensions[i], "cpp") == 0) )
+  {
+   if(object_from_cxx_file(ctx, cd, tc,
+                           cd->file_base_names[i],
+                           cd->file_names[i],
+                           build_file_names[0],
+                           output))
+   {
+    fprintf(stderr,
+            "BCA: object_from_cxx_file(%s.%s.%s) failed\n",
             cd->project_component_type, cd->host, cd->project_component);
     return 1;
    }
@@ -9257,7 +9980,7 @@ int generate_gmake_host_component_bins_and_libs(struct bca_context *ctx,
  if(strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0)
  {
 
-  fprintf(output, "%s : %s\n",
+  fprintf(output, "%s : %s Makefile.bca\n",
           build_file_names[1], build_file_names[0]);
 
   if(generate_host_component_pkg_config_file(ctx, cd, tc,
@@ -9309,12 +10032,15 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
   return 1;
  }
 
- if(generate_host_component_target_dependencies(ctx, cd, names[0], output))
+ if(count_host_component_target_dependencies(ctx, cd) > 0)
  {
-  fprintf(stderr,
-          "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
-          cd->host, cd->project_component);
-  return 1;
+  if(generate_host_component_target_dependencies(ctx, cd, names[0], output))
+  {
+   fprintf(stderr,
+           "BCA: generate_gmake_host_component_concatentate_custom(%s.%s) failed\n",
+           cd->host, cd->project_component);
+   return 1;
+  }
  }
 
  handled = 0;
@@ -9372,6 +10098,21 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
   handled = 1;
  }
+
+ if(strcmp(cd->project_component_type, "BEAM") == 0)
+ {
+  if(generate_gmake_host_component_erlangbeam(ctx, cd, tc, names[0], output))
+  {
+   fprintf(stderr,
+           "BCA: generate_gmake_host_component_erlangbeam(%s.%s) failed\n",
+           cd->host, cd->project_component);
+
+   return 1;
+  }
+
+  handled = 1;
+ }
+
 
  if( (strcmp(cd->project_component_type, "BINARY") == 0) ||
      (strcmp(cd->project_component_type, "SHAREDLIBRARY") == 0) )
@@ -9683,6 +10424,9 @@ int generate_gmakefile_mode(struct bca_context *ctx)
    if(strcmp(cd.project_component_types[component_i], "PYTHONMODULE") == 0)
     handled = 1;
 
+   if(strcmp(cd.project_component_types[component_i], "BEAM") == 0)
+    handled = 1;
+
    if(strcmp(cd.project_component_types[component_i], "CUSTOM") == 0)
     handled = 1;
 
@@ -9777,7 +10521,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
                           cd.project_component_types[component_i],
                           cd.project_components[component_i], "INCLUDE_DIRS")) == NULL)
    {
-    if(ctx->verbose)
+    if(ctx->verbose > 1)
      printf("BCA: No project level include directories for %s.%s\n",
             cd.project_component_types[component_i], cd.project_components[component_i]);
    } else {
@@ -9812,7 +10556,7 @@ int generate_gmakefile_mode(struct bca_context *ctx)
                            ctx->build_configuration_length,
                            hosts[host_i], "ALL", "WITHOUTS")) == NULL)
     {
-     if(ctx->verbose)
+     if(ctx->verbose > 1)
       printf("BCA: Could not find %s.%s.WITHOUTS\n",
              cd.project_component_types[component_i], cd.project_components[component_i]);
     }
@@ -10299,32 +11043,80 @@ int generate_gmake_install_rules(struct bca_context *ctx, FILE *output,
  return 0;
 }
 
+char *genearte_tar_name(struct bca_context *ctx)
+{
+ int length = strlen(ctx->project_name), i;
+ char *t;
+
+ if((t = malloc(length + 1)) == NULL)
+  return NULL;
+
+ for(i=0; i<length; i++)
+ {
+  if(ctx->project_name[i] == ' ')
+   t[i] = '_';
+  else if(!isalnum(ctx->project_name[i]))
+   t[i] = '_';
+  else if(isupper(ctx->project_name[i]))
+   t[i] = tolower(ctx->project_name[i]);
+  else
+   t[i] = ctx->project_name[i];
+ }
+ t[length] = 0;
+
+ return t;
+}
+
 int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
- int x, y, n_strings, n_files;
- char temp[1024], *value, **strings, **files, *major, *minor;
+ int x, y, z, n_strings, n_files;
+ char temp[512], subdir[512], *value, **strings, **files, *major, *minor,
+      *tar_name, *version;
  struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: generate_create_tarball_rules()\n");
 
- memset(&cd_d, 0, sizeof(struct component_details));
-
- if((major = lookup_key(ctx,
-                        ctx->project_configuration_contents,
-                        ctx->project_configuration_length,
-                        "NONE", "NONE", "MAJOR")) == NULL)
+ if((tar_name = genearte_tar_name(ctx)) == NULL)
  {
-  major = strdup("0");
+  fprintf(stderr, "BCA: generate_tar_name() failed\n");
+  return 1;
  }
 
- if((minor = lookup_key(ctx,
-                        ctx->project_configuration_contents,
-                        ctx->project_configuration_length,
-                        "NONE", "NONE", "MINOR")) == NULL)
+ memset(&cd_d, 0, sizeof(struct component_details));
+
+ if((version = lookup_key(ctx,
+                        ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        "ALL", "ALL", "VERSION")) == NULL)
  {
-  minor = strdup("0");
+  if((major = lookup_key(ctx,
+                         ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         "NONE", "NONE", "MAJOR")) == NULL)
+  {
+   major = strdup("0");
+  }
+
+  if((minor = lookup_key(ctx,
+                         ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         "NONE", "NONE", "MINOR")) == NULL)
+  {
+   minor = strdup("0");
+  }
+
+  x = strlen(major) + strlen(minor) + 2;
+  if((version = malloc(x)) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc(%d) failed.\n", x);
+   return 1;
+  }
+
+  snprintf(version, x, "%s.%s", major, minor);
+  free(major);
+  free(minor);
  }
 
  if(list_project_components(ctx, cd))
@@ -10365,14 +11157,12 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
    {
     if(add_to_string_array(&files, n_files, strings[x], -1, 1) == 0)
      n_files++;
-
    }
 
    free_string_array(strings, n_strings);
    free(value);
   }
  }
-
  fprintf(output, "#source distribution tarball creation\n");
 
  fprintf(output, "tar : ");
@@ -10382,20 +11172,21 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
  }
  fprintf(output, "\n");
 
- snprintf(temp, 1024, "name.%s.%s", major, minor);
- free(major);
- free(minor);
- fprintf(output, "\tmkdir %s\n", temp);
+ snprintf(temp, 512, "%s.%s", tar_name, version);
+ free(version);
 
+ /* mkdir lines */
+ strings = NULL;
+ n_strings = 0;
  for(x=0; x<n_files; x++)
  {
-/*
   z = strlen(files[x]);
   if(z > 512)
   {
    fprintf(stderr, "BCA: file name %s too long\n", files[x]);
    return 1;
   }
+
   while(z > 0)
   {
    if(files[x][z] == '/')
@@ -10405,12 +11196,47 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
    }
    z--;
   }
-  memcpy(subdir, files[x] + 1, z - 1);
-  subdir[z - 1] = 0;
+  if(z > 2)
+  {
+   memcpy(subdir, files[x] + 1, z - 1);
+   subdir[z - 1] = 0;
 
-  fprintf(output, "\tcp --parents %s ./%s%s\n", files[x], temp, subdir);
-*/
-  fprintf(output, "\tcp --parents %s ./%s\n", files[x], temp);
+   if(add_to_string_array(&strings, n_strings, subdir, z, 1) == 0)
+    n_strings++;
+  }
+ }
+
+ for(x=0; x<n_strings; x++)
+ {
+  fprintf(output, "\tmkdir -p ./%s%s\n", temp, strings[x]);
+ }
+ free_string_array(strings, n_strings);
+ strings = NULL;
+ n_strings = 0;
+
+ /*cp lines */
+ for(x=0; x<n_files; x++)
+ {
+  z = strlen(files[x]);
+
+  while(z > 0)
+  {
+   if(files[x][z] == '/')
+   {
+    z++;
+    break;
+   }
+   z--;
+  }
+
+  if(z > 0)
+  {
+   memcpy(subdir, files[x] + 1, z - 1);
+   subdir[z - 1] = 0;
+   fprintf(output, "\tcp %s ./%s%s\n", files[x], temp, subdir);
+  } else {
+   fprintf(output, "\tcp %s ./%s/\n", files[x], temp);
+  }
  }
 
  fprintf(output, "\t./bca --output-configure > ./%s/configure\n", temp);
@@ -10422,6 +11248,8 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 
  free_string_array(files, n_files);
  fprintf(output, "\n\n");
+
+ free(tar_name);
 #else
  fprintf(output, "#source distribution tarball creation support is not in single file distribution\n");
 #endif

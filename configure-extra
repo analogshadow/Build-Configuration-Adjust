@@ -1,0 +1,5 @@
+#!/bin/bash
+
+./bca --host ALL --component ALL --setvalue VERSION "`git describe`"
+
+exit 0

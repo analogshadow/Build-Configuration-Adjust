@@ -31,7 +31,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  int start, index, equals, in_quotes, end, value_length, offset;
 
  if(ctx->verbose > 3)
-  fprintf(stderr, "BCA: lookup_key()\n");
+  fprintf(stderr, "BCA: lookup_key(, %s.%s.%s)\n", principle_filter, component_filter, key_filter);
 
  offset = -1;
  if(iterate_key_primitives(ctx, file, file_length, &offset,

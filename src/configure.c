@@ -1915,7 +1915,7 @@ int append_host_configuration(struct bca_context *ctx,
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: append_host_configuration()\n");
 
- char *host_updates[54] =
+ char *host_updates[(28 * 2) + 1] =
 
  { "CC", tc->cc,
    "CXX", tc->cxx,
@@ -1950,7 +1950,7 @@ int append_host_configuration(struct bca_context *ctx,
  p_length = strlen(ctx->principle);
  q_length = strlen(ctx->qualifier);
 
- for(i=0; i < 53; i += 2)
+ for(i=0; i < (28 * 2); i += 2)
  {
   if(append_host_configuration_helper(n_modify_records,
                                       mod_principles, mod_components,

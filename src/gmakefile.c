@@ -253,7 +253,7 @@ int gmake_help(struct bca_context *ctx, FILE *output,
  }
 
  fprintf(output, "\t@echo \"This Makefile was generated with Build Configuration Adjust "
-         "version %s.%s\"\n\n\n", BCA_MAJOR, BCA_MINOR);
+         "version %s\"\n\n\n", BCA_VERSION);
 
  return 0;
 }
@@ -389,7 +389,7 @@ int gmake_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
 /* .INPUT is a list of other components from which to dynamically translate
    the output file name of into elements on the .FILES list.
 
-   Note that there is no inheritance for thigs like: dependencies, .FILE_DEPS,
+   Note that there is no inheritance for things like: dependencies, .FILE_DEPS,
    and .INCLUDE_DIRS. Those must and can be added to the component(s)
    using other components as an input.
 
@@ -407,8 +407,9 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
                                          struct host_configuration *tc,
                                          struct component_details *cd)
 {
- int i, x, y, handled, valid_input, process_file_name, add_temp_to_files, n_output_names;
- char temp[1024], *base_file_name, *extension, **output_names;
+ int i, x, y, handled, valid_input, process_file_name, add_temp_to_files,
+     n_output_names, original_n_files;
+ char temp[1024], *base_file_name, *extension, **output_names, *ptr;
 
  if(cd->n_file_names == 0)
  {
@@ -416,6 +417,8 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
   cd->file_base_names = NULL;
   cd->file_extensions = NULL;
  }
+
+ original_n_files = cd->n_file_names;
 
  for(i=0; i < cd->n_inputs; i++)
  {
@@ -659,6 +662,34 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
    free(base_file_name);
    free(extension);
   }
+ }
+
+ /* hack to put .INPUTS before .FILES (matters for CAT)*/
+ if(original_n_files == 0)
+  return 0;
+
+ for(y=0; y<cd->n_file_names - original_n_files; y++)
+ {
+  ptr = cd->file_names[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_names[x + y + 1] = cd->file_names[x + y];
+  }
+  cd->file_names[y] = ptr;
+
+  ptr = cd->file_base_names[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_base_names[x + y + 1] = cd->file_base_names[x + y];
+  }
+  cd->file_base_names[y] = ptr;
+
+  ptr = cd->file_extensions[original_n_files + y];
+  for(x=original_n_files - 1; x>-1; x--)
+  {
+   cd->file_extensions[x + y + 1] = cd->file_extensions[x + y];
+  }
+  cd->file_extensions[y] = ptr;
  }
 
  return 0;
@@ -2784,7 +2815,7 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  int x, y, z, n_strings, n_files;
  char temp[512], subdir[512], *value, **strings, **files, *major, *minor,
-      *tar_name;
+      *tar_name, *version;
  struct component_details cd_d, *cd = &cd_d;
 
  if(ctx->verbose > 2)
@@ -2798,20 +2829,37 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
 
  memset(&cd_d, 0, sizeof(struct component_details));
 
- if((major = lookup_key(ctx,
-                        ctx->project_configuration_contents,
-                        ctx->project_configuration_length,
-                        "NONE", "NONE", "MAJOR")) == NULL)
+ if((version = lookup_key(ctx,
+                        ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        "ALL", "ALL", "VERSION")) == NULL)
  {
-  major = strdup("0");
- }
+  if((major = lookup_key(ctx,
+                         ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         "NONE", "NONE", "MAJOR")) == NULL)
+  {
+   major = strdup("0");
+  }
 
- if((minor = lookup_key(ctx,
-                        ctx->project_configuration_contents,
-                        ctx->project_configuration_length,
-                        "NONE", "NONE", "MINOR")) == NULL)
- {
-  minor = strdup("0");
+  if((minor = lookup_key(ctx,
+                         ctx->project_configuration_contents,
+                         ctx->project_configuration_length,
+                         "NONE", "NONE", "MINOR")) == NULL)
+  {
+   minor = strdup("0");
+  }
+
+  x = strlen(major) + strlen(minor) + 2;
+  if((version = malloc(x)) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc(%d) failed.\n", x);
+   return 1;
+  }
+
+  snprintf(version, x, "%s.%s", major, minor);
+  free(major);
+  free(minor);
  }
 
  if(list_project_components(ctx, cd))
@@ -2867,9 +2915,8 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output)
  }
  fprintf(output, "\n");
 
- snprintf(temp, 512, "%s.%s.%s", tar_name, major, minor);
- free(major);
- free(minor);
+ snprintf(temp, 512, "%s.%s", tar_name, version);
+ free(version);
 
  /* mkdir lines */
  strings = NULL;

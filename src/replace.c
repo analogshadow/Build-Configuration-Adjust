@@ -122,12 +122,13 @@ char *check_function(struct bca_context *ctx, char *key)
     2) CURRENT | HOSTNAME
     3) COMPONENT | ALL
     4) KEY
+   ----------------------
     5) CHECK-VALUE
  */
 
- if(n_parameters != 6)
+ if( (n_parameters < 5) || (n_parameters > 6) )
  {
-  fprintf(stderr, "BCA: CHECK() macro function expects 5 parameters, not %d\n", n_parameters - 1);
+  fprintf(stderr, "BCA: CHECK() macro function expects 4 or 5 parameters, not %d\n", n_parameters - 1);
   free_string_array(parameters, n_parameters);
   return NULL;
  }
@@ -180,13 +181,29 @@ char *check_function(struct bca_context *ctx, char *key)
  }
  q = parameters[3];
  k = parameters[4];
- c = parameters[5];
 
- if((code = check_value_inline(ctx, contents, length,
-                               p, q, k, c)) < 0)
+
+ if(n_parameters == 6)
  {
-  fprintf(stderr, "BCA: check_function(%s): check_value_inline() failed\n", key);
-  return NULL;
+  c = parameters[5];
+
+  if((code = check_value_inline(ctx, contents, length,
+                                p, q, k, c)) < 0)
+  {
+   fprintf(stderr, "BCA: check_function(%s): check_value_inline() failed\n", key);
+   return NULL;
+  }
+ } else {
+
+  if((result = lookup_key(ctx, contents, length, p, q, k)) == NULL)
+  {
+   code = 0;
+  } else {
+   free(result);
+   result = NULL;
+   code = 1;
+  }
+
  }
 
  free_string_array(parameters, n_parameters);
@@ -199,6 +216,102 @@ char *check_function(struct bca_context *ctx, char *key)
  snprintf(result, 3, "%d", code);
  return result;
 }
+
+char *lookupor_function(struct bca_context *ctx, char *key)
+{
+ char **parameters, *contents, *p, *q, *k, *result;
+ int n_parameters, code, length, i;
+
+ if(parse_function_parameters(key, &parameters, &n_parameters))
+ {
+  fprintf(stderr, "BCA: parse_function_parameters(%s) failed\n", key);
+  return NULL;
+ }
+
+ if(ctx->verbose > 1)
+ {
+  fprintf(stderr, "BCA: trying LKUPOR(");
+  for(i=1; i<n_parameters; i++)
+  {
+   fprintf(stderr, "%s", parameters[i]);
+   if(i + 1 < n_parameters)
+    fprintf(stderr, ",");
+  }
+  fprintf(stderr, ")\n");
+ }
+  /* 0) CHECK
+    1) BUILD | PROJECT
+    2) CURRENT | HOSTNAME
+    3) COMPONENT | ALL
+    4) KEY
+    5) return value if not found
+ */
+
+ if(n_parameters != 6)
+ {
+  fprintf(stderr, "BCA: LKUPOR() macro function expects 5 parameters, not %d\n", n_parameters - 1);
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[1], "BUILD") == 0)
+ {
+
+  if(ctx->build_configuration_contents == NULL)
+  {
+   if((ctx->build_configuration_contents =
+       read_file("./buildconfiguration/buildconfiguration",
+                 &(ctx->build_configuration_length), 0)) == NULL)
+   {
+    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->build_configuration_contents;
+  length = ctx->build_configuration_length;
+
+ } else if(strcmp(parameters[1], "PROJECT") == 0) {
+
+  if(ctx->project_configuration_contents == NULL)
+  {
+   if((ctx->project_configuration_contents =
+        read_file("./buildconfiguration/projectconfiguration",
+                  &(ctx->project_configuration_length), 0)) == NULL)
+   {
+    free_string_array(parameters, n_parameters);
+    return NULL;
+   }
+  }
+
+  contents = ctx->project_configuration_contents;
+  length = ctx->project_configuration_length;
+
+ } else {
+  fprintf(stderr, "BCA: FILL() first parameters should be BUILD or PROJECT\n");
+  free_string_array(parameters, n_parameters);
+  return NULL;
+ }
+
+ if(strcmp(parameters[2], "CURRENT") == 0)
+ {
+  p = ctx->principle;
+ } else {
+  p = parameters[2];
+ }
+ q = parameters[3];
+ k = parameters[4];
+
+ if((result = lookup_key(ctx, contents, length, p, q, k)) == NULL)
+ {
+  result = strdup(parameters[5]);
+ }
+
+ free_string_array(parameters, n_parameters);
+ return result;
+}
+
 
 char *file_to_C_source_function(struct bca_context *ctx, char *key)
 {
@@ -278,6 +391,11 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
  if(strncmp(key, "CHECK(", 6) == 0)
  {
   return check_function(ctx, key);
+ }
+
+ if(strncmp(key, "LKUPOR(", 7) == 0)
+ {
+  return lookupor_function(ctx, key);
  }
 
  if(strncmp(key, "FILE_TO_C_SOURCE(", 17) == 0)

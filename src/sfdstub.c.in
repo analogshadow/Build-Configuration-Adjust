@@ -1,16 +1,10 @@
-#ifndef _config_h_
-#define _config_h_
+#define IN_SINGLE_FILE_DISTRIBUTION
+#define WITHOUT_LIBNEWT
+#define WITHOUT_MONGOOSE
+#define WITHOUT_GTK__2_0
 
 #if @CHECK(BUILD,ALL,ALL,VERSION)@
 #define BCA_VERSION "@LKUPOR(BUILD,ALL,ALL,VERSION,error)@"
 #else
 #define BCA_VERSION "@BCA.PROJECT.NONE.NONE.MAJOR@.@BCA.PROJECT.NONE.NONE.MINOR@"
-#endif
-
-#if @CHECK(BUILD,CURRENT,ALL,TESTRESULTS,HAVE_CWD)@
-#define HAVE_CWD
-#endif
-
-@BCA.MACROS.main@
-
 #endif

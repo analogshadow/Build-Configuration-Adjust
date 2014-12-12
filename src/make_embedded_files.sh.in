@@ -1,8 +1,8 @@
 #!/bin/sh
 
-CONFIGURE=$1
-BCA=$2
-SFD=$3
+BCA=$1
+SFD=$2
+CONFIGURE=$3
 OUT=$4
 
 $BCA --file-to-C-source $CONFIGURE > $OUT
