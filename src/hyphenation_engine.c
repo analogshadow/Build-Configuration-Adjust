@@ -122,8 +122,9 @@ int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
                                struct unicode_word_context *first,
                                struct unicode_word_context *second)
 {
+ int i;
 #ifndef WITHOUT_LIBHNJ
- int i, code;
+ int code;
  char **rep = NULL;
  int *pos = NULL, *cut = NULL;
 #endif

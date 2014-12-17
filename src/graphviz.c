@@ -66,6 +66,9 @@ int graphviz_string_clean(struct bca_context *ctx,
 
 int graphviz_node_color_from_file_extension(struct bca_context *ctx, FILE *output, char *extension)
 {
+ if(extension == NULL)
+  return 0;
+
  if(strcmp(extension, "c") == 0)
   fprintf(output, "color = blue");
 

@@ -31,7 +31,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  int start, index, equals, in_quotes, end, value_length, offset;
 
  if(ctx->verbose > 3)
-  fprintf(stderr, "BCA: lookup_key()\n");
+  fprintf(stderr, "BCA: lookup_key(, %s.%s.%s)\n", principle_filter, component_filter, key_filter);
 
  offset = -1;
  if(iterate_key_primitives(ctx, file, file_length, &offset,
@@ -476,7 +476,7 @@ int list_component_internal_dependencies(struct bca_context *ctx,
 {
  char *value = NULL;
 
- if(ctx->verbose > 1)
+ if(ctx->verbose > 2)
   fprintf(stderr, "BCA: list_component_internal_dependencies()\n");
 
  if((value = lookup_key(ctx,
@@ -486,7 +486,7 @@ int list_component_internal_dependencies(struct bca_context *ctx,
                         cd->project_component,
                         "INT_DEPENDS")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: No internal dependencies found for component \"%s\".\n",
           cd->project_component);
 
@@ -521,7 +521,7 @@ int list_component_external_dependencies(struct bca_context *ctx,
                         cd->project_component,
                         "EXT_DEPENDS")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: No external dependencies found for component \"%s\".\n",
           cd->project_component);
 
@@ -1103,16 +1103,19 @@ resolve_host_configuration(struct bca_context *ctx,
  }
  memset(tc, 0, allocation_size);
 
- char **host_resolve_vars[27] =
+ char **host_resolve_vars[30] =
  {
   &(tc->build_prefix),
   &(tc->cc),
+  &(tc->cxx),
   &(tc->cc_output_flag),
   &(tc->cc_compile_bin_obj_flag),
   &(tc->cc_compile_shared_library_obj_flag),
   &(tc->cc_include_dir_flag),
   &(tc->cc_define_macro_flag),
   &(tc->cflags),
+  &(tc->ccflags),
+  &(tc->cxxflags),
   &(tc->pkg_config),
   &(tc->pkg_config_path),
   &(tc->pkg_config_libdir),
@@ -1133,16 +1136,19 @@ resolve_host_configuration(struct bca_context *ctx,
   &(tc->erlc_output_dir_flag)
  };
 
- char *host_resolve_keys[27] =
+ char *host_resolve_keys[30] =
  {
   "BUILD_PREFIX",
   "CC",
+  "CXX",
   "CC_SPECIFY_OUTPUT_FLAG",
   "CC_COMPILE_BIN_OBJ_FLAG",
   "CC_COMPILE_SHARED_LIBRARY_OBJ_FLAG",
   "CC_INCLUDE_DIR_FLAG",
   "CC_DEFINE_MACRO_FLAG",
   "CFLAGS",
+  "CCFLAGS",
+  "CXXFLAGS",
   "PKG_CONFIG",
   "PKG_CONFIG_PATH",
   "PKG_CONFIG_LIBDIR",
@@ -1163,7 +1169,7 @@ resolve_host_configuration(struct bca_context *ctx,
   "ERLC_OUTPUT_DIR_FLAG"
  };
 
- for(i=0; i<26; i++)
+ for(i=0; i<29; i++)
  {
   *(host_resolve_vars[i]) =
    resolve_build_host_variable(ctx, host, component, host_resolve_keys[i]);
@@ -1191,8 +1197,17 @@ int free_host_configuration(struct bca_context *ctx, struct host_configuration *
   if(tc->cc != NULL)
    free(tc->cc);
 
+  if(tc->cxx != NULL)
+   free(tc->cxx);
+
   if(tc->cflags != NULL)
    free(tc->cflags);
+
+  if(tc->ccflags != NULL)
+   free(tc->ccflags);
+
+  if(tc->cxxflags != NULL)
+   free(tc->cxxflags);
 
   if(tc->ldflags != NULL)
    free(tc->ldflags);
@@ -1422,7 +1437,7 @@ int resolve_component_input_dependencies(struct bca_context *ctx,
                         cd->project_components[component_index],
                         "INPUT")) == NULL)
  {
-  if(ctx->verbose)
+  if(ctx->verbose > 1)
    printf("BCA: Could not find %s.%s.INPUT\n",
           cd->project_component_types[component_index],
           cd->project_components[component_index]);
@@ -1491,6 +1506,8 @@ int resolve_component_version(struct bca_context *ctx,
                               char *component_type,
                               char *project_component)
 {
+ int generated = 0;
+
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: resolve_component_version()\n");
 
@@ -1501,6 +1518,7 @@ int resolve_component_version(struct bca_context *ctx,
                              "NONE", "NONE", "MAJOR")) == NULL)
   {
    cd->major = strdup("0");
+   generated = 1;
   }
  }
 
@@ -1511,13 +1529,20 @@ int resolve_component_version(struct bca_context *ctx,
                              "NONE", "NONE", "MINOR")) == NULL)
   {
    cd->minor = strdup("0");
+   generated = 1;
   }
  }
 
-
- if(ctx->verbose)
-    printf("BCA: Component \"%s\" version string set to %s.%s\n",
-           project_component, cd->major, cd->minor);
+ if(generated)
+ {
+  if(ctx->verbose)
+     printf("BCA: Component \"%s\" version string artificialy set to %s.%s\n",
+            project_component, cd->major, cd->minor);
+ } else {
+  if(ctx->verbose > 1)
+     printf("BCA: Component \"%s\" version string set to %s.%s\n",
+            project_component, cd->major, cd->minor);
+ }
 
  return 0;
 }
@@ -2021,7 +2046,10 @@ int resolve_project_name(struct bca_context *ctx)
  if((ctx->project_name =
      lookup_key(ctx, ctx->project_configuration_contents, ctx->project_configuration_length,
                 "NONE", "NONE", "PROJECT_NAME")) == NULL)
+ {
+  fprintf(stderr, "BCA: Project name not set!\n");
   return 1;
+ }
 
  return 0;
 }

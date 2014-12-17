@@ -160,7 +160,8 @@ struct host_configuration
 
  /* flags for tools */
  char *cppflags;                           /* C & C++ preprocessor flags */
- char *cflags;                             /* C compiler flags */
+ char *cflags;                             /* generic "compiler" flags; ie pkg-config --cflags */
+ char *ccflags;                            /* C compiler flags */
  char *cxxflags;                           /* C++ compiler flags */
  char *ldflags;                            /* C & C++ linker flags */
  char *cc_output_flag;                     /* C & C++ specify output filename flag (ie -o) */
@@ -464,7 +465,12 @@ int is_project_using_config_h(struct bca_context *ctx);
 
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx,
-                         struct component_details *cd);
+                         struct component_details *cd,
+                         char **files, char **extensions, int count);
+
+int is_cxx_compiler_needed(struct bca_context *ctx,
+                           struct component_details *cd,
+                           char **files, char **extensions, int count);
 
 int is_pkg_config_needed(struct bca_context *ctx,
                          struct component_details *cd);
@@ -486,6 +492,17 @@ int append_host_configuration(struct bca_context *ctx,
                               char ***mod_components,
                               char ***mod_keys,
                               char ***mod_values);
+
+int assemble_list_of_used_source_files(struct bca_context *ctx,
+                                       struct component_details *cd,
+                                       char ***file_list_ptr,
+                                       char ***extensions_list_ptr,
+                                       int *count_ptr);
+
+int is_file_of_type_used(struct bca_context *ctx,
+                         struct component_details *cd,
+                         char **files, char **extensions, int count,
+                         char *type_extension);
 
 /* gmakefile.c ---------------------------------- */
 int generate_gmakefile_mode(struct bca_context *ctx);

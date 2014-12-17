@@ -1,0 +1,5 @@
+#!/bin/bash
+
+./bca --host ALL --component ALL --setvalue VERSION "`git describe --long --tags --dirty --always`"
+
+exit 0

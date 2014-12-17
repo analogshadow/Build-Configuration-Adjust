@@ -32,7 +32,7 @@
 void help(void)
 {
  printf("\n                         Build Configuration Adjust\n"
-        "This is part of the build system, and not part of the project it builds.\n"
+        "                            Version: %s\n"
         "\nusage:\n"
         " --version\n"
         " --showvalue key\n"
@@ -94,7 +94,8 @@ void help(void)
 
         "\n Copyright 2012,2013,2014 Stover Enterprises. All rights reserved. "
         "Licensed under the terms of GNU GPLv3.\n"
-        "\tSee http://bca.stoverenterprises.com for more information.\n\n");
+        "\tSee http://bca.stoverenterprises.com for more information.\n\n",
+        BCA_VERSION);
 
 }
 
@@ -113,8 +114,7 @@ int main(int argc, char **argv)
   return 1;
 
  if(ctx->verbose)
-  fprintf(stderr, "BCA: Version %s.%s\n",
-          BCA_MAJOR, BCA_MINOR);
+  fprintf(stderr, "BCA: Version %s\n", BCA_VERSION);
 
  switch(ctx->manipulation_type)
  {
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 #endif
 
   case VERSION_MODE:
-       printf("%s.%s\n", BCA_MAJOR, BCA_MINOR);
+       printf("%s\n", BCA_VERSION);
        break;
 
   case NEW_PROJECT_MODE:
