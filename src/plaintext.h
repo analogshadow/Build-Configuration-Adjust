@@ -45,6 +45,7 @@ struct plaintext_rendering_context
 
  char *output_buffer;
  int output_buffer_length, output_buffer_size, output_buffer_lines;
+
 };
 
 struct plaintext_engine_context
@@ -72,6 +73,8 @@ struct plaintext_engine_context
  char *index_term_buffer;
  int index_term_buffer_length;
  struct plaintext_index_entry *index;
+
+ int even_or_odd_page;
 };
 
 int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);

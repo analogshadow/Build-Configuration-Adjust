@@ -568,6 +568,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->paragraph_indent = 4;
        pe_ctx->show_toc = 1;
        pe_ctx->show_index = 1;
+       pe_ctx->even_or_odd_page = 1;
 
        dctx->render_engine_context = pe_ctx;
 
@@ -575,7 +576,6 @@ int plaintext_start_document(struct document_handling_context *dctx)
        {
         return 1;
        }
-
        break;
 
   case 1:
@@ -590,6 +590,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->pr_ctx->output = stdout;
        pe_ctx->pr_ctx->current_row = -1;
        pe_ctx->pr_ctx->current_page = 0;
+       pe_ctx->even_or_odd_page = 1;
        pe_ctx->n_footnotes = 0;
 
        switch(pe_ctx->pr_ctx->output_mode)
@@ -602,7 +603,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
                  " <head>\n"
                  "  <meta charset=\"UTF-8\">\n"
                  " </head>\n"
-                 " <body>\n");
+                 " <body background=\"bg.jpg\">\n");
         }
         break;
        }

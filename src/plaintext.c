@@ -123,7 +123,7 @@ int pr_hard_full_line(struct plaintext_rendering_context *pr_ctx)
 {
  int i;
 
- for(i=0; i<pr_ctx->line_width; i++)
+ for(i=pr_ctx->current_col; i<pr_ctx->line_width; i++)
  {
   fprintf(pr_ctx->output, " ");
  }
@@ -135,7 +135,7 @@ int pr_hard_full_line(struct plaintext_rendering_context *pr_ctx)
 
 int pr_page_number(struct plaintext_rendering_context *pr_ctx)
 {
- char temp[128];
+ char temp[128], n_characters;
 
  if( (pr_ctx->n_characters > 0) && (pr_ctx->current_row != -1) )
  {
@@ -175,8 +175,13 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
   return 1;
 
  /* set page number margins */
- pr_ctx->pe_ctx->pr_ctx->justification = PER_RIGHT_JUSTIFY;
- pr_ctx->pe_ctx->pr_ctx->left_margin_width = 10; /* could page number be multi line? */
+ if( (pr_ctx->output_mode == PER_OUTPUT_MODE_HTML_FILE) &&
+     (pr_ctx->pe_ctx->even_or_odd_page == 1) )
+  pr_ctx->pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
+ else
+  pr_ctx->pe_ctx->pr_ctx->justification = PER_RIGHT_JUSTIFY;
+
+ pr_ctx->pe_ctx->pr_ctx->left_margin_width = 0; /* could page number be multi line? */
  pr_ctx->pe_ctx->pr_ctx->right_margin_width = 0;
 
  if(pr_feed_generated_words(pr_ctx->pe_ctx, temp))
@@ -184,8 +189,16 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
 
  /* note that pr_ctx that we were called with, is not the current
     pe_ctx->pr_ctx, because of the _stack_push() */
+ n_characters = pr_ctx->pe_ctx->pr_ctx->n_characters;
  if(pr_flush_line_buffer(pr_ctx->pe_ctx->pr_ctx))
   return 1;
+ pr_ctx->pe_ctx->pr_ctx->current_col += n_characters;
+
+ /* html preformat width on visible left justitfy page numbers */
+ if(pr_ctx->output_mode == PER_OUTPUT_MODE_HTML_FILE)
+  if(pr_ctx->pe_ctx->even_or_odd_page == 1)
+   if(pr_hard_full_line(pr_ctx->pe_ctx->pr_ctx))
+    return 1;
 
  if(plaintext_word_engine_stack_pop(pr_ctx->pe_ctx))
   return 1;
@@ -203,6 +216,7 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
 
  if(pr_ctx->current_row == 0)
   return 0;
+
 
  rows_left = pr_ctx->page_length
            - pr_ctx->top_margin
@@ -235,15 +249,26 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
        {
         fprintf(pr_ctx->output,
                 "    </pre>\n"
-                "   </td>\n"
-                "  </tr>\n"
-                " </table>\n");
+                "   </td>\n");
+
+        if(pr_ctx->pe_ctx->even_or_odd_page == 0)
+         fprintf(pr_ctx->output,
+                 "  </tr>\n"
+                 " </table>\n"
+                 " <br>\n");
        }
        break;
  }
 
  pr_ctx->current_row = -1;
  pr_ctx->current_page++;
+
+ if(pr_ctx->pe_ctx->even_or_odd_page)
+ {
+  pr_ctx->pe_ctx->even_or_odd_page = 0;
+ } else {
+  pr_ctx->pe_ctx->even_or_odd_page = 1;
+ }
 
  return 0;
 }
@@ -263,13 +288,22 @@ int pr_start_page(struct plaintext_rendering_context *pr_ctx)
   case PER_OUTPUT_MODE_HTML_FILE:
        if(pr_ctx->output != NULL)
        {
-        fprintf(pr_ctx->output,
-                " <a name=\"%d\"></a>\n"
-                " <table border=1 cellpadding=10>\n"
-                "  <tr>\n"
-                "   <td>\n"
-                "    <pre>",
+        if(pr_ctx->pe_ctx->even_or_odd_page == 1)
+         fprintf(pr_ctx->output,
+                 " <a name=\"%d\"></a>\n"
+                 " <table border=1 cellpadding=10 cellspacing=0 align=center>\n"
+                 "  <tr>\n",
                 pr_ctx->current_page + 1);
+
+        if(pr_ctx->pe_ctx->even_or_odd_page == 1)
+         fprintf(pr_ctx->output,
+                 "   <td background=\"bgl.jpg\">\n");
+        else
+         fprintf(pr_ctx->output,
+                 "   <td background=\"bgr.jpg\">\n");
+
+        fprintf(pr_ctx->output,
+                "    <pre>");
        }
        break;
  }
@@ -1220,7 +1254,7 @@ int plaintext_index_open(struct plaintext_engine_context *pe_ctx)
   allocation_size = MAX_INDEX_TERM_SIZE;
   if((pe_ctx->index_term_buffer = malloc(allocation_size)) == NULL)
   {
-   fprintf(stderr, "BCA: malloc(%d) failed\n");
+   fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
    return 1;
   }
  }
@@ -1336,8 +1370,8 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->n_characters = 0;
  pr_ctx->line_buffer[0] = 0;
 
- pr_ctx->line_width = 70;
- pr_ctx->page_length = 20;
+ pr_ctx->line_width = 80;
+ pr_ctx->page_length = 50;
  pr_ctx->left_margin_width = 0;
  pr_ctx->right_margin_width = 0;
  pr_ctx->top_margin = 1;
