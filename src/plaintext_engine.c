@@ -36,6 +36,28 @@ int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
  pe_ctx = (struct plaintext_engine_context *) data;
  pr_ctx = pe_ctx->pr_ctx;
 
+ if(pe_ctx->index_term_buffer != NULL)
+ {
+  /* inside an index tag - unlike the footnote logic, where the output path is redirected
+     to an alternative rendering context, index terms just need to be collected to a buffer.
+     Thus, we add a this conditional here to bypass feeding to a rendering context. */
+
+  if(pe_ctx->index_term_buffer_length + uwc->buffer_length > MAX_INDEX_TERM_SIZE)
+  {
+   pe_ctx->index_term_buffer[pe_ctx->index_term_buffer_length] = 0;
+   fprintf(stderr, "BCA: index term too long %s + %s...\n",
+           pe_ctx->index_term_buffer, (char *) uwc->word_buffer);
+   return 1;
+  }
+
+  memcpy(pe_ctx->index_term_buffer + pe_ctx->index_term_buffer_length,
+         uwc->word_buffer,
+         uwc->buffer_length);
+
+  pe_ctx->index_term_buffer[pe_ctx->index_term_buffer_length += uwc->buffer_length] = 0;
+  return 0;
+ }
+
  /* we are inside some pass of the document loop, and within some
     hierchial element, and maybe within a tag stack. In all cases,
     here we simply feed a word to the current rendering context.
@@ -468,6 +490,9 @@ int plaintext_open_tag(struct document_handling_context *dctx,
  if(strcmp(tag_name, "f") == 0)
   return plaintext_footnote_open(pe_ctx);
 
+ if(strcmp(tag_name, "i") == 0)
+  return plaintext_index_open(pe_ctx);
+
  fprintf(stderr,
          "BCA: plaintext_open_tag(): warning, plain text engine does "
          "not support tag '%s'.\n",
@@ -489,6 +514,9 @@ int plaintext_close_tag(struct document_handling_context *dctx)
 
  if(strcmp(tag_name, "f") == 0)
   return plaintext_footnote_close(pe_ctx);
+
+ if(strcmp(tag_name, "i") == 0)
+  return plaintext_index_close(pe_ctx);
 
  return 0;
 }
@@ -535,9 +563,12 @@ int plaintext_start_document(struct document_handling_context *dctx)
         fprintf(stderr, "BCA: Warning: hyphenation engine not available\n");
        }
 
+       /* hard code some defaults for now */
        pe_ctx->paragraph_line_spacing = 1;
        pe_ctx->paragraph_indent = 4;
        pe_ctx->show_toc = 1;
+       pe_ctx->show_index = 1;
+
        dctx->render_engine_context = pe_ctx;
 
        if((pe_ctx->pr_ctx = plaintext_rendering_context_new(pe_ctx, NULL)) == NULL)
@@ -611,7 +642,11 @@ int plaintext_finish_document(struct document_handling_context *dctx)
        dctx->ctx->loop_inputs = 1;
        break;
 
-  case 1: /* we're done. shutdown */
+  case 1: /* we're done. finish and shutdown */
+       if(pe_ctx->show_index == 1)
+        if(pe_print_index(pe_ctx))
+         return 1;
+
        switch(pe_ctx->pr_ctx->output_mode)
        {
         case PER_OUTPUT_MODE_HTML_FILE:

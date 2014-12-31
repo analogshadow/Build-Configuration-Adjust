@@ -778,6 +778,8 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
  if(plaintext_rendering_stack_push(pe_ctx))
   return 1;
 
+ pe_ctx->pr_ctx->show_page_numbers = 0;
+
  if(plaintext_word_engine_stack_push(pe_ctx))
   return 1;
 
@@ -790,8 +792,6 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
   return 1;
 
  pr_advance_line(pe_ctx->pr_ctx);
-
- pe_ctx->pr_ctx->show_page_numbers = 0;
  pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
  pe_ctx->pr_ctx->right_margin_width = 5;
 
@@ -845,6 +845,113 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
 
   if(pe_toc_cursor_advance(pe_ctx))
    return 1;
+ }
+
+ if(pr_advance_page(pe_ctx->pr_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ return 0;
+}
+
+int pe_print_index(struct plaintext_engine_context *pe_ctx)
+{
+ char temp[MAX_INDEX_TERM_SIZE + 16],
+      current_char[6], first_char[6];
+ struct plaintext_index_entry *t, *p;
+
+ if(pe_ctx->index == NULL)
+  return 0;
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->show_page_numbers = 0;
+
+ if(pr_advance_page(pe_ctx->pr_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
+
+ if(pr_feed_generated_words(pe_ctx, "Index"))
+  return 1;
+
+ pr_advance_line(pe_ctx->pr_ctx);
+
+ pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
+ pe_ctx->pr_ctx->left_margin_width = 1;
+
+ pr_advance_line(pe_ctx->pr_ctx);
+ current_char[0] = 0;
+
+ for(t = pe_ctx->index; t != NULL; t = t->next_term)
+ {
+  //todo utf8
+  first_char[0] = t->term[0];
+  first_char[1] = 0;
+
+  if(strcmp(current_char, first_char) != 0)
+  {
+   pr_advance_line(pe_ctx->pr_ctx);
+   snprintf(current_char, 6, "%s", first_char);
+   pe_ctx->pr_ctx->left_margin_width = 5;
+   if(pr_feed_generated_words(pe_ctx, current_char))
+    return 1;
+
+   pr_advance_line(pe_ctx->pr_ctx);
+
+   pe_ctx->pr_ctx->left_margin_width = 1;
+  }
+
+  if(pr_feed_generated_words(pe_ctx, t->term))
+   return 1;
+
+  p = t;
+  while(p != NULL)
+  {
+   /* this strange because, the comma must be printed with page names that are followed by others,
+      not before pluarality entries */
+   if(p->next_page == NULL)
+   {
+    if(pr_feed_generated_words(pe_ctx, p->page))
+     return 1;
+
+    break;
+   } else {
+    if(strcmp(p->page, p->next_page->page) != 0)
+    {
+     snprintf(temp, MAX_INDEX_TERM_SIZE + 16, "%s,", p->page);
+     if(pr_feed_generated_words(pe_ctx, temp))
+      return 1;
+
+     p = p->next_page;
+     continue;
+    } else {
+     /* page listing de-dup */
+     if(pr_feed_generated_words(pe_ctx, p->page))
+      return 1;
+
+     p = p->next_page;
+     while(p != NULL)
+     {
+      if(p->next_page != NULL)
+       if(strcmp(p->page, p->next_page->page) != 0)
+        break;
+      p = p->next_page;
+     }
+    }
+   }
+  }
+
+  pr_advance_line(pe_ctx->pr_ctx);
  }
 
  if(pr_advance_page(pe_ctx->pr_ctx))
@@ -1094,6 +1201,114 @@ int plaintext_footnote_close(struct plaintext_engine_context *pe_ctx)
  pe_ctx->footnote_pr = NULL;
 
  return 0;
+}
+
+int plaintext_index_open(struct plaintext_engine_context *pe_ctx)
+{
+ int allocation_size;
+
+ if(pe_ctx->index_term_buffer != NULL)
+ {
+  pe_ctx->index_term_buffer[pe_ctx->index_term_buffer_length] = 0;
+  fprintf(stderr, "BCA: can not start index tag inside tag for term '%s'\n",
+          pe_ctx->index_term_buffer);
+  return 1;
+ }
+
+ if(pe_ctx->index_term_buffer == NULL)
+ {
+  allocation_size = MAX_INDEX_TERM_SIZE;
+  if((pe_ctx->index_term_buffer = malloc(allocation_size)) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc(%d) failed\n");
+   return 1;
+  }
+ }
+
+ return 0;
+}
+
+int plaintext_index_close(struct plaintext_engine_context *pe_ctx)
+{
+ struct plaintext_index_entry *entry, *e, **prev;
+ int allocation_size, code;
+ char page[16];
+
+ if(pe_ctx->index_term_buffer_length == 0)
+ {
+  fprintf(stderr, "BCA: plaintext_index_close(): no index term given\n");
+  return 1;
+ }
+
+ /* throw away result except on second pass */
+ if(pe_ctx->dctx->ctx->pass_number != 1)
+ {
+  free(pe_ctx->index_term_buffer);
+  pe_ctx->index_term_buffer = NULL;
+  pe_ctx->index_term_buffer_length = 0;
+  return 0;
+ }
+
+ /* now we have the index term, allocate and store in the right place */
+
+ allocation_size = sizeof(struct plaintext_index_entry);
+ if((entry = (struct plaintext_index_entry *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: plaintext_index_open() malloc(%d) failed.\n",
+          allocation_size);
+  return 1;
+ }
+ memset(entry, 0, allocation_size);
+ entry->term = pe_ctx->index_term_buffer;
+ pe_ctx->index_term_buffer = NULL;
+ pe_ctx->index_term_buffer_length = 0;
+ snprintf(page, 16, "%d", pe_ctx->pr_ctx->current_page);
+ entry->page = strdup(page);
+
+ if(pe_ctx->index == NULL)
+ {
+  /* first index term */
+  pe_ctx->index = entry;
+  return 0;
+ }
+
+ prev = &(pe_ctx->index);
+ e = pe_ctx->index;
+
+ while(e != NULL)
+ {
+  code = strcmp(entry->term, e->term);
+  if(code == 0)
+  {
+   /* previously used index term; add page reference */
+   while(e->next_page != NULL)
+   {
+    e = e->next_page;
+   }
+   e->next_page = entry;
+   return 0;
+  }
+
+  if(code < 0)
+  {
+   /* new term should be inserted at this list position */
+   entry->next_term = e;
+   *prev = entry;
+   return 0;
+  }
+
+  if(e->next_term == NULL)
+  {
+   /* term comes after all previously seen index terms */
+   e->next_term = entry;
+   return 0;
+  }
+
+  prev = &(e->next_term);
+  e = e->next_term;
+ }
+
+ return 1;
 }
 
 struct plaintext_rendering_context *

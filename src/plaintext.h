@@ -11,7 +11,7 @@ struct plaintext_engine_context;
 #define PER_LEFT_TO_RIGHT  10
 #define PER_RIGHT_TO_LEFT  11
 #define PER_LINE_BUFFER_SIZE 512
-
+#define MAX_INDEX_TERM_SIZE 256
 #define PER_OUTPUT_MODE_TEXT_FILE 800
 #define PER_OUTPUT_MODE_HTML_FILE 801
 
@@ -22,6 +22,13 @@ struct plaintext_footnote
  int n_lines;
  int number;
  struct plaintext_footnote *next;
+};
+
+struct plaintext_index_entry
+{
+ char *term;
+ char *page;
+ struct plaintext_index_entry *next_term, *next_page;
 };
 
 struct plaintext_rendering_context
@@ -60,6 +67,11 @@ struct plaintext_engine_context
  int n_footnotes;
  struct plaintext_footnote *footnotes_head, *footnotes_tail;
  struct plaintext_rendering_context *footnote_pr;
+
+ int show_index;
+ char *index_term_buffer;
+ int index_term_buffer_length;
+ struct plaintext_index_entry *index;
 };
 
 int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);
@@ -83,7 +95,13 @@ int plaintext_footnote_open(struct plaintext_engine_context *pe_ctx);
 
 int plaintext_footnote_close(struct plaintext_engine_context *pe_ctx);
 
+int plaintext_index_open(struct plaintext_engine_context *pe_ctx);
+
+int plaintext_index_close(struct plaintext_engine_context *pe_ctx);
+
 int pe_print_toc(struct plaintext_engine_context *pe_ctx);
+
+int pe_print_index(struct plaintext_engine_context *pe_ctx);
 
 /* render context */
 struct plaintext_rendering_context *
