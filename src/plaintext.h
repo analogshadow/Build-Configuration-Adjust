@@ -31,6 +31,39 @@ struct plaintext_index_entry
  struct plaintext_index_entry *next_term, *next_page;
 };
 
+#define LISTING_TYPE_LOCOLISTING 500
+
+struct listing_entry
+{
+ int listing_number, listing_type;
+
+ /* width and height as it will apear in the rendering context used */
+ int render_width, render_height;
+
+ /* caption given by the listing parameters */
+ char *caption;
+
+ void *listing_type_specific;
+ struct listing_entry *next;
+};
+
+struct loco_listing
+{
+ /* width and height as it appears in the listing */
+ int width, height;
+
+ /* whether or not to use line numbers, which line the listing starts at,
+    and a line counter used by the rendering */
+ int line_numbers, line_numbers_start, line;
+
+ /* used for assertions in multi-pass processing */
+ char *file_name;
+
+ /* caption given in locolisting file */
+ char *caption;
+};
+
+
 struct plaintext_rendering_context
 {
  int line_width, left_margin_width, right_margin_width;
@@ -45,35 +78,46 @@ struct plaintext_rendering_context
 
  char *output_buffer;
  int output_buffer_length, output_buffer_size, output_buffer_lines;
-
 };
 
 struct plaintext_engine_context
 {
+ /* convenience circular reference */
  struct document_handling_context *dctx;
+
+ /* word engine */
  struct unicode_word_context *uwc, *uwc_stack[16];
 
+ /* hyphenation engine */
  struct hyphenation_context *hc;
  struct unicode_word_context first, second;
 
+ /* rendering engine */
  struct plaintext_rendering_context *pr_ctx, *pr_ctx_stack[16];
-
  int rendering_context_stack_depth, word_engine_stack_depth;
 
+ /* non-rendering context specific preferences */
  int paragraph_indent, paragraph_line_spacing;
 
+ /* table of contents */
  int show_toc;
  struct toc_element *toc_root, *toc_cursor, *index_head, *index_tail;
 
+ /* footnotes */
  int n_footnotes;
  struct plaintext_footnote *footnotes_head, *footnotes_tail;
  struct plaintext_rendering_context *footnote_pr;
 
+ /* index */
  int show_index;
  char *index_term_buffer;
  int index_term_buffer_length;
  struct plaintext_index_entry *index;
 
+ /* listings */
+ struct listing_entry *listings_head, *listings_cursor;
+
+ /* lefthand righthand page logic */
  int even_or_odd_page;
 };
 
@@ -106,6 +150,8 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx);
 
 int pe_print_index(struct plaintext_engine_context *pe_ctx);
 
+int pe_toc_cursor_advance(struct plaintext_engine_context *pe_ctx);
+
 /* render context */
 struct plaintext_rendering_context *
 plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
@@ -135,6 +181,8 @@ int pr_toc_cursor_advance(struct plaintext_engine_context *pe_ctx);
 
 int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                     struct unicode_word_context *uwc);
+
+int pr_render_foot_notes(struct plaintext_engine_context *pe_ctx, int limit);
 
 /* toc data structures */
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,

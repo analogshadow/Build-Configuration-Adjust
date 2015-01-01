@@ -70,16 +70,16 @@ int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags)
 int plaintext_open_point(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_point(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -87,17 +87,435 @@ int plaintext_close_point(struct document_handling_context *dctx)
 int plaintext_open_list(struct document_handling_context *dctx,
                         char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_list(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
+ return 0;
+}
+
+int argument_escape_processing(char *file_name, int line_number,
+                               char *buffer, int length)
+{
+ int i = 0, in_quotes = 0;
+
+ while(i < length)
+ {
+  if(in_quotes)
+  {
+   if(buffer[i] == '\\')
+   {
+    memmove(buffer + i, buffer + i + 1, length - i - 1);
+    i++;
+   } else {
+    if(buffer[i] == '\"')
+    {
+     buffer[i] = 0;
+     break;
+    }
+    i++;
+   }
+
+  } else {
+   if(buffer[i] == '\"')
+   {
+    in_quotes = 1;
+   } else if(buffer[i] == ' ') {
+    i++;
+   } else {
+    fprintf(stderr,
+            "BCA: locolisting format file %s line %d unquoted text argument '%s'\n",
+            file_name, line_number, buffer);
+    return -1;
+   }
+
+   memmove(buffer + i, buffer + i + 1, length - i - 1);
+  }
+ }
+
+ return i;
+}
+
+int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                        struct loco_listing *ld,
+                        char *buffer, int n_bytes, int n_chars)
+{
+ int width;
+
+ /* line width for current rendering context */
+ width = pr_ctx->line_width -
+         pr_ctx->left_margin_width -
+         pr_ctx->right_margin_width;
+
+ if(pr_ctx->n_characters + n_chars > width)
+ {
+  fprintf(stderr, "BCA: listing line wrap - finish me: %s %d\n", __FILE__, __LINE__);
+  return 1;
+/*
+  how do you split attributes?
+  also we will need to add space for the line numbers
+  if(pr_advance_line(pe_ctx->pr_ctx))
+   return 1;
+
+  ld->render_height++;
+*/
+ } else {
+  if(pr_ctx->n_bytes + n_bytes + 1 > PER_LINE_BUFFER_SIZE)
+  {
+   fprintf(stderr, "BCA: fix me: %s %d\n", __FILE__, __LINE__);
+   return 1;
+  }
+
+  memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
+         buffer, n_bytes);
+  pr_ctx->line_buffer[pr_ctx->n_bytes += n_bytes] = 0;
+  pr_ctx->n_characters += n_chars;
+ }
+
+ return 0;
+}
+
+int handle_locolisting(struct document_handling_context *dctx,
+                       struct plaintext_engine_context *pe_ctx,
+                       struct listing_entry *listing_entry,
+                       char *file_name)
+{
+ struct loco_listing *ld;
+ char *source, data[32], argument[1024];
+ int source_length, start, end, line_length, i, comma, col, line,
+     handled, allocation_size, declarative_in_scope, argument_length,
+     n_chars, line_width;
+
+ if(listing_entry->listing_type_specific == NULL)
+ {
+  /* first pass */
+  allocation_size = sizeof(struct loco_listing);
+  if((ld = (struct loco_listing *) malloc(allocation_size)) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
+           allocation_size, strerror(errno));
+   return 1;
+  }
+  memset(ld, 0, allocation_size);
+
+  if((ld->file_name = strdup(file_name)) == NULL)
+  {
+   fprintf(stderr, "BCA: strdup(%s) failed, %s\n",
+           file_name, strerror(errno));
+   return 1;
+  }
+
+  ld->line_numbers_start = 1;
+
+  listing_entry->listing_type_specific = ld;
+ } else {
+  /* not first pass */
+  ld = (struct loco_listing *) listing_entry->listing_type_specific;
+
+  if(strcmp(ld->file_name, file_name) != 0)
+  {
+   fprintf(stderr,
+           "BCA: expected listing cursor locolisting file name to be %s not %s!\n",
+           file_name, ld->file_name);
+   return 1;
+  }
+
+  ld->line = ld->line_numbers_start;
+ }
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ if((source = read_file(file_name, &source_length, 0)) == NULL)
+  return 1;
+
+
+ declarative_in_scope = -1;
+ line = 0;
+ line_width = 0;
+ end = -1;
+
+ if(1)
+ {
+  n_chars = snprintf(data, 32, "%d ", ld->line);
+  if(send_to_line_buffer(pe_ctx->pr_ctx, ld, data, n_chars, n_chars))
+    return 1;
+ }
+
+ while(find_line(source, source_length, &start, &end, &line_length))
+ {
+  line++;
+  i = start;
+  data[0] = 0;
+
+  /* lines are in the form declarative:data[,arg]; */
+
+  /* skip leading whitespace */
+  while(source[i] == ' ')
+  {
+   i++;
+   if(i == end)
+    break;
+  }
+
+  /* ignore blank lines */
+  if(i == end)
+   continue;
+
+  /* look for a ; */
+  while(end > i)
+  {
+   if(source[end] == ';')
+    break;
+   end--;
+  }
+  if(end == i)
+  {
+   fprintf(stderr,
+           "BCA: locolisting format file %s line %d: "
+           "expected terminating ';' on non-blank line\n",
+           file_name, line);
+   return 1;
+  }
+
+  col = i;
+  /* look for a : */
+  while(col < end)
+  {
+   if(source[col] == ':')
+    break;
+   col++;
+  }
+
+  if(col == end)
+  {
+   fprintf(stderr,
+           "BCA: locolisting format file %s line %d: expected ':' on non-blank line\n",
+           file_name, line);
+   return 1;
+  }
+
+  /* look for a , */
+  comma = col + 1;
+  while(comma < end)
+  {
+   if(source[comma] == ',')
+    break;
+   comma++;
+  }
+  if(comma == end)
+   comma = -1;
+
+  /* match declarative */
+  handled = 0;
+
+  if(strncmp(source + i, "listing", 7) == 0)
+  {
+   handled = 1;
+   declarative_in_scope = 1;
+   allocation_size = (end - col);
+
+   if(ld->caption == NULL)
+   {
+
+    /* first pass */
+    if((ld->caption = (char *) malloc(allocation_size)) == NULL)
+    {
+     fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
+             allocation_size, strerror(errno));
+     return 1;
+    }
+    memcpy(ld->caption, source + col + 1, allocation_size - 1);
+    ld->caption[allocation_size] = 0;
+
+   } else {
+
+    /* not first pass */
+    if(strncmp(ld->caption, source + col + 1, allocation_size - 1) != 0)
+    {
+     source[col + 1 + allocation_size - 1] = 0;
+     fprintf(stderr,
+             "BCA: expected listing cursor's locolisting supplied caption to "
+             "be \"%s\" not \"%s\"!\n",
+             ld->caption, source + col + 1);
+     return 1;
+    }
+
+   }
+  } else {
+   if(comma == -1)
+   {
+    fprintf(stderr,
+            "BCA: locolisting format file %s line %d: expected declarative:data,argument;\n",
+            file_name, line);
+    return 1;
+   }
+   if((allocation_size = comma - col - 1) > 31)
+   {
+    fprintf(stderr,
+            "BCA: locolisting format file %s line %d: data too long (%d) in format "
+            "declarative:data,argument;\n",
+            file_name, line, allocation_size);
+    return 1;
+   }
+   memcpy(data, source + col + 1, allocation_size);
+   data[allocation_size] = 0;
+  }
+
+  if(strncmp(source + i, "object", 6) == 0)
+  {
+   handled = 1;
+   declarative_in_scope = 2;
+
+   if((argument_length = end - comma - 1) > 31)
+   {
+    fprintf(stderr,
+            "BCA: locolisting format file %s line %d: argument too long (%d) in format "
+            "declarative:data,argument;\n",
+            file_name, line, allocation_size);
+    return 1;
+   }
+   memcpy(argument, source + comma + 1, argument_length);
+   argument[argument_length] = 0;
+
+   if((argument_length =
+       argument_escape_processing(file_name, line, argument, argument_length)) < 0)
+    return 1;
+
+   if((n_chars = count_characters(argument, argument_length)) < 0)
+    return 1;
+
+   if(strcmp(data, "text") == 0)
+   {
+    if(send_to_line_buffer(pe_ctx->pr_ctx, ld, argument, argument_length, n_chars))
+     return 1;
+
+    /* independently, track the width and height of the listing as it is in the
+       listing file */
+    line_width += n_chars;
+
+   } else if(strcmp(data, "linebreak") == 0) {
+    ld->height++;
+    listing_entry->render_height++;
+    ld->line++;
+
+    if(line_width > ld->width)
+     ld->width = line_width;
+
+    line_width = n_chars;
+
+    if(pr_advance_line(pe_ctx->pr_ctx))
+     return 1;
+
+    if(1)
+    {
+     n_chars = snprintf(data, 32, "%d ", ld->line);
+     if(send_to_line_buffer(pe_ctx->pr_ctx, ld, data, n_chars, n_chars))
+      return 1;
+    }
+
+    if(send_to_line_buffer(pe_ctx->pr_ctx, ld, argument, argument_length, n_chars))
+     return 1;
+
+   } else {
+    fprintf(stderr,
+            "BCA: locolisting format file %s line %d: object type \"%s\" unrecognized\n",
+            file_name, line, data);
+    return 1;
+   }
+  }
+
+  if(strncmp(source + i, "attribute", 9) == 0)
+  {
+   handled = 1;
+   switch(declarative_in_scope)
+   {
+    case -1:
+         fprintf(stderr,
+                 "BCA: locolisting format file %s line %d: attribute outside "
+                 "scope of a declarative\n",
+                 file_name, line);
+         return 1;
+         break;
+
+    case 1:
+         if(strcmp(data, "listingtype") == 0)
+         {
+          if(strncmp(source + comma + 1, "sourcecode", 10) == 0)
+          {
+
+          } else {
+           source[end] = 0;
+           fprintf(stderr,
+                   "BCA: locolisting format file %s line %d: unknown value \"%s\" "
+                   " for listingtype attribute\n",
+                   file_name, line, source + comma + 1);
+            return 1;
+          }
+
+         } else if(strcmp(data, "linenumbers") == 0) {
+          if(strncmp(source + comma + 1, "yes", 3) == 0)
+          {
+           ld->line_numbers = 1;
+          } else if(strncmp(source + comma + 1, "no", 2) == 0) {
+           ld->line_numbers = 0;
+          } else {
+           source[end] = 0;
+           fprintf(stderr,
+                   "BCA: locolisting format file %s line %d: linenumbers attribute "
+                   "expects yes or no, not '%s'\n",
+                   file_name, line, source + comma + 1);
+            return 1;
+          }
+
+         } else {
+          fprintf(stderr,
+                  "BCA: locolisting format file %s line %d: attribute type \"%s\" "
+                  "unrecognized for declarative in scope of \"listing\".\n",
+                  file_name, line, data);
+           return 1;
+         }
+         break;
+
+    case 2:
+         if(strcmp(data, "syntaxhighlight") == 0)
+         {
+
+         } else {
+          fprintf(stderr,
+                  "BCA: locolisting format file %s line %d: attribute type \"%s\" "
+                  "unrecognized for declarative in scope of \"object\".\n",
+                  file_name, line, data);
+           return 1;
+         }
+         break;
+   }
+  }
+
+  if(handled == 0)
+  {
+   source[col] = 0;
+   fprintf(stderr,
+           "BCA: locolisting format file %s line %d: unknown type declaritive \"%s\"\n",
+           file_name, line, source + i);
+   return 1;
+  }
+
+ }
+ ld->height++;
+ listing_entry->render_height++;
+
+ if(pr_advance_line(pe_ctx->pr_ctx))
+  return 1;
+
+ free(source);
  return 0;
 }
 
@@ -105,15 +523,107 @@ int plaintext_open_listing(struct document_handling_context *dctx,
                            char **parameters, int n_parameters)
 {
  struct plaintext_engine_context *pe_ctx;
+ struct listing_entry *listing_entry;
+ char *caption, *file_name;
+ int handled, allocation_size;
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+
+ if(n_parameters > 1)
+  caption = parameters[1];
+ else
+  caption = "";
+
+ /* first pass allocates entries, subsequent passes find the entry */
+ if(dctx->ctx->pass_number == 0)
+ {
+  allocation_size = sizeof(struct listing_entry);
+  if((listing_entry = (struct listing_entry *) malloc(allocation_size)) == NULL)
+  {
+   fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
+           allocation_size, strerror(errno));
+   return 1;
+  }
+  memset(listing_entry, 0, allocation_size);
+  if((listing_entry->caption = strdup(caption)) == NULL)
+  {
+   fprintf(stderr, "BCA: strdup(%s) failed, %s\n",
+           caption, strerror(errno));
+   return 1;
+  }
+  if(pe_ctx->listings_head == NULL)
+  {
+   /* first one */
+   listing_entry->listing_number = 1;
+   pe_ctx->listings_cursor = pe_ctx->listings_head = listing_entry;
+  } else {
+   /* not the first one */
+   listing_entry->listing_number = pe_ctx->listings_cursor->listing_number + 1;
+   pe_ctx->listings_cursor->next = listing_entry;
+   pe_ctx->listings_cursor = listing_entry;
+  }
+ } else {
+  /* we should simply be the next entry in the listings list, so just verify */
+  if(pe_ctx->listings_cursor == NULL)
+  {
+   fprintf(stderr, "BCA: expected non-null listings cursor on non-first pass!\n");
+   return 1;
+  }
+
+  if(strcmp(pe_ctx->listings_cursor->caption, caption) != 0)
+  {
+   fprintf(stderr,
+           "BCA: expected caption of listings cursor (\"%s\") to match \"%s\"!\n",
+           pe_ctx->listings_cursor->caption, caption);
+   return 1;
+  }
+
+  listing_entry = pe_ctx->listings_cursor;
+ }
+
+ if(n_parameters > 2)
+ {
+  handled = 0;
+
+  if(strcmp(parameters[2], "locolisting") == 0)
+  {
+   handled = 1;
+   if(n_parameters == 3)
+   {
+    fprintf(stderr, "BCA: listing mode 'locolisting' expects file name parameter\n");
+    return 1;
+   }
+
+   file_name = parameters[3];
+
+   if(dctx->ctx->pass_number == 0)
+   {
+    listing_entry->listing_type = LISTING_TYPE_LOCOLISTING;
+   } else {
+    if(listing_entry->listing_type != LISTING_TYPE_LOCOLISTING)
+    {
+     fprintf(stderr, "BCA: expected listings cursor to be of type %d not %d!\n",
+             LISTING_TYPE_LOCOLISTING, listing_entry->listing_type);
+     return 1;
+    }
+   }
+
+   return handle_locolisting(dctx, pe_ctx, listing_entry, file_name);
+  }
+
+  if(handled == 0)
+  {
+   fprintf(stderr, "BCA: unknown listing mode '%s'\n", parameters[2]);
+   return 1;
+  }
+ }
 
  return 0;
 }
 
 int plaintext_close_listing(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -121,16 +631,16 @@ int plaintext_close_listing(struct document_handling_context *dctx)
 int plaintext_open_inset(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_inset(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -199,8 +709,8 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
 
 int plaintext_close_subsection(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -266,8 +776,8 @@ int plaintext_open_section(struct document_handling_context *dctx,
 
 int plaintext_close_section(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -418,8 +928,8 @@ int plaintext_open_part(struct document_handling_context *dctx,
 
 int plaintext_close_part(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -427,16 +937,16 @@ int plaintext_close_part(struct document_handling_context *dctx)
 int plaintext_open_table(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_table(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -444,16 +954,16 @@ int plaintext_close_table(struct document_handling_context *dctx)
 int plaintext_open_tr(struct document_handling_context *dctx,
                       char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_tr(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -461,16 +971,16 @@ int plaintext_close_tr(struct document_handling_context *dctx)
 int plaintext_open_tc(struct document_handling_context *dctx,
                       char **parameters, int n_parameters)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
 
 int plaintext_close_tc(struct document_handling_context *dctx)
 {
- struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// struct plaintext_engine_context *pe_ctx;
+// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  return 0;
 }
@@ -592,6 +1102,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->pr_ctx->current_page = 0;
        pe_ctx->even_or_odd_page = 1;
        pe_ctx->n_footnotes = 0;
+       pe_ctx->listings_cursor = pe_ctx->listings_head;
 
        switch(pe_ctx->pr_ctx->output_mode)
        {

@@ -451,6 +451,7 @@ int main(int argc, char **argv)
         if(ctx->verbose > 1)
          fprintf(stderr, "BCA: document_mode() finished\n");
        } else {
+        if(ctx->verbose > 1)
         fprintf(stderr, "BCA: document_mode() failed\n");
        }
        return code;

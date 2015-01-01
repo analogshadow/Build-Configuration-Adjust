@@ -139,6 +139,26 @@ int end_of_input_tests(struct document_handling_context *dctx)
  return 1;
 }
 
+int document_frame_dump(struct document_handling_context *dctx)
+{
+ int i;
+ struct document_handling_context_stack_frame *frame;
+
+ fprintf(stderr, "BCA: Document Control Frame Backtrace:\n");
+
+ for(i=dctx->stack_depth - 1; i>-1; i--)
+ {
+  frame = &(dctx->stack[i]);
+  fprintf(stderr, "BCA: %d) %s:%d %s\n",
+          i,
+          dctx->ctx->input_files[frame->input_file_index],
+          frame->line_number,
+          type_to_string(frame->type));
+ }
+
+ return 0;
+}
+
 int backtrace_stack_test(struct document_handling_context *dctx,
                          int need_to_find, int before_finding)
 {
@@ -163,6 +183,8 @@ int backtrace_stack_test(struct document_handling_context *dctx,
            dctx->ctx->input_files[frame->input_file_index],
            frame->line_number,
            type_to_string(need_to_find));
+
+   document_frame_dump(dctx);
    return 1;
   }
 
@@ -175,6 +197,7 @@ int backtrace_stack_test(struct document_handling_context *dctx,
          dctx->ctx->line_number,
          type_to_string(need_to_find));
 
+ document_frame_dump(dctx);
  return 1;
 }
 
@@ -238,10 +261,8 @@ int enter_level(struct document_handling_context *dctx, int level_value)
   dctx->implied_levels_mask[i] = 1;
  }
 
-
  dctx->implied_levels_mask[level_value] = 0;
  dctx->current_level = level_value;
-
  return 0;
 }
 
@@ -266,6 +287,7 @@ int test_starting_level_correctly(struct document_handling_context *dctx, int le
          dctx->ctx->input_files[frame->input_file_index],
          frame->line_number);
 
+ document_frame_dump(dctx);
  return 1;
 }
 
@@ -304,6 +326,7 @@ int test_not_in_list_or_table(struct document_handling_context *dctx,
           current_file_name(dctx->ctx), dctx->ctx->line_number, type);
 
   table_error(dctx);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -313,6 +336,7 @@ int test_not_in_list_or_table(struct document_handling_context *dctx,
           current_file_name(dctx->ctx), dctx->ctx->line_number, type);
 
   list_error(dctx);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -326,12 +350,14 @@ int push_close_function(struct document_handling_context *dctx,
  struct document_handling_context_stack_frame *frame;
 
  if(dctx->ctx->verbose > 2)
-  fprintf(stderr, "BCA: push_close_function(%d, , , %d, %d)\n",
-          frame_type, dctx->ctx->input_file_index, dctx->ctx->line_number);
+  fprintf(stderr, "BCA: push_close_function(%d/%s, , , %d, %d)\n",
+          frame_type, type_to_string(frame_type),
+          dctx->ctx->input_file_index, dctx->ctx->line_number);
 
  if(dctx->stack_depth > 63)
  {
   fprintf(stderr, "BCA: document stack too deep\n");
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -344,7 +370,6 @@ int push_close_function(struct document_handling_context *dctx,
  frame->line_number = dctx->ctx->line_number;
 
  dctx->stack_depth++;
-
  return 0;
 }
 
@@ -359,6 +384,7 @@ int function_close(struct document_handling_context *dctx, int type)
  {
   fprintf(stderr, "BCA: @dc()@ out of place, %s, line %d\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -367,13 +393,14 @@ int function_close(struct document_handling_context *dctx, int type)
  if(frame->type != type)
  {
   fprintf(stderr,
-          "BCA: %s, line %d @dc()@ was expected to be closing a %s "
-          "opened in %s on line %d.\n",
+          "BCA: %s, line %d @dc()@ was expected to be closing a %s, "
+          "not a %s opened in %s on line %d.\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number,
-          type_to_string(type),
+          type_to_string(type), type_to_string(frame->type),
           dctx->ctx->input_files[frame->input_file_index],
           frame->line_number);
 
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -544,6 +571,7 @@ int function_dtable(struct document_handling_context *dctx,
  {
   fprintf(stderr, "BCA: %s, line %d: nested table depth exceeded\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -553,6 +581,7 @@ int function_dtable(struct document_handling_context *dctx,
           current_file_name(dctx->ctx), dctx->ctx->line_number);
 
   list_error(dctx);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -594,8 +623,9 @@ int function_close_list(struct document_handling_context *dctx, void *data)
 {
  if(dctx->list_depth == 0)
  {
-  fprintf(stderr, "BCA: %s, line %d: listing close outside of list\n",
+  fprintf(stderr, "BCA: %s, line %d: list close outside of list\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -618,6 +648,7 @@ int function_dlist(struct document_handling_context *dctx,
  {
   fprintf(stderr, "BCA: %s, line %d: nested list depth exceeded\n",
           current_file_name(dctx->ctx), dctx->ctx->line_number);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -627,6 +658,7 @@ int function_dlist(struct document_handling_context *dctx,
           current_file_name(dctx->ctx), dctx->ctx->line_number);
 
   table_error(dctx);
+  document_frame_dump(dctx);
   return 1;
  }
 
@@ -889,44 +921,31 @@ char *handle_document_functions(struct bca_context *ctx, char *key)
 
  if(strncmp(parameters[0] + 1, "doc", 3) == 0)
   code = function_dmode(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "part", 5) == 0)
+ else if(strncmp(parameters[0] + 1, "part", 5) == 0)
   code = function_dpart(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "chapter", 7) == 0)
+ else if(strncmp(parameters[0] + 1, "chapter", 7) == 0)
   code = function_dchapter(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "section", 7) == 0)
+ else if(strncmp(parameters[0] + 1, "section", 7) == 0)
   code = function_dsection(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "sub", 3) == 0)
+ else if(strncmp(parameters[0] + 1, "sub", 3) == 0)
   code = function_dsub(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "inset", 5) == 0)
+ else if(strncmp(parameters[0] + 1, "inset", 5) == 0)
   code = function_dinset(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "listing", 7) == 0)
+ else if(strncmp(parameters[0] + 1, "listing", 7) == 0)
   code = function_dlisting(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "table", 5) == 0)
+ else if(strncmp(parameters[0] + 1, "table", 5) == 0)
   code = function_dtable(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "tr", 2) == 0)
+ else if(strncmp(parameters[0] + 1, "tr", 2) == 0)
   code = function_dtr(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "tc", 2) == 0)
+ else if(strncmp(parameters[0] + 1, "tc", 2) == 0)
   code = function_dtc(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "tag", 3) == 0)
+ else if(strncmp(parameters[0] + 1, "tag", 3) == 0)
   code = function_dtag(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "list", 4) == 0)
+ else if(strncmp(parameters[0] + 1, "list", 4) == 0)
   code = function_dlist(dctx, parameters, n_parameters);
-
- if(strncmp(parameters[0] + 1, "point", 5) == 0)
+ else if(strncmp(parameters[0] + 1, "point", 5) == 0)
   code = function_dpoint(dctx, parameters, n_parameters);
-
- if(strncmp(key + 1, "c(", 2) == 0)
+ else if(strncmp(key + 1, "c(", 2) == 0)
  {
   if(n_parameters != 2)
   {

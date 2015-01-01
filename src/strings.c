@@ -557,3 +557,72 @@ int free_string_array(char **array, int n_elements)
  return 0;
 }
 
+int count_characters(char *buffer, int length)
+{
+ int n_characters = 0, expected_character_length = 0;
+ int buffer_i = 0, character_i = 0;
+ unsigned char byte;
+
+ while(buffer_i<length)
+ {
+  byte = (unsigned char) buffer[buffer_i];
+
+  if(expected_character_length == 0)
+  {
+   if( (byte & 128) == 0)
+   {
+    /* 1 byte UTF-8 character */
+    expected_character_length = 1;
+
+   } else if( (byte & 224) == 192) {
+    /* 2 byte UTF-8 character */
+    expected_character_length = 2;
+
+   } else if( (byte & 240) == 224) {
+    /* 3 byte UTF-8 character */
+    expected_character_length = 3;
+
+   } else if( (byte & 248) == 240) {
+    /* 4 byte UTF-8 character */
+    expected_character_length = 4;
+
+   } else if( (byte & 252) == 248) {
+    /* 5 byte UTF-8 character */
+    expected_character_length = 5;
+
+   } else if( (byte & 254) == 252) {
+    /* 6 byte UTF-8 character */
+    expected_character_length = 6;
+
+   } else {
+    fprintf(stderr,
+            "BCA: count_characters(): UTF-8 encoding error:"
+            "byte value out of sequence: %xh\n", byte);
+    return -1;
+   }
+
+  } else {
+   if( (byte & 192) != 128)
+   {
+    fprintf(stderr,
+            "BCA: count_characters(): UTF-8 encoding error:"
+            "byte value out of sequence: %xh (expected byte %d of a %d byte value)\n",
+             byte, character_i + 1, expected_character_length);
+    return 1;
+   }
+  }
+
+  character_i++;
+
+  if(character_i == expected_character_length)
+  {
+   n_characters++;
+   character_i = 0;
+   expected_character_length = 0;
+  }
+
+  buffer_i++;
+ }
+
+ return n_characters;
+}

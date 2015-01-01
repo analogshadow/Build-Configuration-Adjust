@@ -21,3 +21,6 @@ CUSTOM.embedded_files.DRIVER = make_embedded_files
 CUSTOM.embedded_files.NAME = embedded_files.c
 CUSTOM.embedded_files.INPUT = "sfdb dist_c"
 CUSTOM.embedded_files.FILES = ./configure
+BINARY.listing.NAME = locolisting
+BINARY.listing.FILES = "./src/convert.c ./src/convert_screenlog.c ./src/convert_csource.c"
+BINARY.listing.FILE_DEPENDS = ./src/locodoc.h

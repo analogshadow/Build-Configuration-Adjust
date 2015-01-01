@@ -105,7 +105,7 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
    pr_ctx->output_buffer_size = allocation_size;
   }
 
-  pr_ctx->output_buffer[pr_ctx->output_buffer_length++] = ' ';
+  pr_ctx->output_buffer[pr_ctx->output_buffer_length++] = '\n';
   memcpy(pr_ctx->output_buffer + pr_ctx->output_buffer_length,
          pr_ctx->line_buffer, pr_ctx->n_bytes);
   pr_ctx->output_buffer_length += pr_ctx->n_bytes;
@@ -658,7 +658,7 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                  pr_ctx->pe_ctx->first.word_buffer,
                  pr_ctx->pe_ctx->second.word_buffer);
 */
-         /* the word in uwc has been split into a two hyphenated parsts for line wrap,
+         /* the word in uwc has been split into a two hyphenated parts for line wrap,
             first and second. Now recursively call into advance_word with the first
             part of the line (that should now fit) */
          if(pr_advance_word(pr_ctx, &(pr_ctx->pe_ctx->first)))

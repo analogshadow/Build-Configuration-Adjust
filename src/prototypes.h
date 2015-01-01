@@ -356,6 +356,8 @@ int split_strings(struct bca_context *ctx, char *source, int length,
 
 char *escape_value(struct bca_context *ctx, char *source, int length);  // selftested
 
+int count_characters(char *buffer, int length);
+
 /* config_files.c ------------------------------- */
 int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length, int *offset,
                            char *principle_filter, char *component_filter, char *key_filter,
@@ -587,7 +589,6 @@ int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned 
 int is_white_space(char *utf8_character);
 
 int unicode_word_engine_suffix(struct unicode_word_context *uwc, char *buffer, int buffer_length);
-
 
 /* hyphenation_engine.c -------------------- */
 

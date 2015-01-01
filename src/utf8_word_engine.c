@@ -200,4 +200,3 @@ int is_white_space(char *utf8_character)
 
  return 0;
 }
-
