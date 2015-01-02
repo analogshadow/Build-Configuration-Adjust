@@ -54,7 +54,8 @@ struct loco_listing
 
  /* whether or not to use line numbers, which line the listing starts at,
     and a line counter used by the rendering */
- int line_numbers, line_numbers_start, line;
+ int line_numbers, line_numbers_start, line,
+     n_chars_needed_for_line_numbers;
 
  /* used for assertions in multi-pass processing */
  char *file_name;
@@ -183,6 +184,8 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
                     struct unicode_word_context *uwc);
 
 int pr_render_foot_notes(struct plaintext_engine_context *pe_ctx, int limit);
+
+int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);
 
 /* toc data structures */
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,

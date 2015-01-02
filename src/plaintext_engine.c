@@ -144,10 +144,11 @@ int argument_escape_processing(char *file_name, int line_number,
 }
 
 int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                        struct listing_entry *listing_entry,
                         struct loco_listing *ld,
                         char *buffer, int n_bytes, int n_chars)
 {
- int width;
+ int width, s;
 
  /* line width for current rendering context */
  width = pr_ctx->line_width -
@@ -158,14 +159,34 @@ int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
  {
   fprintf(stderr, "BCA: listing line wrap - finish me: %s %d\n", __FILE__, __LINE__);
   return 1;
-/*
-  how do you split attributes?
-  also we will need to add space for the line numbers
-  if(pr_advance_line(pe_ctx->pr_ctx))
+
+  /*copy as much as will fit - 1 */
+
+  snprintf(pr_ctx->line_buffer + pr_ctx->n_bytes,
+           PER_LINE_BUFFER_SIZE - pr_ctx->n_bytes,
+           "→");
+  pr_ctx->n_bytes += 3;
+  pr_ctx->n_characters++;
+  pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
+
+  if(pr_advance_line(pr_ctx))
    return 1;
 
-  ld->render_height++;
-*/
+  listing_entry->render_height++;
+
+  for(s=0; s<ld->n_chars_needed_for_line_numbers - 1; s++)
+  {
+   snprintf(pr_ctx->line_buffer + pr_ctx->n_bytes,
+            PER_LINE_BUFFER_SIZE - pr_ctx->n_bytes,
+            " ");
+   pr_ctx->n_bytes++;
+   pr_ctx->n_characters++;
+   pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
+  }
+
+  /* copy the rest; note the non-space between where line numbers
+     would be and the start of the line */
+
  } else {
   if(pr_ctx->n_bytes + n_bytes + 1 > PER_LINE_BUFFER_SIZE)
   {
@@ -177,9 +198,59 @@ int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
          buffer, n_bytes);
   pr_ctx->line_buffer[pr_ctx->n_bytes += n_bytes] = 0;
   pr_ctx->n_characters += n_chars;
+
  }
 
  return 0;
+}
+
+int render_locolisting_line_numbers(struct plaintext_engine_context *pe_ctx,
+                                    struct listing_entry *listing_entry,
+                                    struct loco_listing *ld)
+{
+ int n_chars, s;
+ char buffer[32];
+
+ if(ld->line_numbers)
+ {
+  n_chars = snprintf(buffer, 32, "%d ", ld->line);
+
+  /* right justify */
+  for(s = 0; s < (ld->n_chars_needed_for_line_numbers - n_chars); s++)
+  {
+   memmove(buffer + s + 1, buffer + s, n_chars + 1);
+           buffer[s] = ' ';
+  }
+
+  if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld, buffer, n_chars,
+                         ld->n_chars_needed_for_line_numbers))
+   return 1;
+ }
+
+ return 0;
+}
+
+int render_locolisting_caption(struct plaintext_engine_context *pe_ctx,
+                               struct listing_entry *listing_entry,
+                               struct loco_listing *ld)
+{
+ char temp[64];
+
+ snprintf(temp, 64, "Listing %d:", listing_entry->listing_number);
+
+ if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(ld->caption != NULL)
+ {
+  if(pr_feed_generated_words(pe_ctx, ld->caption))
+   return 1;
+ } else {
+  if(pr_feed_generated_words(pe_ctx, listing_entry->caption))
+   return 1;
+ }
+
+ return pr_advance_line(pe_ctx->pr_ctx);
 }
 
 int handle_locolisting(struct document_handling_context *dctx,
@@ -189,13 +260,13 @@ int handle_locolisting(struct document_handling_context *dctx,
 {
  struct loco_listing *ld;
  char *source, data[32], argument[1024];
- int source_length, start, end, line_length, i, comma, col, line,
+ int source_length, start, end, line_length, i, s, comma, col, line,
      handled, allocation_size, declarative_in_scope, argument_length,
-     n_chars, line_width;
+     n_chars, line_width, first_pass = 0;
 
  if(listing_entry->listing_type_specific == NULL)
  {
-  /* first pass */
+  first_pass = 1;
   allocation_size = sizeof(struct loco_listing);
   if((ld = (struct loco_listing *) malloc(allocation_size)) == NULL)
   {
@@ -216,7 +287,6 @@ int handle_locolisting(struct document_handling_context *dctx,
 
   listing_entry->listing_type_specific = ld;
  } else {
-  /* not first pass */
   ld = (struct loco_listing *) listing_entry->listing_type_specific;
 
   if(strcmp(ld->file_name, file_name) != 0)
@@ -230,23 +300,21 @@ int handle_locolisting(struct document_handling_context *dctx,
   ld->line = ld->line_numbers_start;
  }
 
- if(pr_advance_line(pe_ctx->pr_ctx))
-  return 1;
-
  if((source = read_file(file_name, &source_length, 0)) == NULL)
   return 1;
-
 
  declarative_in_scope = -1;
  line = 0;
  line_width = 0;
  end = -1;
 
- if(1)
+ if(!first_pass)
  {
-  n_chars = snprintf(data, 32, "%d ", ld->line);
-  if(send_to_line_buffer(pe_ctx->pr_ctx, ld, data, n_chars, n_chars))
-    return 1;
+  if(render_locolisting_caption(pe_ctx, listing_entry, ld))
+   return 1;
+
+  if(render_locolisting_line_numbers(pe_ctx, listing_entry, ld))
+   return 1;
  }
 
  while(find_line(source, source_length, &start, &end, &line_length))
@@ -322,10 +390,9 @@ int handle_locolisting(struct document_handling_context *dctx,
    declarative_in_scope = 1;
    allocation_size = (end - col);
 
-   if(ld->caption == NULL)
+   if(first_pass)
    {
 
-    /* first pass */
     if((ld->caption = (char *) malloc(allocation_size)) == NULL)
     {
      fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
@@ -337,7 +404,6 @@ int handle_locolisting(struct document_handling_context *dctx,
 
    } else {
 
-    /* not first pass */
     if(strncmp(ld->caption, source + col + 1, allocation_size - 1) != 0)
     {
      source[col + 1 + allocation_size - 1] = 0;
@@ -394,35 +460,51 @@ int handle_locolisting(struct document_handling_context *dctx,
 
    if(strcmp(data, "text") == 0)
    {
-    if(send_to_line_buffer(pe_ctx->pr_ctx, ld, argument, argument_length, n_chars))
-     return 1;
-
-    /* independently, track the width and height of the listing as it is in the
-       listing file */
-    line_width += n_chars;
-
-   } else if(strcmp(data, "linebreak") == 0) {
-    ld->height++;
-    listing_entry->render_height++;
-    ld->line++;
-
-    if(line_width > ld->width)
-     ld->width = line_width;
-
-    line_width = n_chars;
-
-    if(pr_advance_line(pe_ctx->pr_ctx))
-     return 1;
-
-    if(1)
+    if(first_pass)
     {
-     n_chars = snprintf(data, 32, "%d ", ld->line);
-     if(send_to_line_buffer(pe_ctx->pr_ctx, ld, data, n_chars, n_chars))
+     /* all we are trying to do on the first pass is the source dimensions */
+     line_width += n_chars;
+    } else {
+
+     if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
+                            argument, argument_length, n_chars))
       return 1;
+
     }
 
-    if(send_to_line_buffer(pe_ctx->pr_ctx, ld, argument, argument_length, n_chars))
-     return 1;
+   } else if(strcmp(data, "linebreak") == 0) {
+    if(first_pass)
+    {
+     if(line_width > ld->width)
+      ld->width = line_width;
+     line_width = n_chars;
+
+     ld->height++;
+
+    } else {
+
+     /* finish out the line */
+     for(s=pe_ctx->pr_ctx->n_characters; s < listing_entry->render_width; s++)
+     {
+      if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
+                             " ", 1, 1))
+       return 1;
+     }
+
+     if(pr_advance_line(pe_ctx->pr_ctx))
+      return 1;
+
+     ld->line++;
+     listing_entry->render_height++;
+
+     if(render_locolisting_line_numbers(pe_ctx, listing_entry, ld))
+      return 1;
+
+     if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
+                            argument, argument_length, n_chars))
+      return 1;
+
+    }
 
    } else {
     fprintf(stderr,
@@ -509,11 +591,54 @@ int handle_locolisting(struct document_handling_context *dctx,
   }
 
  }
- ld->height++;
- listing_entry->render_height++;
+ if(first_pass)
+ {
+  ld->height++;
 
- if(pr_advance_line(pe_ctx->pr_ctx))
-  return 1;
+  if(ld->line_numbers)
+  {
+
+   if(ld->line_numbers_start + ld->height > 9999)
+   {
+    fprintf(stderr, "BCA: locolisting file %s uses greater than 9999 line numbers.\n",
+            file_name);
+    return 1;
+   } else if(ld->line_numbers_start + ld->height > 999) {
+    ld->n_chars_needed_for_line_numbers = 5;
+   } else if(ld->line_numbers_start + ld->height > 99) {
+    ld->n_chars_needed_for_line_numbers = 4;
+   } else if(ld->line_numbers_start + ld->height > 9) {
+    ld->n_chars_needed_for_line_numbers = 3;
+   } else {
+    ld->n_chars_needed_for_line_numbers = 2;
+   }
+
+  }
+
+  /* now that we know what the caption will be (ie - will it line wrap?),
+     we can render it out of place here, just to get the line counts in */
+  if(render_locolisting_caption(pe_ctx, listing_entry, ld))
+   return 1;
+
+
+ } else {
+  /* finish out the line */
+  for(s=pe_ctx->pr_ctx->n_characters; s < listing_entry->render_width; s++)
+  {
+   if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
+                          " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_advance_line(pe_ctx->pr_ctx))
+   return 1;
+
+  if(pr_advance_line(pe_ctx->pr_ctx))
+   return 1;
+
+
+  listing_entry->render_height++;
+ }
 
  free(source);
  return 0;
@@ -524,14 +649,23 @@ int plaintext_open_listing(struct document_handling_context *dctx,
 {
  struct plaintext_engine_context *pe_ctx;
  struct listing_entry *listing_entry;
+ struct loco_listing *ld = NULL;
  char *caption, *file_name;
- int handled, allocation_size;
+ int handled, allocation_size, render_line_width, i;
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
  if(n_parameters > 1)
   caption = parameters[1];
  else
   caption = "";
+
+ if(plaintext_rendering_stack_push(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_push(pe_ctx))
+  return 1;
+
+ pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
 
  /* first pass allocates entries, subsequent passes find the entry */
  if(dctx->ctx->pass_number == 0)
@@ -562,6 +696,12 @@ int plaintext_open_listing(struct document_handling_context *dctx,
    pe_ctx->listings_cursor = listing_entry;
   }
  } else {
+
+  if(pe_ctx->listings_cursor == NULL)
+   pe_ctx->listings_cursor = pe_ctx->listings_head;
+  else
+   pe_ctx->listings_cursor = pe_ctx->listings_cursor->next;
+
   /* we should simply be the next entry in the listings list, so just verify */
   if(pe_ctx->listings_cursor == NULL)
   {
@@ -607,7 +747,41 @@ int plaintext_open_listing(struct document_handling_context *dctx,
     }
    }
 
-   return handle_locolisting(dctx, pe_ctx, listing_entry, file_name);
+   if(dctx->ctx->pass_number == 0)
+   {
+    if(handle_locolisting(dctx, pe_ctx, listing_entry, file_name))
+     return 1;
+
+    ld = (struct loco_listing *) listing_entry->listing_type_specific;
+    render_line_width = pe_ctx->pr_ctx->line_width -
+                        pe_ctx->pr_ctx->left_margin_width -
+                        pe_ctx->pr_ctx->right_margin_width;
+
+    /* now that we know the source's width, height, and line number info,
+       we can either re-run handle_locolisting() to find render width and
+       height, or if it will fit - just use the info from the source */
+    if(ld->n_chars_needed_for_line_numbers + ld->width > render_line_width)
+    {
+     listing_entry->render_width = render_line_width +
+                                   ld->n_chars_needed_for_line_numbers;
+     if(handle_locolisting(dctx, pe_ctx, listing_entry, file_name))
+      return 1;
+    } else {
+     listing_entry->render_width = ld->width +
+                                   ld->n_chars_needed_for_line_numbers;;
+     listing_entry->render_height = ld->height;
+     for(i=0; i<listing_entry->render_height; i++)
+     {
+      if(pr_advance_line(pe_ctx->pr_ctx))
+       return 1;
+     }
+
+    }
+
+   } else {
+    if(handle_locolisting(dctx, pe_ctx, listing_entry, file_name))
+     return 1;
+   }
   }
 
   if(handled == 0)
@@ -616,6 +790,12 @@ int plaintext_open_listing(struct document_handling_context *dctx,
    return 1;
   }
  }
+
+ if(plaintext_rendering_stack_pop(pe_ctx))
+  return 1;
+
+ if(plaintext_word_engine_stack_pop(pe_ctx))
+  return 1;
 
  return 0;
 }
@@ -738,6 +918,10 @@ int plaintext_open_section(struct document_handling_context *dctx,
   }
  }
 
+//this seems broken
+// if(pr_ensure_minimum_rows_left(pe_ctx->pr_ctx, 3))
+//  return 1;
+
  snprintf(temp, 256, "Section %d: %s", pe_ctx->toc_cursor->count, section_name);
 
  if(plaintext_rendering_stack_push(pe_ctx))
@@ -855,8 +1039,11 @@ int plaintext_close_chapter(struct document_handling_context *dctx)
  struct plaintext_engine_context *pe_ctx;
  pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
 
- if(pr_render_foot_notes(pe_ctx, 0))
-  return 1;
+ if(pe_ctx->footnotes_head != NULL)
+ {
+  if(pr_render_foot_notes(pe_ctx, 0))
+   return 1;
+ }
 
  return 0;
 }
@@ -878,7 +1065,7 @@ int plaintext_open_part(struct document_handling_context *dctx,
  if(plaintext_word_engine_stack_push(pe_ctx))
   return 1;
 
- pe_ctx->pr_ctx->show_page_numbers = 0;
+// pe_ctx->pr_ctx->show_page_numbers = 0;
  pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
  pe_ctx->pr_ctx->left_margin_width = 10;
  pe_ctx->pr_ctx->right_margin_width = 10;
@@ -1102,7 +1289,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
        pe_ctx->pr_ctx->current_page = 0;
        pe_ctx->even_or_odd_page = 1;
        pe_ctx->n_footnotes = 0;
-       pe_ctx->listings_cursor = pe_ctx->listings_head;
+       pe_ctx->listings_cursor = NULL;
 
        switch(pe_ctx->pr_ctx->output_mode)
        {
@@ -1164,6 +1351,17 @@ int plaintext_finish_document(struct document_handling_context *dctx)
         case PER_OUTPUT_MODE_HTML_FILE:
         if(pe_ctx->pr_ctx->output != NULL)
         {
+         if(pe_ctx->even_or_odd_page == 0) //gets swapped one last time above
+         {
+          pe_ctx->pr_ctx->show_page_numbers = 0;
+
+           if(pr_advance_line(pe_ctx->pr_ctx))
+            return 1;
+
+           if(pr_advance_page(pe_ctx->pr_ctx))
+            return 1;
+         }
+
          fprintf(pe_ctx->pr_ctx->output,
                  " </body>\n"
                  "</html>\n");
