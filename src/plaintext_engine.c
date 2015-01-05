@@ -484,12 +484,18 @@ int handle_locolisting(struct document_handling_context *dctx,
     } else {
 
      /* finish out the line */
+     if(pr_enable_attribute(pe_ctx->pr_ctx, "sourcelistingbackground"))
+      return 1;
+
      for(s=pe_ctx->pr_ctx->n_characters; s < listing_entry->render_width; s++)
      {
       if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
                              " ", 1, 1))
        return 1;
      }
+
+     if(pr_disable_attribute(pe_ctx->pr_ctx))
+      return 1;
 
      if(pr_advance_line(pe_ctx->pr_ctx))
       return 1;

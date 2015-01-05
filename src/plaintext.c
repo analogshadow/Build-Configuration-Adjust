@@ -150,6 +150,48 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
+int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attribute)
+{
+ if(pr_advance_buffer(pr_ctx))
+  return 1;
+
+ if(pr_ctx->output != NULL)
+ {
+  switch(pr_ctx->output_mode)
+  {
+   case PER_OUTPUT_MODE_TEXT_FILE:
+        break;
+
+   case PER_OUTPUT_MODE_HTML_FILE:
+//        fprintf(pr_ctx->output, "<font bgcolor=\"red\">");
+        break;
+  }
+ }
+
+ return 0;
+}
+
+int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
+{
+ if(pr_advance_buffer(pr_ctx))
+  return 1;
+
+ if(pr_ctx->output != NULL)
+ {
+  switch(pr_ctx->output_mode)
+  {
+   case PER_OUTPUT_MODE_TEXT_FILE:
+        break;
+
+   case PER_OUTPUT_MODE_HTML_FILE:
+//        fprintf(pr_ctx->output, "</font>");
+        break;
+  }
+ }
+
+ return 0;
+}
+
 int pr_hard_full_line(struct plaintext_rendering_context *pr_ctx)
 {
  int i;

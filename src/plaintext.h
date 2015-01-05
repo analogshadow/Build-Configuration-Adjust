@@ -167,6 +167,10 @@ int pr_advance_line(struct plaintext_rendering_context *pr_ctx);
 
 int pr_advance_buffer(struct plaintext_rendering_context *pr_ctx);
 
+int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attribute);
+
+int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx);
+
 int pr_ensure_minimum_rows_left(struct plaintext_rendering_context *pr_ctx,
                                 int minimum);
 
