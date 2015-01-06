@@ -94,35 +94,7 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
 
  if(pr_ctx->output != NULL)
  {
-  switch(pr_ctx->output_mode)
-  {
-   case PER_OUTPUT_MODE_TEXT_FILE:
-        fprintf(pr_ctx->output, "%s", pr_ctx->line_buffer);
-        break;
-
-   case PER_OUTPUT_MODE_HTML_FILE:
-        for(i=0; i<pr_ctx->n_bytes; i++)
-        {
-         switch(pr_ctx->line_buffer[i])
-         {
-          case '<':
-               fprintf(pr_ctx->output, "&lt;");
-               break;
-
-          case '>':
-               fprintf(pr_ctx->output, "&gt;");
-               break;
-
-          case '&':
-               fprintf(pr_ctx->output, "&amp;");
-               break;
-
-          default:
-               fprintf(pr_ctx->output, "%c", pr_ctx->line_buffer[i]);
-         }
-        }
-  }
-
+  fprintf(pr_ctx->output, "%s", pr_ctx->line_buffer);
  } else {
   if(pr_ctx->output_buffer_length + pr_ctx->n_bytes + 2 >= pr_ctx->output_buffer_size)
   {
@@ -146,15 +118,11 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
 
  pr_ctx->n_bytes = 0;
  pr_ctx->n_characters = 0;
-
  return 0;
 }
 
 int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attribute)
 {
- if(pr_advance_buffer(pr_ctx))
-  return 1;
-
  if(pr_ctx->output != NULL)
  {
   switch(pr_ctx->output_mode)
@@ -163,7 +131,42 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
         break;
 
    case PER_OUTPUT_MODE_HTML_FILE:
-//        fprintf(pr_ctx->output, "<font bgcolor=\"red\">");
+        if(strcmp(attribute, "sourcelistingbackground") == 0)
+        {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3\">", -1, 0);
+        } else if(strcmp(attribute, "sourcelistingnumbers") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#000000\">", -1, 0);
+        } else if(strcmp(attribute, "c_ppd") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#008000\">", -1, 0);
+        } else if(strcmp(attribute, "c_declarator") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#FF0000\">", -1, 0);
+        } else if(strcmp(attribute, "c_keyword") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#FF0000\">", -1, 0);
+        } else if(strcmp(attribute, "c_function") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#000000; font-weight: bold\">", -1, 0);
+        } else if(strcmp(attribute, "c_argument") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#000000; font-style: italic\">", -1, 0);
+        } else if(strcmp(attribute, "c_string") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#008080\">", -1, 0);
+        } else if(strcmp(attribute, "c_escapesequence") == 0) {
+         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
+                                  "color:#008080; font-weight: bold\">", -1, 0);
+        } else if(strcmp(attribute, "listing_caption") == 0) {
+         pr_direct_to_line_buffer(pr_ctx,
+                                  "<span style=\""
+                                  "font-style: italic; >"
+                                  "font-weight: bold\">", -1, 0);
+        } else {
+         fprintf(stderr, "BCA: WARNING: unknown attribute \"%s\"\n", attribute);
+         pr_direct_to_line_buffer(pr_ctx, "<span>", -1, 0);
+        }
         break;
   }
  }
@@ -173,9 +176,6 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
 
 int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
 {
- if(pr_advance_buffer(pr_ctx))
-  return 1;
-
  if(pr_ctx->output != NULL)
  {
   switch(pr_ctx->output_mode)
@@ -184,7 +184,7 @@ int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
         break;
 
    case PER_OUTPUT_MODE_HTML_FILE:
-//        fprintf(pr_ctx->output, "</font>");
+        return pr_direct_to_line_buffer(pr_ctx, "</span>", -1, 0);
         break;
   }
  }
@@ -731,15 +731,11 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
          if(pr_advance_line(pr_ctx))
           return 1;
 
-         /* now contine on with next line with the word portion in 'second' */
-         memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
-                pr_ctx->pe_ctx->second.word_buffer,
-                pr_ctx->pe_ctx->second.buffer_length + 1);
-
-         pr_ctx->n_characters += pr_ctx->pe_ctx->second.n_characters;
-         pr_ctx->n_bytes += pr_ctx->pe_ctx->second.buffer_length;
-         pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
-         return 0;
+         /* now continue on with next line with the word portion in 'second' */
+         return pr_send_to_line_buffer(pr_ctx,
+                                       pr_ctx->pe_ctx->second.word_buffer,
+                                       pr_ctx->pe_ctx->second.buffer_length,
+                                       pr_ctx->pe_ctx->second.n_characters);
          break;
    }
 
@@ -750,22 +746,15 @@ int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
  }
 
  /* unless this is the first word on the line, it will need a space in between words */
- if(pr_ctx->n_bytes > 0)
- {
-  pr_ctx->line_buffer[pr_ctx->n_bytes++] = ' ';
-  pr_ctx->n_characters++;
- }
+ if(pr_ctx->n_characters > 0)
+  if(pr_send_to_line_buffer(pr_ctx, " ", 1, 1))
+   return 1;
 
  /* add this word to the line buffer */
- memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
-        uwc->word_buffer, uwc->buffer_length + 1);
-
- pr_ctx->n_characters += uwc->n_characters;
- pr_ctx->n_bytes += uwc->buffer_length;
-
- pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
-
- return 0;
+ return pr_send_to_line_buffer(pr_ctx,
+                               uwc->word_buffer,
+                               uwc->buffer_length,
+                               uwc->n_characters);
 }
 
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
@@ -1078,16 +1067,15 @@ int plaintext_paragraph_open(struct plaintext_engine_context *pe_ctx)
  {
   fprintf(stderr,
           "BCA: plain text engine: paragraph should start on a blank line "
-         "not \"%s\"\n", pe_ctx->pr_ctx->line_buffer);
+          "not \"%s\"\n", pe_ctx->pr_ctx->line_buffer);
   return 1;
  }
 
  for(i=0; i<pe_ctx->paragraph_indent; i++)
  {
-  pe_ctx->pr_ctx->line_buffer[pe_ctx->pr_ctx->n_bytes++] = ' ';
-  pe_ctx->pr_ctx->n_characters++;
+  if(pr_send_to_line_buffer(pe_ctx->pr_ctx, " ", 1, 1))
+   return 1;
  }
- pe_ctx->pr_ctx->line_buffer[pe_ctx->pr_ctx->n_bytes] = 0;
 
  return 0;
 }
@@ -1512,3 +1500,70 @@ int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_
  return 0;
 }
 
+int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                           char *buffer, int n_bytes, int n_characters)
+{
+ int i;
+
+ switch(pr_ctx->output_mode)
+ {
+  case PER_OUTPUT_MODE_TEXT_FILE:
+       return pr_direct_to_line_buffer(pr_ctx, buffer, n_bytes, n_characters);
+       break;
+
+  case PER_OUTPUT_MODE_HTML_FILE:
+       for(i=0; i<n_bytes; i++)
+       {
+        switch(buffer[i])
+        {
+         case '<':
+              if(pr_direct_to_line_buffer(pr_ctx, "&lt;", 4, 0))
+               return 1;
+              break;
+
+         case '>':
+              if(pr_direct_to_line_buffer(pr_ctx, "&gt;", 4, 0))
+               return 1;
+              break;
+
+         case '&':
+              if(pr_direct_to_line_buffer(pr_ctx, "&amp;", 4, 0))
+               return 1;
+              break;
+
+         default:
+              if(pr_direct_to_line_buffer(pr_ctx, buffer + i, 1, 0))
+               return 1;
+
+        }
+       }
+       pr_ctx->n_characters += n_characters;
+ }
+
+ return 0;
+}
+
+int pr_direct_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                             char *buffer, int n_bytes, int n_characters)
+{
+ if(n_bytes == -1)
+  n_bytes = strlen(buffer);
+
+ if(pr_ctx->n_bytes + n_bytes + 1 > PER_LINE_BUFFER_SIZE)
+ {
+  fprintf(stderr, "BCA: pr_direct_to_line_buffer() "
+          "PER_LINE_BUFFER_SIZE needs to be larger than %d. "
+          "(line_buffer='%s',pr_ctx->n_bytes=%d,buffer='%s',n_bytes=%d)\n",
+          pr_ctx->n_bytes + n_bytes + 1, pr_ctx->line_buffer,
+          pr_ctx->n_bytes, buffer, n_bytes);
+  return 1;
+ }
+
+ memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
+        buffer, n_bytes);
+ pr_ctx->n_bytes += n_bytes;
+ pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
+ pr_ctx->n_characters += n_characters;
+
+ return 0;
+}

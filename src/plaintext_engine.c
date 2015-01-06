@@ -148,7 +148,7 @@ int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
                         struct loco_listing *ld,
                         char *buffer, int n_bytes, int n_chars)
 {
- int width, s;
+ int width;
 
  /* line width for current rendering context */
  width = pr_ctx->line_width -
@@ -157,18 +157,12 @@ int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
 
  if(pr_ctx->n_characters + n_chars > width)
  {
-  fprintf(stderr, "BCA: listing line wrap - finish me: %s %d\n", __FILE__, __LINE__);
+  fprintf(stderr, "BCA: listing line wrap - finish me: %s %d, '%s'\n", __FILE__, __LINE__, pr_ctx->line_buffer);
   return 1;
 
   /*copy as much as will fit - 1 */
 
-  snprintf(pr_ctx->line_buffer + pr_ctx->n_bytes,
-           PER_LINE_BUFFER_SIZE - pr_ctx->n_bytes,
-           "→");
-  pr_ctx->n_bytes += 3;
-  pr_ctx->n_characters++;
-  pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
-
+/*
   if(pr_advance_line(pr_ctx))
    return 1;
 
@@ -183,28 +177,19 @@ int send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
    pr_ctx->n_characters++;
    pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
   }
-
+*/
   /* copy the rest; note the non-space between where line numbers
      would be and the start of the line */
 
  } else {
-  if(pr_ctx->n_bytes + n_bytes + 1 > PER_LINE_BUFFER_SIZE)
-  {
-   fprintf(stderr, "BCA: fix me: %s %d\n", __FILE__, __LINE__);
+  if(pr_send_to_line_buffer(pr_ctx, buffer, n_bytes, n_chars))
    return 1;
-  }
-
-  memcpy(pr_ctx->line_buffer + pr_ctx->n_bytes,
-         buffer, n_bytes);
-  pr_ctx->line_buffer[pr_ctx->n_bytes += n_bytes] = 0;
-  pr_ctx->n_characters += n_chars;
-
  }
 
  return 0;
 }
 
-int render_locolisting_line_numbers(struct plaintext_engine_context *pe_ctx,
+int render_locolisting_line_numbers(struct plaintext_rendering_context *pr_ctx,
                                     struct listing_entry *listing_entry,
                                     struct loco_listing *ld)
 {
@@ -222,9 +207,16 @@ int render_locolisting_line_numbers(struct plaintext_engine_context *pe_ctx,
            buffer[s] = ' ';
   }
 
-  if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld, buffer, n_chars,
+  if(pr_enable_attribute(pr_ctx, "sourcelistingnumbers"))
+   return 1;
+
+  if(send_to_line_buffer(pr_ctx, listing_entry, ld, buffer, n_chars,
                          ld->n_chars_needed_for_line_numbers))
    return 1;
+
+  if(pr_disable_attribute(pr_ctx))
+   return 1;
+
  }
 
  return 0;
@@ -235,6 +227,9 @@ int render_locolisting_caption(struct plaintext_engine_context *pe_ctx,
                                struct loco_listing *ld)
 {
  char temp[64];
+
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "listing_caption"))
+  return 1;
 
  snprintf(temp, 64, "Listing %d:", listing_entry->listing_number);
 
@@ -250,7 +245,92 @@ int render_locolisting_caption(struct plaintext_engine_context *pe_ctx,
    return 1;
  }
 
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
+  return 1;
+
  return pr_advance_line(pe_ctx->pr_ctx);
+}
+
+struct listing_object
+{
+ int line_break, n_bytes, n_chars;
+ char *text;
+ char *attribute;
+};
+
+int send_object(struct plaintext_rendering_context *pr_ctx,
+                struct listing_entry *listing_entry,
+                struct loco_listing *ld,
+                struct listing_object *object,
+                int last_line)
+{
+ int s;
+
+ if(object->line_break)
+ {
+  if(pr_enable_attribute(pr_ctx, "sourcelistingbackground"))
+   return 1;
+
+  for(s=pr_ctx->n_characters; s < listing_entry->render_width; s++)
+  {
+   if(send_to_line_buffer(pr_ctx, listing_entry, ld, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(pr_ctx))
+   return 1;
+
+  if(pr_advance_line(pr_ctx))
+   return 1;
+
+  ld->line++;
+  listing_entry->render_height++;
+ }
+
+ if(object->line_break)
+ {
+  if(render_locolisting_line_numbers(pr_ctx, listing_entry, ld))
+   return 1;
+ }
+
+ if(object->attribute != NULL)
+ {
+  if(pr_enable_attribute(pr_ctx, object->attribute))
+   return 1;
+ } else {
+  if(pr_enable_attribute(pr_ctx, "sourcelistingbackground"))
+   return 1;
+ }
+
+ if(send_to_line_buffer(pr_ctx, listing_entry, ld,
+                        object->text, object->n_bytes, object->n_chars))
+  return 1;
+
+ if(pr_disable_attribute(pr_ctx))
+  return 1;
+
+ if(last_line)
+ {
+  if(pr_enable_attribute(pr_ctx, "sourcelistingbackground"))
+   return 1;
+
+  for(s=pr_ctx->n_characters; s < listing_entry->render_width; s++)
+  {
+   if(send_to_line_buffer(pr_ctx, listing_entry, ld, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(pr_ctx))
+   return 1;
+
+  if(pr_advance_line(pr_ctx))
+   return 1;
+
+  ld->line++;
+  listing_entry->render_height++;
+ }
+
+ return 0;
 }
 
 int handle_locolisting(struct document_handling_context *dctx,
@@ -259,10 +339,14 @@ int handle_locolisting(struct document_handling_context *dctx,
                        char *file_name)
 {
  struct loco_listing *ld;
- char *source, data[32], argument[1024];
- int source_length, start, end, line_length, i, s, comma, col, line,
+ char *source, data[32], argument[1024], attribute[64], text[1024];
+ int source_length, start, end, line_length, i, comma, col, line,
      handled, allocation_size, declarative_in_scope, argument_length,
      n_chars, line_width, first_pass = 0;
+ struct listing_object object;
+
+ object.text = NULL;
+ object.attribute = NULL;
 
  if(listing_entry->listing_type_specific == NULL)
  {
@@ -313,7 +397,7 @@ int handle_locolisting(struct document_handling_context *dctx,
   if(render_locolisting_caption(pe_ctx, listing_entry, ld))
    return 1;
 
-  if(render_locolisting_line_numbers(pe_ctx, listing_entry, ld))
+  if(render_locolisting_line_numbers(pe_ctx->pr_ctx, listing_entry, ld))
    return 1;
  }
 
@@ -466,10 +550,16 @@ int handle_locolisting(struct document_handling_context *dctx,
      line_width += n_chars;
     } else {
 
-     if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
-                            argument, argument_length, n_chars))
-      return 1;
+     if(object.text != NULL)
+      if(send_object(pe_ctx->pr_ctx, listing_entry, ld, &object, 0))
+       return 1;
 
+     snprintf(text, 1024, "%s", argument);
+     object.line_break = 0;
+     object.text = text;
+     object.attribute = NULL;
+     object.n_bytes = argument_length;
+     object.n_chars = n_chars;
     }
 
    } else if(strcmp(data, "linebreak") == 0) {
@@ -483,33 +573,16 @@ int handle_locolisting(struct document_handling_context *dctx,
 
     } else {
 
-     /* finish out the line */
-     if(pr_enable_attribute(pe_ctx->pr_ctx, "sourcelistingbackground"))
-      return 1;
-
-     for(s=pe_ctx->pr_ctx->n_characters; s < listing_entry->render_width; s++)
-     {
-      if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
-                             " ", 1, 1))
+     if(object.text != NULL)
+      if(send_object(pe_ctx->pr_ctx, listing_entry, ld, &object, 0))
        return 1;
-     }
 
-     if(pr_disable_attribute(pe_ctx->pr_ctx))
-      return 1;
-
-     if(pr_advance_line(pe_ctx->pr_ctx))
-      return 1;
-
-     ld->line++;
-     listing_entry->render_height++;
-
-     if(render_locolisting_line_numbers(pe_ctx, listing_entry, ld))
-      return 1;
-
-     if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
-                            argument, argument_length, n_chars))
-      return 1;
-
+     snprintf(text, 1024, "%s", argument);
+     object.line_break = 1;
+     object.text = text;
+     object.attribute = NULL;
+     object.n_bytes = argument_length;
+     object.n_chars = n_chars;
     }
 
    } else {
@@ -575,7 +648,16 @@ int handle_locolisting(struct document_handling_context *dctx,
     case 2:
          if(strcmp(data, "syntaxhighlight") == 0)
          {
-
+          if(end - comma > 63)
+          {
+           source[end] = 0;
+           fprintf(stderr, "BCA: syntaxhightlight name too long, \"%s\"\n",
+                   source + comma + 1);
+           return 1;
+          }
+          memcpy(attribute, source + comma + 1, end - comma);
+          attribute[end - comma - 1] = 0;
+          object.attribute = attribute;
          } else {
           fprintf(stderr,
                   "BCA: locolisting format file %s line %d: attribute type \"%s\" "
@@ -626,24 +708,15 @@ int handle_locolisting(struct document_handling_context *dctx,
   if(render_locolisting_caption(pe_ctx, listing_entry, ld))
    return 1;
 
-
  } else {
-  /* finish out the line */
-  for(s=pe_ctx->pr_ctx->n_characters; s < listing_entry->render_width; s++)
-  {
-   if(send_to_line_buffer(pe_ctx->pr_ctx, listing_entry, ld,
-                          " ", 1, 1))
+
+  if(object.text != NULL)
+   if(send_object(pe_ctx->pr_ctx, listing_entry, ld, &object, 1))
     return 1;
-  }
 
   if(pr_advance_line(pe_ctx->pr_ctx))
    return 1;
 
-  if(pr_advance_line(pe_ctx->pr_ctx))
-   return 1;
-
-
-  listing_entry->render_height++;
  }
 
  free(source);
@@ -1505,5 +1578,3 @@ int plaintext_rendering_stack_pop(struct plaintext_engine_context *pe_ctx)
 
  return 0;
 }
-
-

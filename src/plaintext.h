@@ -10,7 +10,7 @@ struct plaintext_engine_context;
 #define PER_RIGHT_JUSTIFY  4
 #define PER_LEFT_TO_RIGHT  10
 #define PER_RIGHT_TO_LEFT  11
-#define PER_LINE_BUFFER_SIZE 512
+#define PER_LINE_BUFFER_SIZE 2048
 #define MAX_INDEX_TERM_SIZE 256
 #define PER_OUTPUT_MODE_TEXT_FILE 800
 #define PER_OUTPUT_MODE_HTML_FILE 801
@@ -163,9 +163,57 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source);
 
 int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_ctx);
 
+/* input files feed bytes into a word engine, which callback into pe_consume_word() */
+int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags);
+
+/* pe_consume_word() then calls pr_advance_word() */
+int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
+                    struct unicode_word_context *uwc);
+
+/* or generated text feeds words in a word engine with this */
+int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);
+
+/* call pr_flush_line_buffer() and move to the next line */
 int pr_advance_line(struct plaintext_rendering_context *pr_ctx);
 
+/* without necessarily flushing the line, move in the render context by the amount
+   already in the line buffer. current hack for using multiple render contexts
+   on the same line */
 int pr_advance_buffer(struct plaintext_rendering_context *pr_ctx);
+
+/* lowest level internal functions */
+int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                           char *buffer, int n_bytes, int n_characters);
+
+int pr_direct_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
+                             char *buffer, int n_bytes, int n_characters);
+
+/*     Output is line oriented, meaning is collected in the "line buffer" (which
+   tracks the number of bytes and the number of charactrs separately), then sent to
+   output with the current justification setting (left/right/center). At the lowest
+   level, pe_send_to_line_buffer() and pe_direct_to_line_buffer()  append bytes
+   into the line buffer for overflows on the number of bytes. The difference between
+   the two functions is pe_send_to_line_buffer() also performs escaping characters
+   required for the output type (example: html needs > changed to &gt; ). This level
+   is only used internally, with functions such as as attribute realization needing
+   un-escapped output.
+
+      One level up is another internal function pr_flush_line_buffer(), which
+  actually does the justified output. It will fail with error if can not fit the
+  number of characters in the line buffer on the current rendering context line, as
+  this should have been prevented by the higher level functions such as
+  pr_advance_line().
+
+     Bytes are feed into the word engine either by input files, or by generated
+  output. The word engine verifies UTF-8 sequencing, and finds word bounderies. The
+  words are delivered by callback to pe_consume_word() which then calls
+  pr_advance_word(). pr_advance_word() in turn calls pr_advance_line() as needed.
+  Also pr_advance_line() is called just move to the next effective line.
+
+*/
+
+/* move to the next page, unless current page already blank */
+int pr_advance_page(struct plaintext_rendering_context *pr_ctx);
 
 int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attribute);
 
@@ -178,18 +226,10 @@ int pr_center_row(struct plaintext_rendering_context *pr_ctx);
 
 int pr_third_way_down(struct plaintext_rendering_context *pr_ctx);
 
-int pe_consume_word(struct unicode_word_context *uwc, void *data, int flags);
-
-int pr_advance_page(struct plaintext_rendering_context *pr_ctx);
+int pr_render_foot_notes(struct plaintext_engine_context *pe_ctx, int limit);
 
 int pr_toc_cursor_advance(struct plaintext_engine_context *pe_ctx);
 
-int pr_advance_word(struct plaintext_rendering_context *pr_ctx,
-                    struct unicode_word_context *uwc);
-
-int pr_render_foot_notes(struct plaintext_engine_context *pe_ctx, int limit);
-
-int pr_feed_generated_words(struct plaintext_engine_context *pe_ctx, char *buffer);
 
 /* toc data structures */
 int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
