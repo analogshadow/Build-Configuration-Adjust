@@ -358,6 +358,12 @@ char *escape_value(struct bca_context *ctx, char *source, int length);  // selft
 
 int count_characters(char *buffer, int length);
 
+int n_bytes_for_n_characters(char *buffer, int length, int n_characters);
+
+int next_character(char *buffer, int length);
+
+int n_bytes_for_n_characters(char *buffer, int length, int n_characters);
+
 /* config_files.c ------------------------------- */
 int iterate_key_primitives(struct bca_context *ctx, char *file, int file_length, int *offset,
                            char *principle_filter, char *component_filter, char *key_filter,

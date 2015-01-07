@@ -300,7 +300,7 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
  } else {
   if(pe_ctx->toc_cursor->type != DLEVEL_SUB)
   {
-   fprintf(stderr, "BCA: toc logic fail\n");
+   fprintf(stderr, "BCA: toc logic fail; cursor is not a subsection\n");
    return 1;
   }
  }
@@ -320,7 +320,13 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
  if(pr_ensure_minimum_rows_left(pe_ctx->pr_ctx, 3))
   return 1;
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "subsection_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  if(pr_advance_line(pe_ctx->pr_ctx))
@@ -370,7 +376,7 @@ int plaintext_open_section(struct document_handling_context *dctx,
  } else {
   if(pe_ctx->toc_cursor->type != DLEVEL_SECTION)
   {
-   fprintf(stderr, "BCA: toc logic fail\n");
+   fprintf(stderr, "BCA: toc logic fail; cursor is not a section\n");
    return 1;
   }
  }
@@ -391,7 +397,13 @@ int plaintext_open_section(struct document_handling_context *dctx,
  pe_ctx->pr_ctx->left_margin_width = 10;
  pe_ctx->pr_ctx->right_margin_width = 10;
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "section_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  if(pr_advance_line(pe_ctx->pr_ctx))
@@ -457,14 +469,20 @@ int plaintext_open_chapter(struct document_handling_context *dctx,
  } else {
   if(pe_ctx->toc_cursor->type != DLEVEL_CHAPTER)
   {
-   fprintf(stderr, "BCA: toc logic fail\n");
+   fprintf(stderr, "BCA: toc logic fail; cursor is not a chapter\n");
    return 1;
   }
  }
 
  snprintf(temp, 256, "Chapter %d: %s", pe_ctx->toc_cursor->count, chapter_name);
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "chapter_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  if(pr_advance_line(pe_ctx->pr_ctx))
@@ -539,14 +557,20 @@ int plaintext_open_part(struct document_handling_context *dctx,
  } else {
   if(pe_ctx->toc_cursor->type != DLEVEL_PART)
   {
-   fprintf(stderr, "BCA: toc logic fail\n");
+   fprintf(stderr, "BCA: toc logic fail; cursor is not a part\n");
    return 1;
   }
  }
 
  snprintf(temp, 256, "Part %d: %s", pe_ctx->toc_cursor->count, part_name);
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "part_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, temp))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  if(pr_advance_line(pe_ctx->pr_ctx))
@@ -757,6 +781,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
                  "<html>\n"
                  " <head>\n"
                  "  <meta charset=\"UTF-8\">\n"
+                 "  <link rel=\"stylesheet\" type=\"text/css\" href=\"bcadoc.css\">\n"
                  " </head>\n"
                  " <body background=\"bg.jpg\">\n");
         }

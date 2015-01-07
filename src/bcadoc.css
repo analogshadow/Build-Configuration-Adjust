@@ -1,0 +1,143 @@
+.toc_title {
+ font-weight: bold;
+}
+
+.part_title {
+ font-style: italic;
+ font-weight: bold;
+}
+
+.chapter_title {
+ font-weight: bold;
+}
+
+.section_title {
+ font-style: italic;
+ font-weight: normal;
+}
+
+.subsection_title {
+ font-style: normal;
+ font-weight: normal;
+}
+
+.listing_caption {
+ font-style: italic;
+ font-weight: normal;
+}
+
+.index_title {
+ font-weight: bold;
+}
+
+.index_character {
+ font-weight: bold;
+}
+
+.index_term {
+ font-style: italic;
+ font-weight: normal;
+}
+
+.sourcelistingbackground {
+ background-color: #F5DEB3;
+}
+
+.sourcelistingnumbers {
+ background-color: #B8A98D;
+ color:#000000;
+}
+
+.c_ppd {
+ background-color: #F5DEB3;
+ color:#008000;
+}
+
+.c_declarator {
+ background-color: #F5DEB3;
+ color:#FF0000;
+}
+
+.c_operator {
+ background-color: #F5DEB3;
+ color:#FF0000;
+}
+
+.c_keyword {
+ background-color: #F5DEB3;
+ color:#FF0000;
+}
+
+.c_function {
+ background-color: #F5DEB3;
+ color:#000000;
+ font-weight: bold;
+}
+
+.c_argument {
+ background-color: #F5DEB3;
+ color:#000000;
+ font-style: italic;
+}
+
+.c_string {
+ background-color: #F5DEB3;
+ color:#008080;
+}
+
+.c_escapesequence {
+ background-color: #F5DEB3;
+ color:#008080;
+ font-weight: bold;
+}
+
+.c_formatmodifier {
+ background-color: #F5DEB3;
+ color:#008080;
+ font-weight: bold;
+}
+
+.terminal-NN---- {
+ background-color: #000000;
+ color:#B0B0B0;
+}
+
+.terminal-NK---- {
+ background-color: #000000;
+ color:#000000;
+}
+
+.terminal-NR---- {
+ background-color: #000000;
+ color:#FF0000;
+}
+
+.terminal-NG---- {
+ background-color: #000000;
+ color:#00FF00;
+}
+
+.terminal-NY---- {
+ background-color: #000000;
+ color:#FFFF00;
+}
+
+.terminal-NB---- {
+ background-color: #000000;
+ color:#0000FF;
+}
+
+.terminal-NM---- {
+ background-color: #000000;
+ color:#FF00FF;
+}
+
+.terminal-NC---- {
+ background-color: #000000;
+ color:#00FFFF;
+}
+
+.terminal-NW---- {
+ background-color: #000000;
+ color:#FFFFFF;
+}

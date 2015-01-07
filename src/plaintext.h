@@ -71,6 +71,7 @@ struct plaintext_rendering_context
  int current_col, current_row, current_page;
  int page_length, top_margin, bottom_margin;
  int justification, direction, show_page_numbers;
+ int padd_listing_line_numbers;
  FILE *output;
  int output_mode;
  struct plaintext_engine_context *pe_ctx;

@@ -559,8 +559,39 @@ int free_string_array(char **array, int n_elements)
 
 int count_characters(char *buffer, int length)
 {
- int n_characters = 0, expected_character_length = 0;
- int buffer_i = 0, character_i = 0;
+ int n_characters = 0, code, buffer_i = 0;
+
+ while(buffer_i < length)
+ {
+
+  if((code = next_character(buffer + buffer_i, length - buffer_i)) < 0)
+   return -1;
+
+  buffer_i += code;
+  n_characters++;
+ }
+
+ return n_characters;
+}
+
+int n_bytes_for_n_characters(char *buffer, int length, int n_characters)
+{
+ int i = 0, n_bytes = 0, c, code;
+
+ for(c=0; c<n_characters; c++)
+ {
+  if((code = next_character(buffer + i, length - i)) < 0)
+   return -1;
+
+  n_bytes += code;
+ }
+
+ return n_bytes;
+}
+
+int next_character(char *buffer, int length)
+{
+ int expected_character_length = 0, buffer_i = 0;
  unsigned char byte;
 
  while(buffer_i<length)
@@ -596,8 +627,9 @@ int count_characters(char *buffer, int length)
 
    } else {
     fprintf(stderr,
-            "BCA: count_characters(): UTF-8 encoding error:"
-            "byte value out of sequence: %xh\n", byte);
+            "BCA: next_characters(\"%s\", %d): UTF-8 encoding error: "
+            "byte value out of sequence: %xh\n",
+            buffer, length, byte);
     return -1;
    }
 
@@ -605,24 +637,18 @@ int count_characters(char *buffer, int length)
    if( (byte & 192) != 128)
    {
     fprintf(stderr,
-            "BCA: count_characters(): UTF-8 encoding error:"
+            "BCA: next_character(): UTF-8 encoding error:"
             "byte value out of sequence: %xh (expected byte %d of a %d byte value)\n",
-             byte, character_i + 1, expected_character_length);
-    return 1;
+             byte, buffer_i + 1, expected_character_length);
+    return -1;
    }
   }
 
-  character_i++;
-
-  if(character_i == expected_character_length)
-  {
-   n_characters++;
-   character_i = 0;
-   expected_character_length = 0;
-  }
-
   buffer_i++;
+
+  if(buffer_i == expected_character_length)
+   return buffer_i;
  }
 
- return n_characters;
+ return -1;
 }

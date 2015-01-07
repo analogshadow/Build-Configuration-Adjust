@@ -123,6 +123,9 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
 
 int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attribute)
 {
+ int length;
+ char temp[512];
+
  if(pr_ctx->output != NULL)
  {
   switch(pr_ctx->output_mode)
@@ -131,42 +134,8 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
         break;
 
    case PER_OUTPUT_MODE_HTML_FILE:
-        if(strcmp(attribute, "sourcelistingbackground") == 0)
-        {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3\">", -1, 0);
-        } else if(strcmp(attribute, "sourcelistingnumbers") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#000000\">", -1, 0);
-        } else if(strcmp(attribute, "c_ppd") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#008000\">", -1, 0);
-        } else if(strcmp(attribute, "c_declarator") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#FF0000\">", -1, 0);
-        } else if(strcmp(attribute, "c_keyword") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#FF0000\">", -1, 0);
-        } else if(strcmp(attribute, "c_function") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#000000; font-weight: bold\">", -1, 0);
-        } else if(strcmp(attribute, "c_argument") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#000000; font-style: italic\">", -1, 0);
-        } else if(strcmp(attribute, "c_string") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#008080\">", -1, 0);
-        } else if(strcmp(attribute, "c_escapesequence") == 0) {
-         pr_direct_to_line_buffer(pr_ctx, "<span style=\"background-color: #F5DEB3; "
-                                  "color:#008080; font-weight: bold\">", -1, 0);
-        } else if(strcmp(attribute, "listing_caption") == 0) {
-         pr_direct_to_line_buffer(pr_ctx,
-                                  "<span style=\""
-                                  "font-style: italic; >"
-                                  "font-weight: bold\">", -1, 0);
-        } else {
-         fprintf(stderr, "BCA: WARNING: unknown attribute \"%s\"\n", attribute);
-         pr_direct_to_line_buffer(pr_ctx, "<span>", -1, 0);
-        }
+        length = snprintf(temp, 512, "<span class=\"%s\">", attribute);
+        pr_direct_to_line_buffer(pr_ctx, temp, length, 0);
         break;
   }
  }
@@ -866,7 +835,13 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
 
  pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "toc_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, "Table of Contents"))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  pr_advance_line(pe_ctx->pr_ctx);
@@ -894,6 +869,9 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
 
    case DLEVEL_SECTION:
 //dectect if using chapters and then do %d.%d
+if(pe_ctx->toc_cursor->parrent != NULL)
+fprintf(stderr, "---%d\n", pe_ctx->toc_cursor->parrent->type);
+
         length = snprintf(temp, 256, "Section %d", pe_ctx->toc_cursor->count);
         break;
 
@@ -912,7 +890,10 @@ int pe_print_toc(struct plaintext_engine_context *pe_ctx)
   if(title != NULL)
    length += snprintf(temp + length, 256, ": %s", title);
 
-  length +=
+  if(pr_send_to_line_buffer(octx->pr_ctx, temp, length, -1, -1))
+   return 1;
+
+  length =
    snprintf(temp + length, 256 - length,
             ", page %s", pe_ctx->toc_cursor->page);
 
@@ -959,7 +940,13 @@ int pe_print_index(struct plaintext_engine_context *pe_ctx)
 
  pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
 
+ if(pr_enable_attribute(pe_ctx->pr_ctx, "index_title"))
+  return 1;
+
  if(pr_feed_generated_words(pe_ctx, "Index"))
+  return 1;
+
+ if(pr_disable_attribute(pe_ctx->pr_ctx))
   return 1;
 
  pr_advance_line(pe_ctx->pr_ctx);
@@ -981,7 +968,14 @@ int pe_print_index(struct plaintext_engine_context *pe_ctx)
    pr_advance_line(pe_ctx->pr_ctx);
    snprintf(current_char, 6, "%s", first_char);
    pe_ctx->pr_ctx->left_margin_width = 5;
+
+   if(pr_enable_attribute(pe_ctx->pr_ctx, "index_character"))
+    return 1;
+
    if(pr_feed_generated_words(pe_ctx, current_char))
+    return 1;
+
+   if(pr_disable_attribute(pe_ctx->pr_ctx))
     return 1;
 
    pr_advance_line(pe_ctx->pr_ctx);
@@ -989,7 +983,13 @@ int pe_print_index(struct plaintext_engine_context *pe_ctx)
    pe_ctx->pr_ctx->left_margin_width = 1;
   }
 
+  if(pr_enable_attribute(pe_ctx->pr_ctx, "index_term"))
+   return 1;
+
   if(pr_feed_generated_words(pe_ctx, t->term))
+   return 1;
+
+  if(pr_disable_attribute(pe_ctx->pr_ctx))
    return 1;
 
   p = t;
@@ -1425,6 +1425,7 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
 
 // pr_ctx->output_mode = PER_OUTPUT_MODE_TEXT_FILE;
  pr_ctx->output_mode = PER_OUTPUT_MODE_HTML_FILE;
+ pr_ctx->padd_listing_line_numbers = 0;
 
  pr_ctx->output_buffer = NULL;
  pr_ctx->output_buffer_length = 0;
@@ -1494,7 +1495,10 @@ int plaintext_rendering_context_finalize(struct plaintext_rendering_context *pr_
 int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
                            char *buffer, int n_bytes, int n_characters)
 {
- int i;
+ int i, code;
+
+ if(n_bytes == -1)
+  n_bytes = strlen(buffer);
 
  switch(pr_ctx->output_mode)
  {
@@ -1503,32 +1507,47 @@ int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
        break;
 
   case PER_OUTPUT_MODE_HTML_FILE:
-       for(i=0; i<n_bytes; i++)
+       i=0;
+       while(i<n_bytes)
        {
-        switch(buffer[i])
+        if((code = next_character(buffer + i, n_bytes - i)) == -1)
         {
-         case '<':
-              if(pr_direct_to_line_buffer(pr_ctx, "&lt;", 4, 0))
-               return 1;
-              break;
-
-         case '>':
-              if(pr_direct_to_line_buffer(pr_ctx, "&gt;", 4, 0))
-               return 1;
-              break;
-
-         case '&':
-              if(pr_direct_to_line_buffer(pr_ctx, "&amp;", 4, 0))
-               return 1;
-              break;
-
-         default:
-              if(pr_direct_to_line_buffer(pr_ctx, buffer + i, 1, 0))
-               return 1;
-
+         fprintf(stderr,
+                 "BCA: UTF-8 problem inside pr_send_to_line_buffer(\"%s\", %d, %d), "
+                 "next_character(\"%s\", %d) failed.\n",
+                 buffer, n_bytes, n_characters, buffer + i, n_bytes - i);
+         return 1;
         }
+
+        if(code == 1)
+        {
+         switch(buffer[i])
+         {
+          case '<':
+               if(pr_direct_to_line_buffer(pr_ctx, "&lt;", 4, 1))
+                return 1;
+               break;
+
+          case '>':
+               if(pr_direct_to_line_buffer(pr_ctx, "&gt;", 4, 1))
+                return 1;
+               break;
+
+          case '&':
+               if(pr_direct_to_line_buffer(pr_ctx, "&amp;", 4, 1))
+                return 1;
+               break;
+
+          default:
+               if(pr_direct_to_line_buffer(pr_ctx, buffer + i, 1, 1))
+                return 1;
+         }
+        } else {
+         if(pr_direct_to_line_buffer(pr_ctx, buffer + i, code, 1))
+            return 1;
+        }
+        i += code;
        }
-       pr_ctx->n_characters += n_characters;
  }
 
  return 0;

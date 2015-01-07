@@ -37,6 +37,7 @@ struct locolisting_operation_context
  struct plaintext_engine_context *pe_ctx;
  struct plaintext_rendering_context *pr_ctx;
  struct listing_entry *listing_entry;
+ struct document_handling_context *dctx;
  struct loco_listing *ld;
  char *file_name;
  char *source;
@@ -56,21 +57,21 @@ int color_to_code(struct locolisting_operation_context *octx, char *string)
 {
  if(strcmp(string, "termfg-normal") == 0)
   return SCREEN_COLOR_NORMAL;
- else if(strcmp(string, "black") == 0)
+ else if(strcmp(string, "termfg-black") == 0)
   return SCREEN_COLOR_BLACK;
- else if(strcmp(string, "red") == 0)
+ else if(strcmp(string, "termfg-red") == 0)
   return SCREEN_COLOR_RED;
- else if(strcmp(string, "green") == 0)
+ else if(strcmp(string, "termfg-green") == 0)
   return SCREEN_COLOR_GREEN;
- else if(strcmp(string, "yellow") == 0)
+ else if(strcmp(string, "termfg-yellow") == 0)
   return SCREEN_COLOR_YELLOW;
- else if(strcmp(string, "blue") == 0)
+ else if(strcmp(string, "termfg-blue") == 0)
   return SCREEN_COLOR_BLUE;
- else if(strcmp(string, "magenta") == 0)
+ else if(strcmp(string, "termfg-magenta") == 0)
   return SCREEN_COLOR_MAGENTA;
- else if(strcmp(string, "CYAN") == 0)
+ else if(strcmp(string, "termfg-cyan") == 0)
   return SCREEN_COLOR_CYAN;
- else if(strcmp(string, "white") == 0)
+ else if(strcmp(string, "termfg-white") == 0)
   return SCREEN_COLOR_WHITE;
  else {
   fprintf(stderr, "BCA: locolisting file %s, line %d "
@@ -120,9 +121,10 @@ int locolisting_escape_processing(struct locolisting_operation_context *octx,
 }
 
 int send_to_line_buffer(struct locolisting_operation_context *octx,
-                        char *buffer, int n_bytes, int n_chars)
+                        char *buffer, int n_bytes, int n_chars,
+                        char *attribute, char *fill_attribute)
 {
- int width;
+ int width, width_bytes, need_width, need_line_wrap, handled_bytes, handled_chars, s;
 
  /* line width for current rendering context */
  width = octx->pr_ctx->line_width -
@@ -131,39 +133,103 @@ int send_to_line_buffer(struct locolisting_operation_context *octx,
 
  if(octx->pr_ctx->n_characters + n_chars > width)
  {
-  fprintf(stderr, "BCA: listing line wrap - finish me: %s %d, '%s'\n",
-          __FILE__, __LINE__, octx->pr_ctx->line_buffer);
-  return 1;
+  need_width = width - octx->pr_ctx->n_characters - 1;
+  handled_bytes = 0;
+  handled_chars = 0;
+  need_line_wrap = 1;
 
-  /*copy as much as will fit - 1 */
-
-/*
-  if(pr_advance_line(pr_ctx))
-   return 1;
-
-  listing_entry->render_height++;
-
-  for(s=0; s<ld->n_chars_needed_for_line_numbers - 1; s++)
+  while(need_line_wrap)
   {
-   snprintf(pr_ctx->line_buffer + pr_ctx->n_bytes,
-            PER_LINE_BUFFER_SIZE - pr_ctx->n_bytes,
-            " ");
-   pr_ctx->n_bytes++;
-   pr_ctx->n_characters++;
-   pr_ctx->line_buffer[pr_ctx->n_bytes] = 0;
+
+   if((width_bytes =
+       n_bytes_for_n_characters(buffer + handled_bytes,
+                                n_bytes - handled_bytes,
+                                need_width)) < 0)
+    return 1;
+
+   if(pr_enable_attribute(octx->pr_ctx, attribute))
+    return 1;
+
+   if(pr_send_to_line_buffer(octx->pr_ctx,
+                             buffer + handled_bytes,
+                             width_bytes, need_width))
+    return 1;
+
+   if(pr_disable_attribute(octx->pr_ctx))
+    return 1;
+
+   if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
+    return 1;
+
+   if(pr_send_to_line_buffer(octx->pr_ctx, "→", 3, 1))
+    return 1;
+
+   if(pr_disable_attribute(octx->pr_ctx))
+    return 1;
+
+   if(pr_advance_line(octx->pr_ctx))
+    return 1;
+
+   if(octx->ld->line_numbers)
+   {
+    if(pr_enable_attribute(octx->pr_ctx, "sourcelistingnumbers"))
+     return 1;
+
+    for(s = 0; s < (octx->ld->n_chars_needed_for_line_numbers); s++)
+    {
+     if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
+      return 1;
+    }
+
+    if(pr_disable_attribute(octx->pr_ctx))
+     return 1;
+   }
+
+   handled_bytes += width_bytes;
+   handled_chars += need_width;
+   need_width = n_chars - handled_chars;
+   if(need_width < width - octx->ld->n_chars_needed_for_line_numbers)
+    need_line_wrap = 0;
+   else
+    need_width = width - 1 - octx->ld->n_chars_needed_for_line_numbers;
   }
-*/
-  /* copy the rest; note the non-space between where line numbers
-     would be and the start of the line */
+
+  if(need_width > 0)
+  {
+   if((width_bytes =
+       n_bytes_for_n_characters(buffer + handled_bytes,
+                                n_bytes - handled_bytes,
+                                need_width)) < 0)
+    return 1;
+
+   if(pr_enable_attribute(octx->pr_ctx, attribute))
+    return 1;
+
+   if(pr_send_to_line_buffer(octx->pr_ctx,
+                             buffer + handled_bytes,
+                             width_bytes, need_width))
+    return 1;
+
+   if(pr_disable_attribute(octx->pr_ctx))
+    return 1;
+
+  }
 
  } else {
-  if(pr_send_to_line_buffer(octx->pr_ctx, buffer, n_bytes, n_chars))
+
+  if(pr_enable_attribute(octx->pr_ctx, attribute))
    return 1;
+
+  if(pr_send_to_line_buffer(octx->pr_ctx, buffer, n_bytes, n_chars))
+    return 1;
+
+   if(pr_disable_attribute(octx->pr_ctx))
+    return 1;
+
  }
 
  return 0;
 }
-
 
 int render_locolisting_caption(struct locolisting_operation_context *octx)
 {
@@ -199,20 +265,22 @@ int render_locolisting_line_numbers(struct locolisting_operation_context *octx)
 
  if(octx->ld->line_numbers)
  {
-  n_chars = snprintf(buffer, 32, "%d ", octx->ld->line);
+  if(octx->pr_ctx->padd_listing_line_numbers)
+   n_chars = snprintf(buffer, 32, "%d ", octx->ld->line);
+  else
+   n_chars = snprintf(buffer, 32, "%d", octx->ld->line);
 
   /* right justify */
   for(s = 0; s < (octx->ld->n_chars_needed_for_line_numbers - n_chars); s++)
   {
-   memmove(buffer + s + 1, buffer + s, n_chars + 1);
+   memmove(buffer + s + 1, buffer + s, n_chars++);
            buffer[s] = ' ';
   }
 
   if(pr_enable_attribute(octx->pr_ctx, "sourcelistingnumbers"))
    return 1;
 
-  if(send_to_line_buffer(octx, buffer, n_chars,
-                         octx->ld->n_chars_needed_for_line_numbers))
+  if(pr_send_to_line_buffer(octx->pr_ctx, buffer, n_chars, n_chars))
    return 1;
 
   if(pr_disable_attribute(octx->pr_ctx))
@@ -227,19 +295,25 @@ int send_source_listing_object(struct locolisting_operation_context *octx,
                                struct source_listing_object *object,
                                int last_line)
 {
+ char *fill_attribute = "sourcelistingbackground";
  int s;
 
 // fprintf(stderr, "object = [linebreak=%d, n_bytes=%d, n_chars=%d, text='%s', attribute='%s']\n",
 //         object->line_break, object->n_bytes, object->n_chars, object->text, object->attribute);
 
+ if(object->attribute[0] == 0)
+  snprintf(object->attribute, 1024, "%s", fill_attribute);
+
  if(object->line_break)
  {
-  if(pr_enable_attribute(octx->pr_ctx, "sourcelistingbackground"))
+  if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
    return 1;
 
-  for(s = octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  for(s = octx->pr_ctx->n_characters;
+      s < (octx->listing_entry->render_width - octx->ld->n_chars_needed_for_line_numbers);
+      s++)
   {
-   if(send_to_line_buffer(octx, " ", 1, 1))
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
     return 1;
   }
 
@@ -261,19 +335,9 @@ int send_source_listing_object(struct locolisting_operation_context *octx,
 
  if(object->n_bytes > 0)
  {
-  if(object->attribute[0] != 0)
-  {
-   if(pr_enable_attribute(octx->pr_ctx, object->attribute))
-    return 1;
-  } else {
-   if(pr_enable_attribute(octx->pr_ctx, "sourcelistingbackground"))
-    return 1;
-  }
-
-  if(send_to_line_buffer(octx, object->text, object->n_bytes, object->n_chars))
-   return 1;
-
-  if(pr_disable_attribute(octx->pr_ctx))
+  if(send_to_line_buffer(octx,
+                         object->text, object->n_bytes, object->n_chars,
+                         object->attribute, fill_attribute))
    return 1;
  }
 
@@ -282,9 +346,118 @@ int send_source_listing_object(struct locolisting_operation_context *octx,
   if(pr_enable_attribute(octx->pr_ctx, "sourcelistingbackground"))
    return 1;
 
-  for(s=octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  for(s=octx->pr_ctx->n_characters;
+      s < (octx->listing_entry->render_width - octx->ld->n_chars_needed_for_line_numbers);
+      s++)
   {
-   if(send_to_line_buffer(octx, " ", 1, 1))
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(octx->pr_ctx))
+   return 1;
+
+  if(pr_advance_line(octx->pr_ctx))
+   return 1;
+
+  octx->ld->line++;
+  octx->listing_entry->render_height++;
+ }
+
+ return 0;
+}
+
+int send_screen_log_object(struct locolisting_operation_context *octx,
+                           struct screen_log_object *object,
+                           int last_line)
+{
+ int s;
+ char attribute[256], fill_attribute[256];
+
+// fprintf(stderr, "object = [linebreak=%d, n_bytes=%d, n_chars=%d, text='%s', fg=%d bg=%d]\n",
+//         object->line_break, object->n_bytes, object->n_chars, object->text,
+//         object->foreground, object->background);
+
+ snprintf(attribute, 256, "terminal-NN----");
+ snprintf(fill_attribute, 256, "terminal-NN----");
+
+ switch(object->foreground)
+ {
+  case SCREEN_COLOR_NORMAL:
+       attribute[10] = 'N';
+       break;
+
+  case SCREEN_COLOR_BLACK:
+       attribute[10] = 'K';
+       break;
+
+  case SCREEN_COLOR_RED:
+       attribute[10] = 'R';
+       break;
+
+  case SCREEN_COLOR_GREEN:
+       attribute[10] = 'G';
+       break;
+
+  case SCREEN_COLOR_YELLOW:
+       attribute[10] = 'Y';
+       break;
+
+  case SCREEN_COLOR_BLUE:
+       attribute[10] = 'B';
+       break;
+
+  case SCREEN_COLOR_MAGENTA:
+       attribute[10] = 'M';
+       break;
+
+  case SCREEN_COLOR_CYAN:
+       attribute[10] = 'C';
+       break;
+
+  case SCREEN_COLOR_WHITE:
+       attribute[10] = 'W';
+       break;
+
+  default:
+       fprintf(stderr, "BCA: send_screen_log_object() object->foreground = %d\n",
+               object->foreground);
+       return 1;
+ }
+
+ if(object->line_break)
+ {
+  if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
+   return 1;
+
+  for(s = octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  {
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(octx->pr_ctx))
+   return 1;
+
+  if(pr_advance_line(octx->pr_ctx))
+   return 1;
+
+  octx->ld->line++;
+  octx->listing_entry->render_height++;
+ }
+
+ if(send_to_line_buffer(octx, object->text, object->n_bytes, object->n_chars,
+                        attribute, fill_attribute))
+  return 1;
+
+ if(last_line)
+ {
+  if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
+   return 1;
+
+  for(s = octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  {
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
     return 1;
   }
 
@@ -541,6 +714,42 @@ int handle_loco_source_listing_attribute(struct locolisting_operation_context *o
 int handle_loco_screen_log_object(struct locolisting_operation_context *octx,
                                   struct screen_log_object *object)
 {
+ if(strcmp(octx->data, "text") == 0)
+ {
+
+  if(octx->first_pass)
+  {
+   /* all we are trying to do on the first pass is the source dimensions */
+   octx->line_width += octx->argument_n_chars;
+  } else {
+   if(object->text[0] != 0)
+    if(send_screen_log_object(octx, object, 0))
+     return 1;
+
+   snprintf(object->text, 1024, "%s", octx->argument);
+   object->line_break = 0;
+  }
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ } else if(strcmp(octx->data, "linebreak") == 0) {
+  if(octx->first_pass)
+  {
+   if(octx->line_width > octx->ld->width)
+    octx->ld->width = octx->line_width;
+
+   octx->line_width = octx->argument_n_chars;
+   octx->ld->height++;
+  } else {
+
+   if(send_screen_log_object(octx, object, 0))
+    return 1;
+
+   snprintf(object->text, 1024, "%s", octx->argument);
+  }
+  object->line_break = 1;
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ }
 
  return 0;
 }
@@ -580,6 +789,7 @@ int handle_locolisting(struct document_handling_context *dctx,
  struct source_listing_object source_listing_object;
  struct screen_log_object screen_log_object;
 
+ octx->dctx = dctx;
  octx->pe_ctx = pe_ctx;
  octx->pr_ctx = pe_ctx->pr_ctx;
  octx->listing_entry = listing_entry;
@@ -785,14 +995,16 @@ int handle_locolisting(struct document_handling_context *dctx,
             file_name);
     return 1;
    } else if(octx->ld->line_numbers_start + octx->ld->height > 999) {
-    octx->ld->n_chars_needed_for_line_numbers = 5;
-   } else if(octx->ld->line_numbers_start + octx->ld->height > 99) {
     octx->ld->n_chars_needed_for_line_numbers = 4;
-   } else if(octx->ld->line_numbers_start + octx->ld->height > 9) {
+   } else if(octx->ld->line_numbers_start + octx->ld->height > 99) {
     octx->ld->n_chars_needed_for_line_numbers = 3;
-   } else {
+   } else if(octx->ld->line_numbers_start + octx->ld->height > 9) {
     octx->ld->n_chars_needed_for_line_numbers = 2;
+   } else {
+    octx->ld->n_chars_needed_for_line_numbers = 1;
    }
+   if(octx->pr_ctx->padd_listing_line_numbers)
+    octx->ld->n_chars_needed_for_line_numbers++;
   }
 
   /* now that we know what the caption will be (ie - will it line wrap?),
@@ -803,8 +1015,13 @@ int handle_locolisting(struct document_handling_context *dctx,
  } else {
 
   if(source_listing_object.text[0] != 0)
+  {
    if(send_source_listing_object(octx, &source_listing_object, 1))
     return 1;
+  } else if(screen_log_object.text[0] != 0) {
+   if(send_screen_log_object(octx, &screen_log_object, 1))
+    return 1;
+  }
 
   if(pr_advance_line(pe_ctx->pr_ctx))
    return 1;
