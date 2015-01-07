@@ -237,4 +237,10 @@ int plaintext_add_toc_element(struct plaintext_engine_context *pe_ctx,
 
 int superscript_number(char *number, int length, char **superscript_ptr, int *out_length);
 
+/* locolisting.c */
+int handle_locolisting(struct document_handling_context *dctx,
+                       struct plaintext_engine_context *pe_ctx,
+                       struct listing_entry *listing_entry,
+                       char *file_name);
+
 #endif

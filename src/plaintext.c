@@ -192,23 +192,20 @@ int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
  return 0;
 }
 
-int pr_hard_full_line(struct plaintext_rendering_context *pr_ctx)
+void pr_hard_preformat_width(struct plaintext_rendering_context *pr_ctx, int spaces)
 {
  int i;
 
- for(i=pr_ctx->current_col; i<pr_ctx->line_width; i++)
+ for(i=0; i < spaces; i++)
  {
   fprintf(pr_ctx->output, " ");
  }
-
- pr_ctx->n_bytes = 0;
- pr_ctx->n_characters = 0;
- return 0;
 }
 
 int pr_page_number(struct plaintext_rendering_context *pr_ctx)
 {
  char temp[128];
+ int extra_preformated_width;
 
  if( (pr_ctx->n_characters > 0) && (pr_ctx->current_row != -1) )
  {
@@ -224,23 +221,6 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
  if(pr_ctx->output == NULL)
   return 0;
 
- if(pr_ctx->show_page_numbers == 0)
- {
-  switch(pr_ctx->output_mode)
-  {
-   case PER_OUTPUT_MODE_TEXT_FILE:
-        return 0;
-        break;
-
-   case PER_OUTPUT_MODE_HTML_FILE:
-        /* the page number is the only full width line that can be certain,
-           so even no turned off, we still need a guaranteed full line for
-           the widths to match up */
-        return pr_hard_full_line(pr_ctx);
-        break;
-  }
- }
-
  if(plaintext_rendering_stack_push(pr_ctx->pe_ctx))
   return 1;
 
@@ -254,22 +234,33 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
  else
   pr_ctx->pe_ctx->pr_ctx->justification = PER_RIGHT_JUSTIFY;
 
- pr_ctx->pe_ctx->pr_ctx->left_margin_width = 0; /* could page number be multi line? */
+ pr_ctx->pe_ctx->pr_ctx->left_margin_width = 0;
  pr_ctx->pe_ctx->pr_ctx->right_margin_width = 0;
 
- if(pr_feed_generated_words(pr_ctx->pe_ctx, temp))
-  return 1;
+ extra_preformated_width = pr_ctx->pe_ctx->pr_ctx->line_width;
+
+ if(pr_ctx->show_page_numbers)
+  if(pr_feed_generated_words(pr_ctx->pe_ctx, temp))
+   return 1;
+
+ extra_preformated_width -= pr_ctx->pe_ctx->pr_ctx->n_characters;
 
  /* note that pr_ctx that we were called with, is not the current
     pe_ctx->pr_ctx, because of the _stack_push() */
  if(pr_flush_line_buffer(pr_ctx->pe_ctx->pr_ctx))
   return 1;
 
- /* html preformat width on visible left justitfy page numbers */
+ /* html needs at least one line preformatted width */
  if(pr_ctx->output_mode == PER_OUTPUT_MODE_HTML_FILE)
+ {
   if(pr_ctx->pe_ctx->even_or_odd_page == 1)
-   if(pr_hard_full_line(pr_ctx->pe_ctx->pr_ctx))
-    return 1;
+  {
+   pr_hard_preformat_width(pr_ctx->pe_ctx->pr_ctx, extra_preformated_width);
+  } else {
+   if(pr_ctx->show_page_numbers == 0)
+    pr_hard_preformat_width(pr_ctx->pe_ctx->pr_ctx, extra_preformated_width);
+  }
+ }
 
  if(plaintext_word_engine_stack_pop(pr_ctx->pe_ctx))
   return 1;
@@ -285,7 +276,7 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
  int i;
  int rows_left;
 
- if(pr_ctx->current_row == 0)
+ if(pr_ctx->current_row < 1)
   return 0;
 
  rows_left = pr_ctx->page_length
