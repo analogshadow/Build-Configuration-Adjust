@@ -986,9 +986,9 @@ char next_byte(char *contents, int length, int *offset)
  return c;
 }
 
-int handle_output(struct bca_context *ctx,
-                  struct document_handling_context *dctx,
-                  char *string, int length)
+int handle_input(struct bca_context *ctx,
+                 struct document_handling_context *dctx,
+                 char *string, int length)
 {
  if(length == -1)
   length = strlen(string);
@@ -1002,21 +1002,21 @@ int handle_output(struct bca_context *ctx,
  return 0;
 }
 
-int add_to_output_buffer(struct bca_context *ctx,
-                         struct document_handling_context *dctx,
-                         char *string, int length)
+int add_to_input_buffer(struct bca_context *ctx,
+                        struct document_handling_context *dctx,
+                        char *string, int length)
 {
  int i;
 
- if(dctx->output_buffer_length + length > 1023)
+ if(dctx->input_buffer_length + length > 1023)
  {
-  fprintf(stderr, "fix me\n");
+  fprintf(stderr, "BCA: documents.c add_to_input_buffer() fix me\n");
  } else {
   for(i=0; i<length; i++)
   {
-   dctx->output_buffer[dctx->output_buffer_length + i] = string[i];
+   dctx->input_buffer[dctx->input_buffer_length + i] = string[i];
   }
-  dctx->output_buffer_length += length;
+  dctx->input_buffer_length += length;
  }
 
  return 0;
@@ -1029,7 +1029,7 @@ int process_file(struct bca_context *ctx,
  char c, key[256], *value;
  int offset = 0, index;
 
- dctx->output_buffer_length = 0;
+ dctx->input_buffer_length = 0;
 
  while(offset != length)
  {
@@ -1040,14 +1040,14 @@ int process_file(struct bca_context *ctx,
 
   if(c != '@')
   {
-   if(add_to_output_buffer(ctx, dctx, &c, 1))
+   if(add_to_input_buffer(ctx, dctx, &c, 1))
     return 1;
   } else {
 
-   dctx->output_buffer[dctx->output_buffer_length] = 0;
-   if(handle_output(ctx, dctx, dctx->output_buffer, dctx->output_buffer_length))
+   dctx->input_buffer[dctx->input_buffer_length] = 0;
+   if(handle_input(ctx, dctx, dctx->input_buffer, dctx->input_buffer_length))
     return 1;
-   dctx->output_buffer_length = 0;
+   dctx->input_buffer_length = 0;
 
    index = 0;
    while(offset != length)
@@ -1073,7 +1073,7 @@ int process_file(struct bca_context *ctx,
    if(index == 0)
    {
     /* @@ escapes out @ */
-    if(add_to_output_buffer(ctx, dctx, &c, 1))
+    if(add_to_input_buffer(ctx, dctx, &c, 1))
      return 1;
    } else {
 
@@ -1087,7 +1087,7 @@ int process_file(struct bca_context *ctx,
      return 1;
     }
 
-    if(handle_output(ctx, dctx, value, -1))
+    if(handle_input(ctx, dctx, value, -1))
      return 1;
 
     free(value);
@@ -1095,10 +1095,10 @@ int process_file(struct bca_context *ctx,
   }
  }
 
- dctx->output_buffer[dctx->output_buffer_length] = 0;
- if(handle_output(ctx, dctx, dctx->output_buffer, dctx->output_buffer_length))
+ dctx->input_buffer[dctx->input_buffer_length] = 0;
+ if(handle_input(ctx, dctx, dctx->input_buffer, dctx->input_buffer_length))
   return 1;
- dctx->output_buffer_length = 0;
+ dctx->input_buffer_length = 0;
  return 0;
 }
 
@@ -1122,10 +1122,34 @@ int document_mode(struct bca_context *ctx)
  dctx->ctx = ctx;
  ctx->dctx = dctx;
 
- if(activate_document_engine_plaintext(dctx))
+ if((dctx->document_configuration_contents =
+     read_file("./buildconfiguration/documentconfiguration",
+               &(dctx->document_configuration_length), 0)) == NULL)
  {
-  fprintf(stderr,
-          "BCA: document_mode(): activate_document_engine_plaintext() failed\n");
+  fprintf(stderr, "BCA: WARNING: document mode configuration file not found. "
+          "Try --stubdocumentconfiguration.\n");
+  return 1;
+ }
+
+ if(strcmp(ctx->engine_name, "plaintext") == 0) {
+  if(activate_document_engine_plaintext(dctx))
+  {
+   fprintf(stderr,
+           "BCA: document_mode(): activate_document_engine_plaintext() failed\n");
+   return 1;
+  }
+ } else if(strcmp(ctx->engine_name, "passthrough") == 0) {
+  if(activate_document_engine_passthrough(dctx))
+  {
+   fprintf(stderr,
+           "BCA: document_mode(): activate_document_engine_passthrough() failed\n");
+   return 1;
+  }
+ } else if(strcmp(ctx->engine_name, "cairo") == 0) {
+  fprintf(stderr, "BCA: cairo documentation engine not implimented yet.\n");
+  return 1;
+ } else {
+  fprintf(stderr, "BCA: unknown document mode engine \"%s\"\n", ctx->engine_name);
   return 1;
  }
 
@@ -1241,4 +1265,261 @@ new_toc_element(int type, char *name)
  return e;
 }
 
+int stub_document_configuration_file(struct bca_context *ctx)
+{
+ FILE *configuration = NULL;
+ int n_records = 0, contents_length = 0;
+ char *principles[80], *components[80], *keys[80], *values[80];
+ char *contents;
 
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "line_width";
+ values[n_records] = "80";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "line_width";
+ values[n_records] = "100";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "page_length";
+ values[n_records] = "50";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "page_length";
+ values[n_records] = "60";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "top_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "bottom_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "top_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "bottom_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "left_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "left_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "right_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "right_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "show_page_numbers";
+ values[n_records] = "yes";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "show_page_numbers";
+ values[n_records] = "yes";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "paragraph_line_spacing";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "paragraph_line_spacing";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "paragraph_indent";
+ values[n_records] = "4";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "paragraph_indent";
+ values[n_records] = "4";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "show_toc";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "show_toc";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "show_index";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "show_index";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "text";
+ keys[n_records] = "pad_listing_line_numbers";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "html";
+ keys[n_records] = "pad_listing_line_numbers";
+ values[n_records] = "0";
+ n_records++;
+
+
+
+ contents =
+ read_file("./buildconfiguration/documentconfiguration",
+           &contents_length, 1);
+
+ if((configuration = fopen("./buildconfiguration/documentconfiguration", "wb")) == NULL)
+ {
+  fprintf(stderr,
+          "BCA: fopen(./buildconfiguration/documentconfiguration, w) failed, %s\n",
+          strerror(errno));
+  return 1;
+ }
+
+ if(output_modifications(ctx, configuration, contents, contents_length,
+                         n_records, principles, components, keys, values))
+ {
+  fprintf(stderr, "BCA: output_modifications() failed\n");
+  return 1;
+ }
+
+ fclose(configuration);
+ return 0;
+}
+
+int conf_lookup_int(struct document_handling_context *dctx,
+                    char *key, int *value, int default_value)
+{
+ char *v;
+
+ if(dctx->document_configuration_contents == NULL)
+ {
+  return 1;
+ }
+
+ v = lookup_key(dctx->ctx,
+                dctx->document_configuration_contents,
+                dctx->document_configuration_length,
+                dctx->ctx->engine_name,
+                dctx->ctx->output_type,
+                key);
+
+ if(v == NULL)
+ {
+  v = lookup_key(dctx->ctx,
+                 dctx->document_configuration_contents,
+                 dctx->document_configuration_length,
+                 dctx->ctx->engine_name, "ALL", key);
+ }
+
+ if(v == NULL)
+ {
+  fprintf(stderr,
+          "BCA: WARNING Can not find %s.%s.%s in document configuration. "
+          "Going with the default %d\n",
+           dctx->ctx->engine_name, dctx->ctx->output_type,
+           key, default_value);
+
+  *value = default_value;
+ } else {
+  sscanf(v, "%d", value);
+  free(v);
+ }
+
+ return 0;
+}
+
+int conf_lookup_string(struct document_handling_context *dctx,
+                       char *key, char **value, char *default_value)
+{
+ char *v;
+
+ if(dctx->document_configuration_contents == NULL)
+ {
+  return 1;
+ }
+
+ v = lookup_key(dctx->ctx,
+                dctx->document_configuration_contents,
+                dctx->document_configuration_length,
+                dctx->ctx->engine_name,
+                dctx->ctx->output_type,
+                key);
+
+ if(v == NULL)
+ {
+  v = lookup_key(dctx->ctx,
+                 dctx->document_configuration_contents,
+                 dctx->document_configuration_length,
+                 dctx->ctx->engine_name, "ALL", key);
+ }
+
+ if(v == NULL)
+ {
+  fprintf(stderr,
+          "BCA: WARNING Can not find %s.%s.%s in document configuration. "
+          "Going with the default \"%s\"\n",
+           dctx->ctx->engine_name, dctx->ctx->output_type,
+           key, default_value);
+
+  *value = default_value;
+ } else {
+  *value = v;
+ }
+
+ return 0;
+}

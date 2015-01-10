@@ -4,7 +4,7 @@ int plaintext_consume_text(struct document_handling_context *dctx,
                           char *text, int length)
 {
  struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
  int i;
 
  for(i=0; i<length; i++)
@@ -71,7 +71,7 @@ int plaintext_open_point(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -79,7 +79,7 @@ int plaintext_open_point(struct document_handling_context *dctx,
 int plaintext_close_point(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -88,7 +88,7 @@ int plaintext_open_list(struct document_handling_context *dctx,
                         char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -96,7 +96,7 @@ int plaintext_open_list(struct document_handling_context *dctx,
 int plaintext_close_list(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -109,7 +109,7 @@ int plaintext_open_listing(struct document_handling_context *dctx,
  struct loco_listing *ld = NULL;
  char *caption, *file_name;
  int handled, allocation_size, render_line_width, i;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(n_parameters > 1)
   caption = parameters[1];
@@ -260,7 +260,7 @@ int plaintext_open_listing(struct document_handling_context *dctx,
 int plaintext_close_listing(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -269,7 +269,7 @@ int plaintext_open_inset(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -277,7 +277,7 @@ int plaintext_open_inset(struct document_handling_context *dctx,
 int plaintext_close_inset(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -288,7 +288,7 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
  struct plaintext_engine_context *pe_ctx;
  char *subsection_name = NULL, temp[256];
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(n_parameters == 2)
   subsection_name = parameters[1];
@@ -353,7 +353,7 @@ int plaintext_open_subsection(struct document_handling_context *dctx,
 int plaintext_close_subsection(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -364,7 +364,7 @@ int plaintext_open_section(struct document_handling_context *dctx,
  struct plaintext_engine_context *pe_ctx;
  char *section_name = NULL, temp[256];
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(n_parameters == 2)
   section_name = parameters[1];
@@ -430,7 +430,7 @@ int plaintext_open_section(struct document_handling_context *dctx,
 int plaintext_close_section(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -441,7 +441,7 @@ int plaintext_open_chapter(struct document_handling_context *dctx,
  struct plaintext_engine_context *pe_ctx;
  char *chapter_name = NULL, temp[256];
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(n_parameters == 2)
   chapter_name = parameters[1];
@@ -512,7 +512,7 @@ int plaintext_open_chapter(struct document_handling_context *dctx,
 int plaintext_close_chapter(struct document_handling_context *dctx)
 {
  struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(pe_ctx->footnotes_head != NULL)
  {
@@ -529,7 +529,7 @@ int plaintext_open_part(struct document_handling_context *dctx,
  struct plaintext_engine_context *pe_ctx;
  char *part_name = NULL, temp[256];
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(n_parameters == 2)
   part_name = parameters[1];
@@ -597,7 +597,7 @@ int plaintext_open_part(struct document_handling_context *dctx,
 int plaintext_close_part(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -606,7 +606,7 @@ int plaintext_open_table(struct document_handling_context *dctx,
                          char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -614,7 +614,7 @@ int plaintext_open_table(struct document_handling_context *dctx,
 int plaintext_close_table(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -623,7 +623,7 @@ int plaintext_open_tr(struct document_handling_context *dctx,
                       char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -631,7 +631,7 @@ int plaintext_open_tr(struct document_handling_context *dctx,
 int plaintext_close_tr(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -640,7 +640,7 @@ int plaintext_open_tc(struct document_handling_context *dctx,
                       char **parameters, int n_parameters)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -648,7 +648,7 @@ int plaintext_open_tc(struct document_handling_context *dctx,
 int plaintext_close_tc(struct document_handling_context *dctx)
 {
 // struct plaintext_engine_context *pe_ctx;
-// pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+// pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  return 0;
 }
@@ -659,7 +659,7 @@ int plaintext_open_tag(struct document_handling_context *dctx,
  struct plaintext_engine_context *pe_ctx;
  char *tag_name;
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
  tag_name = dctx->tags[dctx->tag_depth - 1];
 
  if(strcmp(tag_name, "p") == 0)
@@ -684,7 +684,7 @@ int plaintext_close_tag(struct document_handling_context *dctx)
  struct plaintext_engine_context *pe_ctx;
  char *tag_name;
 
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
  tag_name = dctx->tags[dctx->tag_depth - 1];
 
  if(strcmp(tag_name, "p") == 0)
@@ -702,63 +702,18 @@ int plaintext_close_tag(struct document_handling_context *dctx)
 int plaintext_start_document(struct document_handling_context *dctx)
 {
  struct plaintext_engine_context *pe_ctx;
- int allocation_size;
+
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  /* _start_document() is called on each loop */
  switch(dctx->ctx->pass_number)
  {
   case 0:
-       if(dctx->render_engine_context != NULL)
-       {
-        fprintf(stderr, "BCA: plaintex_start_document(): render engine should not be initialized "
-                " on start of first pass\n");
-        return 1;
-       }
-
-       allocation_size = sizeof(struct plaintext_engine_context);
-       if((pe_ctx = (struct plaintext_engine_context *)
-                    malloc(allocation_size)) == NULL)
-       {
-        fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
-                allocation_size, strerror(errno));
-        return 1;
-       }
-
-       memset(pe_ctx, 0, allocation_size);
-       pe_ctx->dctx = dctx;
-       if((pe_ctx->uwc =
-           unicode_word_engine_initialize(pe_ctx,
-                                          pe_consume_word)) == NULL)
-       {
-        fprintf(stderr,
-                "BCA: plaintext_start_document(): unicode_word_engine_initialize() failed.\n");
-        free(pe_ctx);
-        return 1;
-       }
-
-       if((pe_ctx->hc = hyphenation_engine_initialize("en_US")) == NULL)
-       {
-        fprintf(stderr, "BCA: Warning: hyphenation engine not available\n");
-       }
-
-       /* hard code some defaults for now */
-       pe_ctx->paragraph_line_spacing = 1;
-       pe_ctx->paragraph_indent = 4;
-       pe_ctx->show_toc = 1;
-       pe_ctx->show_index = 1;
-       pe_ctx->even_or_odd_page = 1;
-
-       dctx->render_engine_context = pe_ctx;
-
-       if((pe_ctx->pr_ctx = plaintext_rendering_context_new(pe_ctx, NULL)) == NULL)
-       {
-        return 1;
-       }
        break;
 
   case 1:
        if((pe_ctx = (struct plaintext_engine_context *)
-                     dctx->render_engine_context) == NULL)
+                     dctx->document_engine_context) == NULL)
        {
         fprintf(stderr, "BCA: plaintex_start_document(): render engine should have been initialized "
                 " on start of first pass\n");
@@ -774,7 +729,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
 
        switch(pe_ctx->pr_ctx->output_mode)
        {
-        case PER_OUTPUT_MODE_HTML_FILE:
+        case OUTPUT_MODE_HTML_FILE:
         if(pe_ctx->pr_ctx->output != NULL)
         {
          fprintf(pe_ctx->pr_ctx->output,
@@ -809,7 +764,7 @@ int plaintext_start_document(struct document_handling_context *dctx)
 int plaintext_finish_document(struct document_handling_context *dctx)
 {
  struct plaintext_engine_context *pe_ctx;
- pe_ctx = (struct plaintext_engine_context *) dctx->render_engine_context;
+ pe_ctx = (struct plaintext_engine_context *) dctx->document_engine_context;
 
  if(pr_advance_line(pe_ctx->pr_ctx))
   return 1;
@@ -830,7 +785,7 @@ int plaintext_finish_document(struct document_handling_context *dctx)
 
        switch(pe_ctx->pr_ctx->output_mode)
        {
-        case PER_OUTPUT_MODE_HTML_FILE:
+        case OUTPUT_MODE_HTML_FILE:
         if(pe_ctx->pr_ctx->output != NULL)
         {
          if(pe_ctx->even_or_odd_page == 0) //gets swapped one last time above
@@ -868,6 +823,10 @@ int plaintext_finish_document(struct document_handling_context *dctx)
 
 int activate_document_engine_plaintext(struct document_handling_context *dctx)
 {
+ int allocation_size;
+ struct plaintext_engine_context *pe_ctx;
+ struct plaintext_rendering_context *pr_ctx;
+
  dctx->start_document = plaintext_start_document;
  dctx->finish_document = plaintext_finish_document;
  dctx->consume_text = plaintext_consume_text;
@@ -896,6 +855,159 @@ int activate_document_engine_plaintext(struct document_handling_context *dctx)
  dctx->open_tag = plaintext_open_tag;
  dctx->close_tag = plaintext_close_tag;
 
+ if(dctx->document_engine_context != NULL)
+ {
+  fprintf(stderr,
+          "BCA: activate_document_engine_plaintext(): render engine should not be initialized.\n");
+  return 1;
+ }
+
+ allocation_size = sizeof(struct plaintext_engine_context);
+ if((pe_ctx = (struct plaintext_engine_context *)
+              malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
+          allocation_size, strerror(errno));
+  return 1;
+ }
+
+ memset(pe_ctx, 0, allocation_size);
+ pe_ctx->dctx = dctx;
+
+ if((pe_ctx->uwc =
+     unicode_word_engine_initialize(pe_ctx,
+                                    pe_consume_word)) == NULL)
+ {
+  fprintf(stderr,
+          "BCA: plaintext_start_document(): unicode_word_engine_initialize() failed.\n");
+  free(pe_ctx);
+  return 1;
+ }
+
+ if((pe_ctx->hc = hyphenation_engine_initialize("en_US")) == NULL)
+ {
+  fprintf(stderr,
+          "BCA: Warning: hyphenation engine not available for language \"%s\"\n",
+          "en_US");
+ }
+
+ if((pr_ctx = plaintext_rendering_context_new(pe_ctx, NULL)) == NULL)
+ {
+  return 1;
+ }
+
+ pe_ctx->pr_ctx = pr_ctx;
+
+ if(strcmp(dctx->ctx->output_type, "text") == 0)
+ {
+  pr_ctx->output_mode = OUTPUT_MODE_TEXT_FILE;
+
+  if(conf_lookup_int(dctx, "line_width",
+                     &(pr_ctx->line_width), 80))
+   return 1;
+
+  if(conf_lookup_int(dctx, "page_length",
+                     &(pr_ctx->page_length), 50))
+   return 1;
+
+  if(conf_lookup_int(dctx, "top_margin",
+                     &(pr_ctx->top_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "bottom_margin",
+                     &(pr_ctx->bottom_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "left_margin",
+                     &(pr_ctx->left_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "right_margin",
+                     &(pr_ctx->right_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_line_spacing",
+                     &(pe_ctx->paragraph_line_spacing), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_indent",
+                     &(pe_ctx->paragraph_indent), 4))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_toc",
+                     &(pe_ctx->show_toc), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_index",
+                     &(pe_ctx->show_index), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "pad_listing_line_numbers",
+                     &(pr_ctx->pad_listing_line_numbers), 1))
+   return 1;
+
+ } else if(strcmp(dctx->ctx->output_type, "html") == 0) {
+
+  pr_ctx->output_mode = OUTPUT_MODE_HTML_FILE;
+
+  if(conf_lookup_int(dctx, "line_width",
+                     &(pr_ctx->line_width), 80))
+   return 1;
+
+  if(conf_lookup_int(dctx, "page_length",
+                     &(pr_ctx->page_length), 50))
+   return 1;
+
+  if(conf_lookup_int(dctx, "top_margin",
+                     &(pr_ctx->top_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "bottom_margin",
+                     &(pr_ctx->bottom_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "left_margin",
+                     &(pr_ctx->left_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "right_margin",
+                     &(pr_ctx->right_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_line_spacing",
+                     &(pe_ctx->paragraph_line_spacing), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_indent",
+                     &(pe_ctx->paragraph_indent), 4))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_toc",
+                     &(pe_ctx->show_toc), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_index",
+                     &(pe_ctx->show_index), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "pad_listing_line_numbers",
+                     &(pe_ctx->pr_ctx->pad_listing_line_numbers), 0))
+   return 1;
+
+
+ } else if(strcmp(dctx->ctx->output_type, "tty") == 0) {
+  fprintf(stderr, "BCA: plaintext engine tty output not implimented\n");
+  return 1;
+ } else {
+  fprintf(stderr,
+          "BCA: plaintext engine - unknown output type \"%s\", try text, html, or tty\n",
+          dctx->ctx->output_type);
+  return 1;
+ }
+
+ pe_ctx->even_or_odd_page = 1;
+
+ dctx->document_engine_context = pe_ctx;
  return 0;
 }
 

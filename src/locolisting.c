@@ -265,7 +265,7 @@ int render_locolisting_line_numbers(struct locolisting_operation_context *octx)
 
  if(octx->ld->line_numbers)
  {
-  if(octx->pr_ctx->padd_listing_line_numbers)
+  if(octx->pr_ctx->pad_listing_line_numbers)
    n_chars = snprintf(buffer, 32, "%d ", octx->ld->line);
   else
    n_chars = snprintf(buffer, 32, "%d", octx->ld->line);
@@ -1003,7 +1003,7 @@ int handle_locolisting(struct document_handling_context *dctx,
    } else {
     octx->ld->n_chars_needed_for_line_numbers = 1;
    }
-   if(octx->pr_ctx->padd_listing_line_numbers)
+   if(octx->pr_ctx->pad_listing_line_numbers)
     octx->ld->n_chars_needed_for_line_numbers++;
   }
 

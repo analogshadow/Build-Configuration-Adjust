@@ -68,6 +68,7 @@
 #define SELF_TEST_MODE 99
 #define VERSION_MODE 100
 #define DOCUMENT_MODE 200
+#define STUB_DOCUMENT_CONFIGURATION 201
 
 #define OUTPUT_CONFIGURE_MODE 110
 #define OUTPUT_BCASFD_MODE 111
@@ -103,6 +104,8 @@ struct bca_context
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  struct document_handling_context *dctx;
  int loop_inputs, pass_number;
+ char *engine_name;
+ char *output_type;
 #endif
 
  char **input_files;
@@ -235,6 +238,9 @@ char *type_to_string(int type);
 
 struct document_handling_context
 {
+ char *engine_name;
+ char *output_type;
+
  struct bca_context *ctx;
  int dmode_depth;
 
@@ -251,10 +257,13 @@ struct document_handling_context
  char tag_buffer[1024];
  char *tag_datas[32];
 
- char output_buffer[1024];
- int output_buffer_length;
+ char input_buffer[1024];
+ int input_buffer_length;
 
- void *render_engine_context;
+ char *document_configuration_contents;
+ int document_configuration_length;
+
+ void *document_engine_context;
  int (*start_document) (struct document_handling_context *dctx);
  int (*finish_document) (struct document_handling_context *dctx);
  int (*consume_text) (struct document_handling_context *dctx, char *text, int length);
@@ -286,6 +295,17 @@ struct document_handling_context
 
 /* plaintext.c */
 int activate_document_engine_plaintext(struct document_handling_context *dctx);
+
+int activate_document_engine_passthrough(struct document_handling_context *dctx);
+
+int stub_document_configuration_file(struct bca_context *ctx);
+
+int conf_lookup_int(struct document_handling_context *dctx,
+                    char *key, int *value, int default_value);
+
+int conf_lookup_string(struct document_handling_context *dctx,
+                       char *key, char **value, char *default_value);
+
 #endif
 
 /* selftest.c ----------------------------------- */

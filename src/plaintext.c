@@ -130,10 +130,10 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
  {
   switch(pr_ctx->output_mode)
   {
-   case PER_OUTPUT_MODE_TEXT_FILE:
+   case OUTPUT_MODE_TEXT_FILE:
         break;
 
-   case PER_OUTPUT_MODE_HTML_FILE:
+   case OUTPUT_MODE_HTML_FILE:
         length = snprintf(temp, 512, "<span class=\"%s\">", attribute);
         pr_direct_to_line_buffer(pr_ctx, temp, length, 0);
         break;
@@ -149,10 +149,10 @@ int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
  {
   switch(pr_ctx->output_mode)
   {
-   case PER_OUTPUT_MODE_TEXT_FILE:
+   case OUTPUT_MODE_TEXT_FILE:
         break;
 
-   case PER_OUTPUT_MODE_HTML_FILE:
+   case OUTPUT_MODE_HTML_FILE:
         return pr_direct_to_line_buffer(pr_ctx, "</span>", -1, 0);
         break;
   }
@@ -197,7 +197,7 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
   return 1;
 
  /* set page number margins */
- if( (pr_ctx->output_mode == PER_OUTPUT_MODE_HTML_FILE) &&
+ if( (pr_ctx->output_mode == OUTPUT_MODE_HTML_FILE) &&
      (pr_ctx->pe_ctx->even_or_odd_page == 1) )
   pr_ctx->pe_ctx->pr_ctx->justification = PER_LEFT_JUSTIFY;
  else
@@ -220,7 +220,7 @@ int pr_page_number(struct plaintext_rendering_context *pr_ctx)
   return 1;
 
  /* html needs at least one line preformatted width */
- if(pr_ctx->output_mode == PER_OUTPUT_MODE_HTML_FILE)
+ if(pr_ctx->output_mode == OUTPUT_MODE_HTML_FILE)
  {
   if(pr_ctx->pe_ctx->even_or_odd_page == 1)
   {
@@ -273,7 +273,7 @@ int pr_advance_page(struct plaintext_rendering_context *pr_ctx)
 
  switch(pr_ctx->output_mode)
  {
-  case PER_OUTPUT_MODE_HTML_FILE:
+  case OUTPUT_MODE_HTML_FILE:
        if(pr_ctx->output != NULL)
        {
         fprintf(pr_ctx->output,
@@ -314,7 +314,7 @@ int pr_start_page(struct plaintext_rendering_context *pr_ctx)
 
  switch(pr_ctx->output_mode)
  {
-  case PER_OUTPUT_MODE_HTML_FILE:
+  case OUTPUT_MODE_HTML_FILE:
        if(pr_ctx->output != NULL)
        {
         if(pr_ctx->pe_ctx->even_or_odd_page == 1)
@@ -890,7 +890,7 @@ fprintf(stderr, "---%d\n", pe_ctx->toc_cursor->parrent->type);
   if(title != NULL)
    length += snprintf(temp + length, 256, ": %s", title);
 
-  if(pr_send_to_line_buffer(octx->pr_ctx, temp, length, -1, -1))
+  if(pr_send_to_line_buffer(pe_ctx->pr_ctx, temp, -1, -1))
    return 1;
 
   length =
@@ -1413,20 +1413,17 @@ plaintext_rendering_context_new(struct plaintext_engine_context *pe_ctx,
  pr_ctx->n_characters = 0;
  pr_ctx->line_buffer[0] = 0;
 
- pr_ctx->line_width = 80;
- pr_ctx->page_length = 50;
+ pr_ctx->line_width = 0;
+ pr_ctx->page_length = 0;
  pr_ctx->left_margin_width = 0;
  pr_ctx->right_margin_width = 0;
- pr_ctx->top_margin = 1;
- pr_ctx->bottom_margin = 1;
+ pr_ctx->top_margin = 0;
+ pr_ctx->bottom_margin = 0;
  pr_ctx->justification = PER_LEFT_JUSTIFY;
  pr_ctx->direction = PER_LEFT_TO_RIGHT;
  pr_ctx->show_page_numbers = 1;
-
-// pr_ctx->output_mode = PER_OUTPUT_MODE_TEXT_FILE;
- pr_ctx->output_mode = PER_OUTPUT_MODE_HTML_FILE;
- pr_ctx->padd_listing_line_numbers = 0;
-
+ pr_ctx->output_mode = 0;
+ pr_ctx->pad_listing_line_numbers = 0;
  pr_ctx->output_buffer = NULL;
  pr_ctx->output_buffer_length = 0;
  pr_ctx->output_buffer_size = 0;
@@ -1502,11 +1499,11 @@ int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
 
  switch(pr_ctx->output_mode)
  {
-  case PER_OUTPUT_MODE_TEXT_FILE:
+  case OUTPUT_MODE_TEXT_FILE:
        return pr_direct_to_line_buffer(pr_ctx, buffer, n_bytes, n_characters);
        break;
 
-  case PER_OUTPUT_MODE_HTML_FILE:
+  case OUTPUT_MODE_HTML_FILE:
        i=0;
        while(i<n_bytes)
        {

@@ -131,6 +131,7 @@ char *lookup_key(struct bca_context *ctx, char *file, int file_length,
  return value;
 }
 
+/* idempotent file configuration update */
 int output_modifications(struct bca_context *ctx, FILE *output,
                          char *contents, int length, int n_records,
                          char **principle, char **component, char **key, char **value)

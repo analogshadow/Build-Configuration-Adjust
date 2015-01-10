@@ -12,8 +12,9 @@ struct plaintext_engine_context;
 #define PER_RIGHT_TO_LEFT  11
 #define PER_LINE_BUFFER_SIZE 2048
 #define MAX_INDEX_TERM_SIZE 256
-#define PER_OUTPUT_MODE_TEXT_FILE 800
-#define PER_OUTPUT_MODE_HTML_FILE 801
+
+#define OUTPUT_MODE_TEXT_FILE 800
+#define OUTPUT_MODE_HTML_FILE 801
 
 struct plaintext_footnote
 {
@@ -71,7 +72,7 @@ struct plaintext_rendering_context
  int current_col, current_row, current_page;
  int page_length, top_margin, bottom_margin;
  int justification, direction, show_page_numbers;
- int padd_listing_line_numbers;
+ int pad_listing_line_numbers;
  FILE *output;
  int output_mode;
  struct plaintext_engine_context *pe_ctx;

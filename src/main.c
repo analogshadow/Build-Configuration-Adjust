@@ -66,7 +66,8 @@ void help(void)
         " --file-to-C-source input-file\n"
         " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --document\n"
+        " --document engine output-type\n"
+        " --stubdocumentconfiguration\n"
         " --generate-graphviz\n"
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
@@ -456,6 +457,17 @@ int main(int argc, char **argv)
        }
        return code;
        break;
+
+  case STUB_DOCUMENT_CONFIGURATION:
+       if((code = stub_document_configuration_file(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: stub_document_configuration_file() finished\n");
+       } else {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: stub_document_configuration_file() failed\n");
+       }
+       break;
 #endif
 
   case FILE_TO_C_SOURCE_MODE:
@@ -702,7 +714,28 @@ struct bca_context *setup(int argc, char **argv)
   {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
    handled = 1;
+
+   if(current_arg + 2 > argc)
+   {
+    fprintf(stderr, "BCA: --document engine-name output-type\n");
+    return NULL;
+   }
+
+   ctx->engine_name = argv[++current_arg];
+   ctx->output_type = argv[++current_arg];
    ctx->mode = DOCUMENT_MODE;
+#else
+   fprintf(stderr,
+           "BCA: document mode not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
+  }
+
+  if(strcmp(argv[current_arg], "--stubdocumentconfiguration") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+   ctx->mode = STUB_DOCUMENT_CONFIGURATION;
 #else
    fprintf(stderr,
            "BCA: document mode not available in single file distribution, "
