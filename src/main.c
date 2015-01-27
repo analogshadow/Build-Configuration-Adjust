@@ -68,6 +68,7 @@ void help(void)
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
         " --document engine output-type\n"
         " --stubdocumentconfiguration\n"
+        " --configfiletolocolisting\n"
         " --generate-graphviz\n"
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
@@ -134,6 +135,15 @@ int main(int argc, char **argv)
        if(ctx->qualifier == NULL)
         ctx->qualifier = "ALL";
        break;
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  case MANIPULATE_DOCUMENT_CONFIGURATION:
+       file = "./buildconfiguration/documentconfiguration";
+       if(ctx->principle == NULL)
+        ctx->principle = ctx->engine_name;
+       if(ctx->qualifier == NULL)
+        ctx->qualifier = ctx->output_type;
+       break;
+#endif
  }
 
  switch(ctx->mode)
@@ -160,6 +170,15 @@ int main(int argc, char **argv)
        }
        if(ctx->verbose > 1)
         fprintf(stderr, "BCA: fwrite() wrote %d bytes\n", bca_sfd_c_length);
+       return 0;
+       break;
+
+  case CONFIG_FILE_TO_LOCO_LISTING_MODE:
+       if(config_file_to_loco_listing(ctx, ctx->input_files[0], ctx->output_file))
+       {
+        fprintf(stderr, "BCA: config_file_to_loco_listing() failed\n");
+        return 1;
+       }
        return 0;
        break;
 #endif
@@ -458,7 +477,7 @@ int main(int argc, char **argv)
        return code;
        break;
 
-  case STUB_DOCUMENT_CONFIGURATION:
+  case STUB_DOCUMENT_CONFIGURATION_MODE:
        if((code = stub_document_configuration_file(ctx)) == 0)
        {
         if(ctx->verbose > 1)
@@ -691,6 +710,30 @@ struct bca_context *setup(int argc, char **argv)
   }
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+  if(strcmp(argv[current_arg], "--configfiletolocolisting") == 0)
+  {
+   handled = 1;
+
+   if(current_arg + 2 > argc)
+   {
+    fprintf(stderr, "BCA: --configfiletolocolisting config output.loco\n");
+    return NULL;
+   }
+
+   if((ctx->input_files = (char **) malloc(sizeof(char *) * 2)) == NULL)
+   {
+    fprintf(stderr, "BCA: malloc(%d) failed, %s\n",
+            sizeof(char *) * 2, strerror(errno));
+    return NULL;
+   }
+   ctx->input_files[0] = argv[++current_arg];
+   ctx->input_files[1] = NULL;
+   ctx->output_file = argv[++current_arg];
+   ctx->mode = CONFIG_FILE_TO_LOCO_LISTING_MODE;
+  }
+#endif
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
   if(strcmp(argv[current_arg], "--selftest") == 0)
   {
    handled = 1;
@@ -724,6 +767,7 @@ struct bca_context *setup(int argc, char **argv)
    ctx->engine_name = argv[++current_arg];
    ctx->output_type = argv[++current_arg];
    ctx->mode = DOCUMENT_MODE;
+   ctx->manipulation_type = MANIPULATE_DOCUMENT_CONFIGURATION;
 #else
    fprintf(stderr,
            "BCA: document mode not available in single file distribution, "
@@ -735,7 +779,7 @@ struct bca_context *setup(int argc, char **argv)
   {
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
    handled = 1;
-   ctx->mode = STUB_DOCUMENT_CONFIGURATION;
+   ctx->mode = STUB_DOCUMENT_CONFIGURATION_MODE;
 #else
    fprintf(stderr,
            "BCA: document mode not available in single file distribution, "

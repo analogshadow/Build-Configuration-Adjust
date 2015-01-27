@@ -1,5 +1,7 @@
 #include "plaintext.h"
 
+#include <sys/ioctl.h>
+
 int plaintext_consume_text(struct document_handling_context *dctx,
                           char *text, int length)
 {
@@ -219,13 +221,12 @@ int plaintext_open_listing(struct document_handling_context *dctx,
        height, or if it will fit - just use the info from the source */
     if(ld->n_chars_needed_for_line_numbers + ld->width > render_line_width)
     {
-     listing_entry->render_width = render_line_width +
-                                   ld->n_chars_needed_for_line_numbers;
+     listing_entry->render_width = render_line_width;
      if(handle_locolisting(dctx, pe_ctx, listing_entry, file_name))
       return 1;
     } else {
      listing_entry->render_width = ld->width +
-                                   ld->n_chars_needed_for_line_numbers;;
+                                   ld->n_chars_needed_for_line_numbers;
      listing_entry->render_height = ld->height;
      for(i=0; i<listing_entry->render_height; i++)
      {
@@ -826,6 +827,7 @@ int activate_document_engine_plaintext(struct document_handling_context *dctx)
  int allocation_size;
  struct plaintext_engine_context *pe_ctx;
  struct plaintext_rendering_context *pr_ctx;
+ struct winsize tty_size;
 
  dctx->start_document = plaintext_start_document;
  dctx->finish_document = plaintext_finish_document;
@@ -994,10 +996,55 @@ int activate_document_engine_plaintext(struct document_handling_context *dctx)
                      &(pe_ctx->pr_ctx->pad_listing_line_numbers), 0))
    return 1;
 
-
  } else if(strcmp(dctx->ctx->output_type, "tty") == 0) {
-  fprintf(stderr, "BCA: plaintext engine tty output not implimented\n");
-  return 1;
+
+  pr_ctx->output_mode = OUTPUT_MODE_TTY;
+
+  if(ioctl(0, TIOCGWINSZ, &tty_size))
+  {
+   fprintf(stderr, "BCA: ioctl() failed, \"%s\"\n", strerror(errno));
+   return 1;
+  }
+  pr_ctx->line_width = tty_size.ws_col;
+  pr_ctx->page_length = tty_size.ws_row;
+
+  if(conf_lookup_int(dctx, "top_margin",
+                     &(pr_ctx->top_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "bottom_margin",
+                     &(pr_ctx->bottom_margin), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "left_margin",
+                     &(pr_ctx->left_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "right_margin",
+                     &(pr_ctx->right_margin_width), 0))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_line_spacing",
+                     &(pe_ctx->paragraph_line_spacing), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "paragraph_indent",
+                     &(pe_ctx->paragraph_indent), 4))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_toc",
+                     &(pe_ctx->show_toc), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "show_index",
+                     &(pe_ctx->show_index), 1))
+   return 1;
+
+  if(conf_lookup_int(dctx, "pad_listing_line_numbers",
+                     &(pr_ctx->pad_listing_line_numbers), 1))
+   return 1;
+
+
  } else {
   fprintf(stderr,
           "BCA: plaintext engine - unknown output type \"%s\", try text, html, or tty\n",

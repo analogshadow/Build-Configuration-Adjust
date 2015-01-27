@@ -47,8 +47,9 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  {
   fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
   fprintf(stderr, "BCA: width = %d, n_characters = %d, current_col = %d, "
-          "line buffer = \"%s\"\n",
-          width, pr_ctx->n_characters, pr_ctx->current_col, pr_ctx->line_buffer);
+          "line buffer = \"%s\", left_margin = %d, right_margin = %d\n",
+          width, pr_ctx->n_characters, pr_ctx->current_col, pr_ctx->line_buffer,
+          pr_ctx->left_margin_width, pr_ctx->right_margin_width);
   return 1;
  }
 
@@ -137,6 +138,172 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
         length = snprintf(temp, 512, "<span class=\"%s\">", attribute);
         pr_direct_to_line_buffer(pr_ctx, temp, length, 0);
         break;
+
+   case OUTPUT_MODE_TTY:
+        length = 0;
+        if(strcmp(attribute, "sourcelistingnumbers") == 0)
+        {
+         length = snprintf(temp, 512, "%c[100;97m", 0x1B);
+        } else if(strcmp(attribute, "bca_delimiter") == 0) {
+         length = snprintf(temp, 512, "%c[46;37m", 0x1B);
+        } else if(strcmp(attribute, "bca_escape") == 0) {
+         length = snprintf(temp, 512, "%c[46;96m", 0x1B);
+        } else if(strcmp(attribute, "bca_principle") == 0) {
+         length = snprintf(temp, 512, "%c[46;35m", 0x1B);
+        } else if(strcmp(attribute, "bca_component") == 0) {
+         length = snprintf(temp, 512, "%c[46;92m", 0x1B);
+        } else if(strcmp(attribute, "bca_key") == 0) {
+         length = snprintf(temp, 512, "%c[46;93m", 0x1B);
+        } else if(strcmp(attribute, "bca_value") == 0) {
+         length = snprintf(temp, 512, "%c[46;34m", 0x1B);
+        } else if(strcmp(attribute, "sourcelistingbackground") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+        } else if(strcmp(attribute, "c_string") == 0) {
+         length = snprintf(temp, 512, "%c[44;37m", 0x1B);
+        } else if(strcmp(attribute, "c_escapesequence") == 0) {
+         length = snprintf(temp, 512, "%c[44;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_formatmodifier") == 0) {
+         length = snprintf(temp, 512, "%c[44;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_function") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_ppd") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_declarator") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_argument") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_keyword") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "c_operator") == 0) {
+         length = snprintf(temp, 512, "%c[46;31m", 0x1B);
+
+        } else if(strcmp(attribute, "comment") == 0) {
+         length = snprintf(temp, 512, "%c[46;31m", 0x1B);
+
+        } else if(strcmp(attribute, "keyword") == 0) {
+         length = snprintf(temp, 512, "%c[46;30m", 0x1B);
+
+        } else if(strcmp(attribute, "normal") == 0) {
+         length = snprintf(temp, 512, "%c[46;31m", 0x1B);
+
+        } else if(strcmp(attribute, "number") == 0) {
+         length = snprintf(temp, 512, "%c[46;32m", 0x1B);
+
+        } else if(strcmp(attribute, "symbol") == 0) {
+         length = snprintf(temp, 512, "%c[46;33m", 0x1B);
+
+        } else if(strcmp(attribute, "string") == 0) {
+         length = snprintf(temp, 512, "%c[46;34m", 0x1B);
+
+        } else if(strcmp(attribute, "specialchar") == 0) {
+         length = snprintf(temp, 512, "%c[46;35m", 0x1B);
+
+
+        } else if(strcmp(attribute, "part_title") == 0) {
+        } else if(strcmp(attribute, "chapter_title") == 0) {
+        } else if(strcmp(attribute, "section_title") == 0) {
+        } else if(strcmp(attribute, "subsection_title") == 0) {
+        } else if(strcmp(attribute, "listing_caption") == 0) {
+
+        } else if(strncmp(attribute, "terminal-", 9) == 0) {
+         if(strlen(attribute) < 15)
+          return 1;
+
+         length = 0;
+         length += snprintf(temp + length, 512 - length, "%c[", 0x1B);
+
+         switch(attribute[9]) //background
+         {
+          case 'N': //normal
+          case 'K': //black
+               length += snprintf(temp + length, 512 - length, "40");
+               break;
+
+          case 'R': //red
+               length += snprintf(temp + length, 512 - length, "41");
+               break;
+
+          case 'G': //green
+               length += snprintf(temp + length, 512 - length, "42");
+               break;
+
+          case 'Y': //yellow
+               length += snprintf(temp + length, 512 - length, "43");
+               break;
+
+          case 'B': //blue
+               length += snprintf(temp + length, 512 - length, "44");
+               break;
+
+          case 'M': //magenta
+               length += snprintf(temp + length, 512 - length, "45");
+               break;
+
+          case 'C': //cyan
+               length += snprintf(temp + length, 512 - length, "46");
+               break;
+
+          case 'W': //white
+               length += snprintf(temp + length, 512 - length, "47");
+               break;
+
+         }
+
+         length += snprintf(temp + length, 512 - length, ";");
+
+         switch(attribute[10]) //foreground
+         {
+          case 'K': //black
+               length += snprintf(temp + length, 512 - length, "30");
+               break;
+
+          case 'R': //red
+               length += snprintf(temp + length, 512 - length, "31");
+               break;
+
+          case 'N': //normal
+          case 'G': //green
+               length += snprintf(temp + length, 512 - length, "32");
+               break;
+
+          case 'Y': //yellow
+               length += snprintf(temp + length, 512 - length, "33");
+               break;
+
+          case 'B': //blue
+               length += snprintf(temp + length, 512 - length, "34");
+               break;
+
+          case 'M': //magenta
+               length += snprintf(temp + length, 512 - length, "35");
+               break;
+
+          case 'C': //cyan
+               length += snprintf(temp + length, 512 - length, "36");
+               break;
+
+          case 'W': //white
+               length += snprintf(temp + length, 512 - length, "37");
+               break;
+
+         }
+
+         length += snprintf(temp + length, 512 - length, "m");
+
+        } else {
+         fprintf(stderr, "BCA: warning, tty unhandled attribute %s\n", attribute);
+         temp[0] = length = 0;
+        }
+        pr_direct_to_line_buffer(pr_ctx, temp, length, 0);
+        break;
+
   }
  }
 
@@ -145,6 +312,9 @@ int pr_enable_attribute(struct plaintext_rendering_context *pr_ctx, char *attrib
 
 int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
 {
+ char temp[8];
+ int length = 0;
+
  if(pr_ctx->output != NULL)
  {
   switch(pr_ctx->output_mode)
@@ -154,6 +324,11 @@ int pr_disable_attribute(struct plaintext_rendering_context *pr_ctx)
 
    case OUTPUT_MODE_HTML_FILE:
         return pr_direct_to_line_buffer(pr_ctx, "</span>", -1, 0);
+        break;
+
+   case OUTPUT_MODE_TTY:
+        snprintf(temp, 8, "%c[0m", 0x1B);
+        pr_direct_to_line_buffer(pr_ctx, temp, 4, 0);
         break;
   }
  }
@@ -1466,6 +1641,7 @@ plaintext_rendering_context_copy(struct plaintext_rendering_context *source)
  pr_ctx->bottom_margin = source->bottom_margin;
  pr_ctx->justification = source->justification;
  pr_ctx->direction = source->direction;
+ pr_ctx->pad_listing_line_numbers = source->pad_listing_line_numbers;
 
  /* buffer output is explicitly setup, so don't propagate */
  pr_ctx->output_buffer = NULL;
@@ -1500,6 +1676,7 @@ int pr_send_to_line_buffer(struct plaintext_rendering_context *pr_ctx,
  switch(pr_ctx->output_mode)
  {
   case OUTPUT_MODE_TEXT_FILE:
+  case OUTPUT_MODE_TTY:
        return pr_direct_to_line_buffer(pr_ctx, buffer, n_bytes, n_characters);
        break;
 

@@ -2284,3 +2284,124 @@ int is_project_using_config_h(struct bca_context *ctx)
  return config_h;
 }
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+int config_file_to_loco_listing(struct bca_context *ctx,
+                                char *in_file_name,
+                                char *out_file_name)
+{
+ char principle[256], component[256], key[256];
+ char *contents, *value;
+ int contents_length, offset = -1, equals_pos, contains_spaces, i,
+     value_length, first;
+ FILE *output;
+
+ if(ctx->verbose > 1)
+   fprintf(stderr, "BCA: config_file_to_loco_listing()\n");
+
+ if((output = fopen(out_file_name, "w")) == NULL)
+ {
+  fprintf(stderr, "BCA: fopen(%s, w) failed, %s\n",
+          out_file_name, strerror(errno));
+  return 1;
+ }
+
+ if((contents = read_file(in_file_name, &contents_length, 0)) == NULL)
+ {
+  return 1;
+ }
+
+ fprintf(output, "listing:%s;\n", in_file_name);
+ fprintf(output, " attribute:listingtype,sourcecode;\n");
+ fprintf(output, " attribute:linenumbers,yes;\n");
+ first = 1;
+
+ while(iterate_key_primitives(ctx, contents, contents_length, &offset,
+                              NULL, NULL, NULL,
+                              principle, component, key, &equals_pos))
+ {
+  if((value = lookup_key(ctx, contents, contents_length,
+                         principle, component, key)) == NULL)
+  {
+   fprintf(stderr, "BCA: problem in file %s with %s.%s.%s\n",
+           in_file_name, principle, component, key);
+   fclose(output);
+   free(contents);
+   return 1;
+  }
+
+  value_length = 0;
+  i = 0;
+  contains_spaces = 0;
+  while(value[i] != 0)
+  {
+   if(value[i] == ' ')
+    contains_spaces = 1;
+
+   i++;
+   value_length = i;
+  }
+
+  if(first)
+  {
+   fprintf(output, " object:text,");
+   first = 0;
+  } else {
+   fprintf(output, " object:linebreak,");
+  }
+
+  fprintf(output, "\"%s\";\n", principle);
+  fprintf(output, "  attribute:syntaxhighlight,bca_principle;\n");
+
+  fprintf(output, " object:text,\".\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  fprintf(output, " object:text,\"%s\";\n", component);
+  fprintf(output, "  attribute:syntaxhighlight,bca_component;\n");
+
+  fprintf(output, " object:text,\".\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  fprintf(output, " object:text,\"%s\";\n", key);
+  fprintf(output, "  attribute:syntaxhighlight,bca_key;\n");
+
+  fprintf(output, " object:text,\" = \";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  if(contains_spaces)
+  {
+   fprintf(output, " object:text,\"\\\"\";\n");
+   fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+  }
+
+  fprintf(output, " object:text,\"");
+  for(i=0; i<value_length; i++)
+  {
+   if(value[i] == '\"')
+   {
+    fprintf(output, "\"\";\n");
+    fprintf(output, "  attribute:syntaxhighlight,bca_value;\n");
+    fprintf(output, " object:text,\"\\\"\";\n");
+    fprintf(output, "  attribute:syntaxhighlight,bca_escape;\n");
+    fprintf(output, " object:text,\"");
+   } else {
+    fprintf(output, "%c", value[i]);
+   }
+  }
+  fprintf(output, "\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_value;\n");
+
+  if(contains_spaces)
+  {
+   fprintf(output, " object:text,\"\\\"\";\n");
+   fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+  }
+
+  free(value);
+ }
+
+ fclose(output);
+ free(contents);
+ return 0;
+}
+#endif
+

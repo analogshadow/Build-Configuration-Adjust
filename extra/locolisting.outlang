@@ -1,0 +1,22 @@
+extension "loco"
+
+nodoctemplate
+"listing:$title;
+ attribute:listingtype,sourcecode;
+ attribute:linenumbers,yes;
+"
+""
+end
+
+onestyle " object:text,\"$text\";
+   attribute:syntaxhighlight,$style;
+"
+#end
+
+lineprefix " object:linebreak,\"\";
+"
+
+translations
+"\\" "\\\\"
+"\"" "\\\""
+end

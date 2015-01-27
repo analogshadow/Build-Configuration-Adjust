@@ -38,43 +38,45 @@
 #include <unistd.h>
 #endif
 
-#define NEW_PROJECT_MODE 2
-#define REMOVE_VALUE_MODE 4
-#define SHOW_VALUE_MODE 5
-#define SET_VALUE_MODE 6
-#define ADD_VALUE_MODE 7
-#define PULL_VALUE_MODE 8
-#define CHECK_VALUE_MODE 9
-#define SMART_ADD_VALUE_MODE 10
-#define SMART_PULL_VALUE_MODE 11
-#define STRING_REPLACE_MODE 15
-#define SHORT_HELP_MODE 19
-#define NEW_COMPONENT_MODE 20
-#define CONFIGURE_MODE 30
-#define GENERATE_GMAKEFILE_MODE 40
-#define CONCATENATE_MODE 50
-#define FILE_TO_C_SOURCE_MODE 51
-#define GENERATE_GRAPHVIZ_MODE 60
-#define NEWT_INTERFACE_MODE 70
-#define GTK_INTERFACE_MODE 72
-#define LIST_HOSTS_MODE 80
-#define LIST_PROJECT_TYPES_MODE 81
-#define LIST_PLATFORM_DETIALS_MODE 82
-#define LIST_PROJECT_COMPONENTS_MODE 83
-#define LIST_COMPONENT_OUTPUT_NAMES_MODE 84
-#define LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE 85
-#define LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE 86
+#define NEW_PROJECT_MODE                           2
+#define REMOVE_VALUE_MODE                          4
+#define SHOW_VALUE_MODE                            5
+#define SET_VALUE_MODE                             6
+#define ADD_VALUE_MODE                             7
+#define PULL_VALUE_MODE                            8
+#define CHECK_VALUE_MODE                           9
+#define SMART_ADD_VALUE_MODE                       10
+#define SMART_PULL_VALUE_MODE                      11
+#define STRING_REPLACE_MODE                        15
+#define SHORT_HELP_MODE                            19
+#define NEW_COMPONENT_MODE                         20
+#define CONFIGURE_MODE                             30
+#define GENERATE_GMAKEFILE_MODE                    40
+#define CONCATENATE_MODE                           50
+#define FILE_TO_C_SOURCE_MODE                      51
+#define GENERATE_GRAPHVIZ_MODE                     60
+#define NEWT_INTERFACE_MODE                        70
+#define GTK_INTERFACE_MODE                         72
+#define LIST_HOSTS_MODE                            80
+#define LIST_PROJECT_TYPES_MODE                    81
+#define LIST_PLATFORM_DETIALS_MODE                 82
+#define LIST_PROJECT_COMPONENTS_MODE               83
+#define LIST_COMPONENT_OUTPUT_NAMES_MODE           84
+#define LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE     85
+#define LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE   86
 #define LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE 87
-#define SELF_TEST_MODE 99
-#define VERSION_MODE 100
-#define DOCUMENT_MODE 200
-#define STUB_DOCUMENT_CONFIGURATION 201
+#define SELF_TEST_MODE                             99
+#define VERSION_MODE                               100
+#define OUTPUT_CONFIGURE_MODE                      110
+#define OUTPUT_BCASFD_MODE                         111
+#define DOCUMENT_MODE                              200
+#define STUB_DOCUMENT_CONFIGURATION_MODE           201
+#define CONFIG_FILE_TO_LOCO_LISTING_MODE           202
 
-#define OUTPUT_CONFIGURE_MODE 110
-#define OUTPUT_BCASFD_MODE 111
 
-#define MANIPULATE_PROJECT_CONFIGURATION   3
-#define MANIPULATE_BUILD_CONFIGURATION     4
+#define MANIPULATE_PROJECT_CONFIGURATION   301
+#define MANIPULATE_BUILD_CONFIGURATION     302
+#define MANIPULATE_DOCUMENT_CONFIGURATION  303
 
 #define EFFECTIVE_PATHS_LOCAL   6
 #define EFFECTIVE_PATHS_INSTALL 7
@@ -110,6 +112,8 @@ struct bca_context
 
  char **input_files;
  int n_input_files, line_number, input_file_index;
+
+ char *output_file;
 };
 
 struct component_details
@@ -490,6 +494,12 @@ int resolve_component_installation_path(struct bca_context *ctx,
 int check_duplicate_output_names(struct bca_context *ctx, struct component_details *cd);
 
 int is_project_using_config_h(struct bca_context *ctx);
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+int config_file_to_loco_listing(struct bca_context *ctx,
+                                char *in_file_name,
+                                char *out_file_name);
+#endif
 
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx,

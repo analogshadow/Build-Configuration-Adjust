@@ -23,6 +23,7 @@ struct source_listing_object
  int line_break, n_bytes, n_chars;
  char text[1024];
  char attribute[1024];
+ int null;
 };
 
 struct screen_log_object
@@ -30,6 +31,7 @@ struct screen_log_object
  int line_break, n_bytes, n_chars;
  int foreground, background, bold;
  char text[1024];
+ int null;
 };
 
 struct locolisting_operation_context
@@ -52,6 +54,9 @@ struct locolisting_operation_context
  int line_width;
  int cursor;
 };
+
+int render_locolisting_caption(struct locolisting_operation_context *octx);
+int render_locolisting_line_numbers(struct locolisting_operation_context *octx);
 
 int color_to_code(struct locolisting_operation_context *octx, char *string)
 {
@@ -158,7 +163,7 @@ int send_to_line_buffer(struct locolisting_operation_context *octx,
    if(pr_disable_attribute(octx->pr_ctx))
     return 1;
 
-   if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
+   if(pr_enable_attribute(octx->pr_ctx, "source_wrap"))
     return 1;
 
    if(pr_send_to_line_buffer(octx->pr_ctx, "→", 3, 1))
@@ -175,11 +180,14 @@ int send_to_line_buffer(struct locolisting_operation_context *octx,
     if(pr_enable_attribute(octx->pr_ctx, "sourcelistingnumbers"))
      return 1;
 
-    for(s = 0; s < (octx->ld->n_chars_needed_for_line_numbers); s++)
+    for(s = 0; s < (octx->ld->n_chars_needed_for_line_numbers) - 1; s++)
     {
      if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
       return 1;
     }
+
+    if(pr_send_to_line_buffer(octx->pr_ctx, "→", 3, 1))
+     return 1;
 
     if(pr_disable_attribute(octx->pr_ctx))
      return 1;
@@ -231,6 +239,163 @@ int send_to_line_buffer(struct locolisting_operation_context *octx,
  return 0;
 }
 
+int send_source_listing_object(struct locolisting_operation_context *octx,
+                               struct source_listing_object *object,
+                               int last_line)
+{
+ char *fill_attribute = "sourcelistingbackground";
+ int s;
+
+// fprintf(stderr, "object = [linebreak=%d, n_bytes=%d, n_chars=%d, text='%s', attribute='%s']\n",
+//         object->line_break, object->n_bytes, object->n_chars, object->text, object->attribute);
+
+ if(object->attribute[0] == 0)
+  snprintf(object->attribute, 1024, "%s", fill_attribute);
+
+ /* ignore header new lines */
+ if(octx->first_pass)
+ {
+  if(octx->ld->height == 0)
+   if(octx->line_width == 0)
+    object->line_break = 0;
+ } else {
+  if(octx->ld->line - octx->ld->line_numbers_start == 0)
+   if(octx->line_width == 0)
+    object->line_break = 0;
+ }
+
+ /* ignore footer new lines */
+ if(last_line)
+  if(object->n_chars == 0)
+   object->line_break = 0;
+
+ if(object->line_break == 1)
+ {
+  if(octx->first_pass)
+  {
+   if(octx->line_width > octx->ld->width)
+    octx->ld->width = octx->line_width;
+
+   octx->line_width = 0;
+   octx->ld->height++;
+   return 0;
+  }
+
+  if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
+   return 1;
+
+  for(s = octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  {
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(octx->pr_ctx))
+   return 1;
+
+  if(pr_advance_line(octx->pr_ctx))
+   return 1;
+
+  octx->line_width = 0;
+  octx->ld->line++;
+
+  if(render_locolisting_line_numbers(octx))
+   return 1;
+ }
+
+ octx->line_width += object->n_chars;
+ if(octx->first_pass)
+  return 0;
+
+ if(object->n_bytes > 0)
+ {
+  if(send_to_line_buffer(octx,
+                         object->text, object->n_bytes, object->n_chars,
+                         object->attribute, fill_attribute))
+   return 1;
+ }
+
+ if(last_line)
+ {
+  if(pr_enable_attribute(octx->pr_ctx, "sourcelistingbackground"))
+   return 1;
+
+  for(s=octx->pr_ctx->n_characters; s < octx->listing_entry->render_width; s++)
+  {
+   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
+    return 1;
+  }
+
+  if(pr_disable_attribute(octx->pr_ctx))
+   return 1;
+
+  if(pr_advance_line(octx->pr_ctx))
+   return 1;
+
+  octx->ld->line++;
+ }
+
+ return 0;
+}
+
+int handle_loco_source_listing_object(struct locolisting_operation_context *octx,
+                                      struct source_listing_object *object)
+{
+ if(strcmp(octx->data, "text") == 0)
+ {
+  snprintf(object->text, 1024, "%s", octx->argument);
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ } else if(strcmp(octx->data, "linebreak") == 0) {
+  object->line_break = 1;
+  snprintf(object->text, 1024, "%s", octx->argument);
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ } else {
+  fprintf(stderr, "BCA: locolisting format file %s line %d unknown source "
+          "listing object type '%s'\n",
+           octx->file_name, octx->source_line_number, octx->data);
+  return 1;
+ }
+
+ return 0;
+}
+
+int handle_loco_source_listing_attribute(struct locolisting_operation_context *octx,
+                                         struct source_listing_object *object)
+{
+
+ if(strcmp(octx->data, "syntaxhighlight") == 0)
+ {
+  if(object->attribute[0] != 0)
+  {
+   fprintf(stderr,
+           "BCA: loco listing file %s, line %d: source listing object attribute \"syntaxhighlight\" "
+           "already set to \"%s\"\n",
+           octx->file_name, octx->source_line_number, object->attribute);
+   return 1;
+  }
+
+  if(octx->argument_length == 0)
+  {
+   fprintf(stderr,
+           "BCA: loco listing file %s, line %d: source listing object attribute \"syntaxhighlight\" "
+           "expects an argument\n",
+           octx->file_name, octx->source_line_number);
+   return 1;
+  }
+
+  snprintf(object->attribute, 1024, "%s", octx->argument);
+ } else {
+  fprintf(stderr,
+          "BCA: loco listing file %s, line %d: unknown source listing object attribute \"%s\"\n",
+          octx->file_name, octx->source_line_number, octx->data);
+  return 1;
+ }
+
+ return 0;
+}
+
 int render_locolisting_caption(struct locolisting_operation_context *octx)
 {
  char temp[64];
@@ -261,107 +426,34 @@ int render_locolisting_caption(struct locolisting_operation_context *octx)
 int render_locolisting_line_numbers(struct locolisting_operation_context *octx)
 {
  int n_chars, s;
- char buffer[32];
+ char buffer[32], buffer2[32];
 
  if(octx->ld->line_numbers)
  {
-  if(octx->pr_ctx->pad_listing_line_numbers)
-   n_chars = snprintf(buffer, 32, "%d ", octx->ld->line);
-  else
-   n_chars = snprintf(buffer, 32, "%d", octx->ld->line);
+  n_chars = snprintf(buffer, 32, "%d", octx->ld->line);
+
+  for(s = 0; s < octx->pr_ctx->pad_listing_line_numbers; s++)
+  {
+   n_chars += snprintf(buffer + n_chars, 32 - n_chars, " ");
+  }
 
   /* right justify */
-  for(s = 0; s < (octx->ld->n_chars_needed_for_line_numbers - n_chars); s++)
+  for(s = 0; s < octx->ld->n_chars_needed_for_line_numbers - n_chars; s++)
   {
-   memmove(buffer + s + 1, buffer + s, n_chars++);
-           buffer[s] = ' ';
+   buffer2[s] = ' ';
   }
+  memcpy(buffer2+ s, buffer, n_chars);
+  n_chars += s;
 
   if(pr_enable_attribute(octx->pr_ctx, "sourcelistingnumbers"))
    return 1;
 
-  if(pr_send_to_line_buffer(octx->pr_ctx, buffer, n_chars, n_chars))
+  if(pr_send_to_line_buffer(octx->pr_ctx, buffer2, n_chars, n_chars))
    return 1;
 
   if(pr_disable_attribute(octx->pr_ctx))
    return 1;
 
- }
-
- return 0;
-}
-
-int send_source_listing_object(struct locolisting_operation_context *octx,
-                               struct source_listing_object *object,
-                               int last_line)
-{
- char *fill_attribute = "sourcelistingbackground";
- int s;
-
-// fprintf(stderr, "object = [linebreak=%d, n_bytes=%d, n_chars=%d, text='%s', attribute='%s']\n",
-//         object->line_break, object->n_bytes, object->n_chars, object->text, object->attribute);
-
- if(object->attribute[0] == 0)
-  snprintf(object->attribute, 1024, "%s", fill_attribute);
-
- if(object->line_break)
- {
-  if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
-   return 1;
-
-  for(s = octx->pr_ctx->n_characters;
-      s < (octx->listing_entry->render_width - octx->ld->n_chars_needed_for_line_numbers);
-      s++)
-  {
-   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
-    return 1;
-  }
-
-  if(pr_disable_attribute(octx->pr_ctx))
-   return 1;
-
-  if(pr_advance_line(octx->pr_ctx))
-   return 1;
-
-  octx->ld->line++;
-  octx->listing_entry->render_height++;
- }
-
- if(object->line_break)
- {
-  if(render_locolisting_line_numbers(octx))
-   return 1;
- }
-
- if(object->n_bytes > 0)
- {
-  if(send_to_line_buffer(octx,
-                         object->text, object->n_bytes, object->n_chars,
-                         object->attribute, fill_attribute))
-   return 1;
- }
-
- if(last_line)
- {
-  if(pr_enable_attribute(octx->pr_ctx, "sourcelistingbackground"))
-   return 1;
-
-  for(s=octx->pr_ctx->n_characters;
-      s < (octx->listing_entry->render_width - octx->ld->n_chars_needed_for_line_numbers);
-      s++)
-  {
-   if(pr_send_to_line_buffer(octx->pr_ctx, " ", 1, 1))
-    return 1;
-  }
-
-  if(pr_disable_attribute(octx->pr_ctx))
-   return 1;
-
-  if(pr_advance_line(octx->pr_ctx))
-   return 1;
-
-  octx->ld->line++;
-  octx->listing_entry->render_height++;
  }
 
  return 0;
@@ -425,8 +517,18 @@ int send_screen_log_object(struct locolisting_operation_context *octx,
        return 1;
  }
 
- if(object->line_break)
+ if(object->line_break == 1)
  {
+  if(octx->first_pass)
+  {
+   if(octx->line_width > octx->ld->width)
+    octx->ld->width = octx->line_width;
+
+   octx->line_width = 0;
+   octx->ld->height++;
+   return 0;
+  }
+
   if(pr_enable_attribute(octx->pr_ctx, fill_attribute))
    return 1;
 
@@ -442,9 +544,13 @@ int send_screen_log_object(struct locolisting_operation_context *octx,
   if(pr_advance_line(octx->pr_ctx))
    return 1;
 
+  octx->line_width = 0;
   octx->ld->line++;
-  octx->listing_entry->render_height++;
  }
+
+ octx->line_width += object->n_chars;
+ if(octx->first_pass)
+  return 0;
 
  if(send_to_line_buffer(octx, object->text, object->n_bytes, object->n_chars,
                         attribute, fill_attribute))
@@ -468,12 +574,58 @@ int send_screen_log_object(struct locolisting_operation_context *octx,
    return 1;
 
   octx->ld->line++;
-  octx->listing_entry->render_height++;
  }
 
  return 0;
 }
 
+int handle_loco_screen_log_object(struct locolisting_operation_context *octx,
+                                  struct screen_log_object *object)
+{
+ if(strcmp(octx->data, "text") == 0)
+ {
+  snprintf(object->text, 1024, "%s", octx->argument);
+  object->line_break = 0;
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ } else if(strcmp(octx->data, "linebreak") == 0) {
+  snprintf(object->text, 1024, "%s", octx->argument);
+  object->line_break = 1;
+  object->n_bytes = octx->argument_length;
+  object->n_chars = octx->argument_n_chars;
+ } else {
+  fprintf(stderr,
+          "BCA: loco listing file %s, line %d: unknown screen log listing object type \"%s\"\n",
+          octx->file_name, octx->source_line_number, octx->data);
+  return 1;
+ }
+
+ return 0;
+}
+
+int handle_loco_screen_log_attribute(struct locolisting_operation_context *octx,
+                                     struct screen_log_object *object)
+{
+
+ if(strcmp(octx->data, "terminalforeground") == 0)
+ {
+  if((object->foreground = color_to_code(octx, octx->argument)) == -1)
+   return 1;
+
+ } else if(strcmp(octx->data, "terminalbackground") == 0) {
+  if((object->background = color_to_code(octx, octx->argument)) == -1)
+
+   return 1;
+
+ } else {
+  fprintf(stderr,
+          "BCA: loco listing file %s, line %d: unknown screen log listing object attribute \"%s\"\n",
+          octx->file_name, octx->source_line_number, octx->data);
+  return 1;
+ }
+
+ return 0;
+}
 
 /* scan lines thar are in the form declarative:data[,arg];
    file_name and source_line_number are for error messages
@@ -620,6 +772,34 @@ int next_ll_declarative(struct locolisting_operation_context *octx,
       locolisting_escape_processing(octx, octx->argument, length)) < 0)
    return 1;
 
+  /* remove tabs */
+  code = 0;
+  for(i=0; i<length; i++)
+  {
+   if(octx->argument[i] == '\t')
+    code++;
+  }
+  if(length + (code * 5) > argument_size)
+  {
+   fprintf(stderr, "BCA fix me\n");
+   return 1;
+  }
+  i = 0;
+  while(code > 0)
+  {
+   if(octx->argument[i] == '\t')
+   {
+    memmove(octx->argument + i + 5, octx->argument + i + 1, length - i - i);
+    memcpy(octx->argument + i, "⇥  ", 5);
+    i += 5;
+    length += 5;
+    code--;
+   } else {
+    i++;
+   }
+  }
+
+
   octx->argument_length = length;
 
   if((octx->argument_n_chars = count_characters(octx->argument, length)) < 0)
@@ -630,153 +810,6 @@ int next_ll_declarative(struct locolisting_operation_context *octx,
  return 0;
 }
 
-int handle_loco_source_listing_object(struct locolisting_operation_context *octx,
-                                      struct source_listing_object *object)
-{
-
- if(strcmp(octx->data, "text") == 0)
- {
-
-  if(octx->first_pass)
-  {
-   /* all we are trying to do on the first pass is the source dimensions */
-   octx->line_width += octx->argument_n_chars;
-  } else {
-   if(object->text[0] != 0)
-    if(send_source_listing_object(octx, object, 0))
-     return 1;
-
-   snprintf(object->text, 1024, "%s", octx->argument);
-   object->line_break = 0;
-  }
-  object->attribute[0] = 0;
-  object->n_bytes = octx->argument_length;
-  object->n_chars = octx->argument_n_chars;
- } else if(strcmp(octx->data, "linebreak") == 0) {
-  if(octx->first_pass)
-  {
-   if(octx->line_width > octx->ld->width)
-    octx->ld->width = octx->line_width;
-
-   octx->line_width = octx->argument_n_chars;
-   octx->ld->height++;
-  } else {
-
-   if(send_source_listing_object(octx, object, 0))
-    return 1;
-
-   snprintf(object->text, 1024, "%s", octx->argument);
-  }
-  object->line_break = 1;
-  object->attribute[0] = 0;
-  object->n_bytes = octx->argument_length;
-  object->n_chars = octx->argument_n_chars;
- }
-
- return 0;
-}
-
-int handle_loco_source_listing_attribute(struct locolisting_operation_context *octx,
-                                         struct source_listing_object *object)
-{
-
- if(strcmp(octx->data, "syntaxhighlight") == 0)
- {
-  if(object->attribute[0] != 0)
-  {
-   fprintf(stderr,
-           "BCA: loco listing file %s, line %d: source listing object attribute \"syntaxhighlight\" "
-           "already set to \"%s\"\n",
-           octx->file_name, octx->source_line_number, object->attribute);
-   return 1;
-  }
-
-  if(octx->argument_length == 0)
-  {
-   fprintf(stderr,
-           "BCA: loco listing file %s, line %d: source listing object attribute \"syntaxhighlight\" "
-           "expects an argument\n",
-           octx->file_name, octx->source_line_number);
-   return 1;
-  }
-
-  snprintf(object->attribute, 1024, "%s", octx->argument);
- } else {
-  fprintf(stderr,
-          "BCA: loco listing file %s, line %d: unknown source listing object attribute \"%s\"\n",
-          octx->file_name, octx->source_line_number, octx->data);
-  return 1;
- }
-
- return 0;
-}
-
-int handle_loco_screen_log_object(struct locolisting_operation_context *octx,
-                                  struct screen_log_object *object)
-{
- if(strcmp(octx->data, "text") == 0)
- {
-
-  if(octx->first_pass)
-  {
-   /* all we are trying to do on the first pass is the source dimensions */
-   octx->line_width += octx->argument_n_chars;
-  } else {
-   if(object->text[0] != 0)
-    if(send_screen_log_object(octx, object, 0))
-     return 1;
-
-   snprintf(object->text, 1024, "%s", octx->argument);
-   object->line_break = 0;
-  }
-  object->n_bytes = octx->argument_length;
-  object->n_chars = octx->argument_n_chars;
- } else if(strcmp(octx->data, "linebreak") == 0) {
-  if(octx->first_pass)
-  {
-   if(octx->line_width > octx->ld->width)
-    octx->ld->width = octx->line_width;
-
-   octx->line_width = octx->argument_n_chars;
-   octx->ld->height++;
-  } else {
-
-   if(send_screen_log_object(octx, object, 0))
-    return 1;
-
-   snprintf(object->text, 1024, "%s", octx->argument);
-  }
-  object->line_break = 1;
-  object->n_bytes = octx->argument_length;
-  object->n_chars = octx->argument_n_chars;
- }
-
- return 0;
-}
-
-int handle_loco_screen_log_attribute(struct locolisting_operation_context *octx,
-                                     struct screen_log_object *object)
-{
-
- if(strcmp(octx->data, "terminalforeground") == 0)
- {
-  if((object->foreground = color_to_code(octx, octx->argument)) == -1)
-   return 1;
-
- } else if(strcmp(octx->data, "terminalbackground") == 0) {
-  if((object->background = color_to_code(octx, octx->argument)) == -1)
-
-   return 1;
-
- } else {
-  fprintf(stderr,
-          "BCA: loco listing file %s, line %d: unknown screen log listing object attribute \"%s\"\n",
-          octx->file_name, octx->source_line_number, octx->data);
-  return 1;
- }
-
- return 0;
-}
 
 int handle_locolisting(struct document_handling_context *dctx,
                        struct plaintext_engine_context *pe_ctx,
@@ -809,9 +842,11 @@ int handle_locolisting(struct document_handling_context *dctx,
 
  source_listing_object.attribute[0] = 0;
  source_listing_object.text[0] = 0;
+ source_listing_object.null = 1;
  screen_log_object.text[0] = 0;
  screen_log_object.foreground = -1;
  screen_log_object.background = -1;
+ screen_log_object.null = 1;
 
  if(listing_entry->listing_type_specific == NULL)
  {
@@ -908,13 +943,35 @@ int handle_locolisting(struct document_handling_context *dctx,
         switch(listing_type)
         {
          case SOURCE_CODE:
+              if(source_listing_object.null == 0)
+              {
+               if(send_source_listing_object(octx, &source_listing_object, 0))
+                return 1;
+               source_listing_object.attribute[0] = 0;
+               source_listing_object.line_break = 0;
+               source_listing_object.null = 1;
+              }
               if(handle_loco_source_listing_object(octx, &source_listing_object))
                return 1;
+
+              source_listing_object.null = 0;
               break;
 
          case SCREEN_LOG:
+              if(screen_log_object.null == 0)
+              {
+               if(send_screen_log_object(octx, &screen_log_object, 0))
+                return 1;
+
+               screen_log_object.foreground = -1;
+               screen_log_object.background = -1;
+               screen_log_object.bold = 0;
+               screen_log_object.null = 1;
+              }
               if(handle_loco_screen_log_object(octx, &screen_log_object))
                return 1;
+
+              screen_log_object.null = 0;
               break;
         }
         break;
@@ -1014,11 +1071,11 @@ int handle_locolisting(struct document_handling_context *dctx,
 
  } else {
 
-  if(source_listing_object.text[0] != 0)
+  if(source_listing_object.null == 0)
   {
    if(send_source_listing_object(octx, &source_listing_object, 1))
     return 1;
-  } else if(screen_log_object.text[0] != 0) {
+  } else if(screen_log_object.null == 0) {
    if(send_screen_log_object(octx, &screen_log_object, 1))
     return 1;
   }

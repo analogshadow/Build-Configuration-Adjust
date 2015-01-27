@@ -14,7 +14,7 @@ int main(int argc, char **argv)
 
  memset(ctx, 0, sizeof(struct locolisting_context));
  ctx->line_numbers = -1;
- 
+
  if(argc < 2)
  {
   help();
@@ -221,25 +221,25 @@ int main(int argc, char **argv)
   fprintf(stderr, "conversion type is %s\n", ctx->conversion_type);
 
  if(strcmp(ctx->conversion_type, "C") == 0)
- { 
+ {
   return convert_c_source(ctx, filename);
  }
 
  if(strcmp(ctx->conversion_type, "screenlog") == 0)
- { 
+ {
   return convert_screen_log(ctx, filename);
  }
 
  if(strcmp(ctx->conversion_type, "plaintext") == 0)
- { 
+ {
   return convert_plaintext(ctx, filename);
  }
 
- fprintf(stderr, "unkown conversion type: %s\n", ctx->conversion_type); 
+ fprintf(stderr, "unkown conversion type: %s\n", ctx->conversion_type);
  return 1;
 }
 
-int read_line(struct locolisting_context *ctx) 
+int read_line(struct locolisting_context *ctx)
 {
  char c, *p;
  int allocation_size, bytes_read;
@@ -269,7 +269,7 @@ int read_line(struct locolisting_context *ctx)
             ctx->current_filename, ctx->line_number);
     return -1;
    }
- 
+
    if((p = (char *) realloc(ctx->line_buffer, allocation_size)) == NULL)
    {
     fprintf(stderr, "realloc(%d) failed\n", allocation_size);
@@ -292,7 +292,7 @@ int read_line(struct locolisting_context *ctx)
  return feof(ctx->current_file);
 }
 
-int add_to_string_array(char ***array, int array_size, 
+int add_to_string_array(char ***array, int array_size,
                         char *string, int string_length,
                         int prevent_duplicates)
 {
@@ -320,7 +320,7 @@ int add_to_string_array(char ***array, int array_size,
   perror("BCA: realloc()");
   return -1;
  }
-   
+
  *array = new_ptr;
 
  if(string != NULL)
@@ -356,7 +356,7 @@ int free_string_array(char **array, int n_elements)
 
 void help(void)
 {
- fprintf(stderr, 
+ fprintf(stderr,
          "usage:\n"
          " locolisting [options] inputfilename\n"
          " where options are:\n"

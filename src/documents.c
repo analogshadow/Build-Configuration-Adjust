@@ -997,8 +997,12 @@ int handle_input(struct bca_context *ctx,
   return 0;
 
  if(dctx->consume_text != NULL)
+ {
   return dctx->consume_text(dctx, string, length);
-
+ } else {
+  fprintf(stderr, "BCA: consume_text is NULL\n");
+  return 1;
+ }
  return 0;
 }
 
@@ -1010,7 +1014,12 @@ int add_to_input_buffer(struct bca_context *ctx,
 
  if(dctx->input_buffer_length + length > 1023)
  {
-  fprintf(stderr, "BCA: documents.c add_to_input_buffer() fix me\n");
+  fprintf(stderr, "BCA: documents.c add_to_input_buffer() fix me\n"
+          "%d \"%s\" + %d \"%s\"\n",
+          dctx->input_buffer_length,
+          dctx->input_buffer,
+          length, string);
+  return 1;
  } else {
   for(i=0; i<length; i++)
   {
@@ -1041,7 +1050,17 @@ int process_file(struct bca_context *ctx,
   if(c != '@')
   {
    if(add_to_input_buffer(ctx, dctx, &c, 1))
+   {
+    fprintf(stderr, "BCA: fail\n");
     return 1;
+   }
+
+   dctx->input_buffer[dctx->input_buffer_length] = 0;
+   if(handle_input(ctx, dctx, dctx->input_buffer, dctx->input_buffer_length))
+    return 1;
+   dctx->input_buffer_length = 0;
+
+
   } else {
 
    dctx->input_buffer[dctx->input_buffer_length] = 0;
@@ -1105,7 +1124,7 @@ int process_file(struct bca_context *ctx,
 int document_mode(struct bca_context *ctx)
 {
  int i, allocation_size, *length_array, *fd_array;
- char **contents_array;
+ char **contents_array, *parameters[5];
  struct document_handling_context *dctx;
 
  if(ctx->verbose > 1)
@@ -1188,7 +1207,52 @@ int document_mode(struct bca_context *ctx)
   }
  }
 
+ /* engines that need multiple passes, must reset this back to 1 before
+    finishing a pass. */
  ctx->loop_inputs = 1;
+
+ /* special case handling for direct loco listing rendering */
+ if(ctx->n_input_files == 1)
+ {
+  if((i = strlen(ctx->input_files[0])) > 4)
+  {
+   if(strncmp(ctx->input_files[0] + i - 5, ".loco", 5) == 0)
+   {
+    if(ctx->verbose > 0)
+     fprintf(stderr, "BCA: using direct listing render mode\n");
+
+    while(ctx->loop_inputs)
+    {
+     ctx->loop_inputs = 0;
+
+     if(dctx->start_document != NULL)
+      if(dctx->start_document(dctx))
+       return 1;
+
+     ctx->input_file_index = 0;
+     ctx->line_number = 1;
+
+     parameters[0] = "dlisting";
+     parameters[1] = ""; /* caption */
+     parameters[2] = "locolisting";
+     parameters[3] = ctx->input_files[0];
+
+     if(function_dlisting(dctx, parameters, 4))
+      return 1;
+
+     if(function_close(dctx, DLEVEL_LISTING))
+      return 1;
+
+     if(dctx->finish_document != NULL)
+      if(dctx->finish_document(dctx))
+       return 1;
+
+     ctx->pass_number++;
+    }
+   }
+  }
+ }
+
  while(ctx->loop_inputs)
  {
   ctx->loop_inputs = 0;
@@ -1303,6 +1367,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  n_records++;
 
  principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "top_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
  components[n_records] = "text";
  keys[n_records] = "bottom_margin";
  values[n_records] = "0";
@@ -1321,6 +1391,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  n_records++;
 
  principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "bottom_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
  components[n_records] = "text";
  keys[n_records] = "left_margin";
  values[n_records] = "0";
@@ -1328,6 +1404,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
 
  principles[n_records] = "plaintext";
  components[n_records] = "html";
+ keys[n_records] = "left_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "tty";
  keys[n_records] = "left_margin";
  values[n_records] = "0";
  n_records++;
@@ -1345,6 +1427,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  n_records++;
 
  principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "right_margin";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
  components[n_records] = "text";
  keys[n_records] = "show_page_numbers";
  values[n_records] = "yes";
@@ -1354,6 +1442,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  components[n_records] = "html";
  keys[n_records] = "show_page_numbers";
  values[n_records] = "yes";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "show_page_numbers";
+ values[n_records] = "no";
  n_records++;
 
  principles[n_records] = "plaintext";
@@ -1364,6 +1458,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
 
  principles[n_records] = "plaintext";
  components[n_records] = "html";
+ keys[n_records] = "paragraph_line_spacing";
+ values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "tty";
  keys[n_records] = "paragraph_line_spacing";
  values[n_records] = "1";
  n_records++;
@@ -1381,6 +1481,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  n_records++;
 
  principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "paragraph_indent";
+ values[n_records] = "4";
+ n_records++;
+
+ principles[n_records] = "plaintext";
  components[n_records] = "text";
  keys[n_records] = "show_toc";
  values[n_records] = "1";
@@ -1393,6 +1499,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  n_records++;
 
  principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "show_toc";
+ values[n_records] = "0";
+ n_records++;
+
+ principles[n_records] = "plaintext";
  components[n_records] = "text";
  keys[n_records] = "show_index";
  values[n_records] = "1";
@@ -1402,6 +1514,12 @@ int stub_document_configuration_file(struct bca_context *ctx)
  components[n_records] = "html";
  keys[n_records] = "show_index";
  values[n_records] = "1";
+ n_records++;
+
+ principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "show_index";
+ values[n_records] = "0";
  n_records++;
 
  principles[n_records] = "plaintext";
@@ -1416,6 +1534,11 @@ int stub_document_configuration_file(struct bca_context *ctx)
  values[n_records] = "0";
  n_records++;
 
+ principles[n_records] = "plaintext";
+ components[n_records] = "tty";
+ keys[n_records] = "pad_listing_line_numbers";
+ values[n_records] = "1";
+ n_records++;
 
 
  contents =

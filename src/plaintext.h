@@ -15,6 +15,8 @@ struct plaintext_engine_context;
 
 #define OUTPUT_MODE_TEXT_FILE 800
 #define OUTPUT_MODE_HTML_FILE 801
+#define OUTPUT_MODE_TTY       802
+
 
 struct plaintext_footnote
 {
