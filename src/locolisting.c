@@ -784,6 +784,7 @@ int next_ll_declarative(struct locolisting_operation_context *octx,
    fprintf(stderr, "BCA fix me\n");
    return 1;
   }
+
   i = 0;
   while(code > 0)
   {
@@ -792,13 +793,12 @@ int next_ll_declarative(struct locolisting_operation_context *octx,
     memmove(octx->argument + i + 5, octx->argument + i + 1, length - i - i);
     memcpy(octx->argument + i, "⇥  ", 5);
     i += 5;
-    length += 5;
+    length += 4;
     code--;
    } else {
     i++;
    }
   }
-
 
   octx->argument_length = length;
 
@@ -809,7 +809,6 @@ int next_ll_declarative(struct locolisting_operation_context *octx,
  octx->cursor = end;
  return 0;
 }
-
 
 int handle_locolisting(struct document_handling_context *dctx,
                        struct plaintext_engine_context *pe_ctx,

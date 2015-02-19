@@ -125,6 +125,9 @@ int plaintext_open_listing(struct document_handling_context *dctx,
   return 1;
 
  pe_ctx->pr_ctx->justification = PER_CENTER_JUSTIFY;
+ pe_ctx->pr_ctx->show_page_numbers = 0;
+ pe_ctx->pr_ctx->top_margin = 0;
+ pe_ctx->pr_ctx->bottom_margin = 0;
 
  /* first pass allocates entries, subsequent passes find the entry */
  if(dctx->ctx->pass_number == 0)

@@ -46,9 +46,9 @@ int pr_flush_line_buffer(struct plaintext_rendering_context *pr_ctx)
  if(pr_ctx->n_characters > width)
  {
   fprintf(stderr, "BCA: should not be here: %s %d\n", __FILE__, __LINE__);
-  fprintf(stderr, "BCA: width = %d, n_characters = %d, current_col = %d, "
+  fprintf(stderr, "BCA: width = %d, n_characters = %d, n_bytes = %d, current_col = %d, "
           "line buffer = \"%s\", left_margin = %d, right_margin = %d\n",
-          width, pr_ctx->n_characters, pr_ctx->current_col, pr_ctx->line_buffer,
+          width, pr_ctx->n_characters, pr_ctx->n_bytes, pr_ctx->current_col, pr_ctx->line_buffer,
           pr_ctx->left_margin_width, pr_ctx->right_margin_width);
   return 1;
  }
