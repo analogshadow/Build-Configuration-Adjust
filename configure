@@ -28,6 +28,23 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+if [ "$1" = "--help=short" ]; then
+	./bca --help=short
+	exit $?
+fi
+
+if [ "$1" = "--help" ]; then
+	echo "===================================================================================="
+	echo "BCA configure is a wrapper / helper / compatibility script arround the binary executable \"./bca\"."
+	echo "If this directory has no ./bca, it will be found or built, and then linked to by this script."
+	echo "The one optional agrument configure has is --clean, which will attempt to start with a blank slate."
+	echo "See the source of configure for more information. Invoking \"./bca --help\"..."
+	echo "===================================================================================="
+	./bca --help
+	exit $?
+fi
+
+
 if [ "$1" = "--clean" ]
 then
 	echo "configure: cleaning any build and configuration state:"
@@ -140,7 +157,7 @@ else
 fi
 
 #attempt configuration
-echo "configure: running ./bca --configure"
+echo "configure: invoking \"./bca --configure\""
 ./bca --configure $*
 
 if [ $? != 0 ]
@@ -165,7 +182,7 @@ then
 	if [ -f "./configure.ac" ]
 	then
 		echo "configure: Since ./configure-autoconf was NOT found, and since ./configure.ac"
-		echo "configure: was, running autoconf will be attempted..."
+		echo "configure: was, invoking \"autoconf\" will be attempted..."
 		autoconf configure.ac > configure-autoconf
 		if [ $? != 0 ]
 		then
@@ -223,7 +240,7 @@ fi
 HOST_IDENTIFIERS=`./bca --listbuildhosts`
 for HOST_IDENTIFIER in $HOST_IDENTIFIERS
 do
-	echo "configure: creating directores for build host $HOST_IDENTIFIER..."
+	echo "configure: creating directores for build host \"$HOST_IDENTIFIER\"..."
 	BUILD_PREFIX=`./bca --host $HOST_IDENTIFIER --showvalue BUILD_PREFIX`
 	if [ -d "$BUILD_PREFIX" ]
 	then
@@ -242,13 +259,13 @@ do
 done
 
 #attempt makefile generation
-echo "configure: generating Makefile.bca"
+echo "configure: generating Makefile.bca by invoking \"./bca --generate-gmakefile\""
 ./bca --generate-gmakefile
 if [ $? != 0 ]
 then
-	echo "configure: One possible reason makefile generation failed is the need for further, "
-        echo "possibly manual configurion of the build configuration. Read the install file. "
-	echo "To try to generate the makefile again without running configure use ./bca --generate-gmakefile"
+	echo "configure: One possible reason makefile generation failed is the need for further," \
+             "possibly manual configurion of the build configuration. Read the install file. "
+	echo "configure: To try to generate the makefile again without running configure use ./bca --generate-gmakefile"
 	exit 1
 fi
 echo 'configure: Next use GNU Make to process Makefile.bca, ie "make -f Makefile.bca" or "gmake -f Makefile.bca".'

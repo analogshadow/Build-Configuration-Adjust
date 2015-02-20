@@ -1,4 +1,4 @@
-/* GPLv36
+/* GPLv3
 
     Build Configuration Adjust, a source configuration and Makefile
     generation tool. Copyright © 2012-2014 Stover Enterprises, LLC
@@ -1891,8 +1891,8 @@ int generate_gmake_host_component_file_rules(struct bca_context *ctx, FILE *outp
 
 int fresh_config_depends_check(struct bca_context *ctx, struct component_details *cd)
 {
- char **list = NULL;
- int n_elements = 0, x, i, clear;
+ char **list = NULL, *value, **default_disables;
+ int n_elements = 0, x, i, j, clear, n_default_disables;
 
  if(list_component_internal_dependencies(ctx, cd, &list, &n_elements))
  {
@@ -1928,9 +1928,37 @@ int fresh_config_depends_check(struct bca_context *ctx, struct component_details
     if(strcmp(list[i], ctx->disabled_components[x]) == 0)
     {
      fprintf(stderr,
-             "BCA: can not generate makefile because component \"%s\" has an internal "
-             "dependency on component \"%s\", which as been disabled.\n",
+             "BCA: Can not generate makefile because component \"%s\" has an internal "
+             "dependency on component \"%s\", which has been disabled.\n",
              cd->project_component, list[i]);
+
+     if((value = lookup_key(ctx,
+                            ctx->project_configuration_contents,
+                            ctx->project_configuration_length,
+                            "NONE", "NONE", "DISABLES")) != NULL)
+     {
+      if(split_strings(ctx, value, -1, &n_default_disables, &default_disables))
+      {
+       fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
+       return 1;
+      }
+
+      j = 0;
+      while(j < n_default_disables)
+      {
+       if(strcmp(list[i], default_disables[j]) == 0)
+       {
+        fprintf(stderr,
+                "BCA: Also, since \"%s\" is in the project's disable by default list "
+                "(\"NONE.NONE.DISABLES\"), is it meant to be listed in:\n"
+                "BCA: \"%s.%s.OPT_INT_DEPENDS\" instead of \"%s.%s.INT_DEPENDS\"?\n",
+                list[i], cd->project_component_type, cd->project_component,
+                cd->project_component_type, cd->project_component);
+       }
+       j++;
+      }
+      free(value);
+     }
 
      return 1;
     }
@@ -1974,6 +2002,92 @@ int fresh_config_depends_check(struct bca_context *ctx, struct component_details
   free_string_array(list, n_elements);
   list = NULL;
   n_elements = 0;
+ }
+
+ return 0;
+}
+
+int compute_withouts_for_component_on_host(struct bca_context *ctx,
+                                           struct component_details *cd,
+                                           int component_i, char *host)
+{
+ char *value, **elements;
+ int n_elements, i, j, yes, code;
+
+ /* see what is present in the build configuration file for this component,
+    on this host for a WITHOUTS list, then fallback to a project-wide WITHOUTS
+    for this host.  */
+ if((value = lookup_key(ctx,
+                        ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        host, cd->project_components[component_i],
+                        "WITHOUTS")) == NULL)
+ {
+  if((value = lookup_key(ctx,
+                         ctx->build_configuration_contents,
+                         ctx->build_configuration_length,
+                         host, "ALL", "WITHOUTS")) == NULL)
+  {
+   if(ctx->verbose > 1)
+    printf("BCA: Could not find %s.%s.WITHOUTS\n",
+           cd->project_component_types[component_i],
+           cd->project_components[component_i]);
+  }
+ }
+
+ /* if available, use the above result to populate the initial set of the withouts list */
+ if(value != NULL)
+ {
+  if(split_strings(ctx, value, -1, &(cd->n_withouts), &(cd->withouts)))
+  {
+   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+   return 1;
+  }
+ } else {
+  cd->withouts = NULL;
+  cd->n_withouts = 0;
+ }
+
+ /* add the optional internal dependencies that have been disabled to the withouts list */
+ if(list_component_opt_internal_dependencies(ctx, cd, &elements, &n_elements))
+  return 1;
+
+ for(j=0; j<n_elements; j++)
+ {
+  yes = 0;
+  i = 0;
+  while(i<ctx->n_disables)
+  {
+   if(strcmp(ctx->disabled_components[i], elements[j]) == 0)
+   {
+    yes = 1;
+    break;
+   }
+   i++;
+  }
+
+  if(yes == 1)
+  {
+   if((code = add_to_string_array(&(cd->withouts), cd->n_withouts,
+                                  elements[j], -1, 1)) < 0)
+   {
+    return 1;
+   }
+   if(code == 0)
+    cd->n_withouts++;
+  }
+ }
+ free_string_array(elements, n_elements);
+
+ if(ctx->verbose)
+ {
+  printf("BCA: Found the following withouts for component \"%s\" (%d): ",
+          cd->project_components[component_i], cd->n_withouts);
+  for(i=0; i<cd->n_withouts; i++)
+  {
+   printf("%s ", cd->withouts[i]);
+  }
+  printf("\n");
  }
 
  return 0;
@@ -2288,46 +2402,9 @@ int generate_gmakefile_mode(struct bca_context *ctx)
     }
    }
 
-   /* WITHOUTS --------------------------------- */
-   if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                          ctx->build_configuration_length,
-                          hosts[host_i],
-                          cd.project_components[component_i],
-                          "WITHOUTS")) == NULL)
-   {
-    if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                           ctx->build_configuration_length,
-                           hosts[host_i], "ALL", "WITHOUTS")) == NULL)
-    {
-     if(ctx->verbose > 1)
-      printf("BCA: Could not find %s.%s.WITHOUTS\n",
-             cd.project_component_types[component_i], cd.project_components[component_i]);
-    }
-   }
-
-   if(value != NULL)
-   {
-    if(split_strings(ctx, value, -1, &(cd.n_withouts), &(cd.withouts)))
-    {
-     fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
-     fclose(output);
-     return 1;
-    }
-   } else {
-    cd.withouts = NULL;
-    cd.n_withouts = 0;
-   }
-
-   if(ctx->verbose)
-   {
-    printf("BCA: Found the following withouts for component \"%s\" (%d): ",
-           cd.project_components[component_i], cd.n_withouts);
-    for(i=0; i<cd.n_withouts; i++)
-    {
-     printf("%s ", cd.withouts[i]);
-    }
-    printf("\n");
-   }
+   /* WITHOUTS ------------------------------------------ */
+   if(compute_withouts_for_component_on_host(ctx, &cd, component_i, hosts[host_i]))
+    return 1;
 
    /* dependencies -------------------------------------- */
    cd.project_component = cd.project_components[component_i];

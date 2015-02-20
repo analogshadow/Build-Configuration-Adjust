@@ -607,7 +607,7 @@ struct bca_context *setup(int argc, char **argv)
 {
  struct bca_context *ctx;
  struct component_details cd;
- int allocation_size, current_arg = 1, handled, i;
+ int allocation_size, current_arg = 1, handled, i, j;
 #ifdef HAVE_CWD
  size_t cwd_size = 0;
 #endif
@@ -1019,7 +1019,7 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
 
-   /* Build cofiguration adjust has at least two strings are involved in cross compilation. 
+   /* Build cofiguration adjust has at least two strings are involved in cross compilation.
       The "host identifier" in the sense of host.component.key in the buildconfiguration file.
       The "build prefix" where the build output goes. (not to be confused with install prefix)
 
@@ -1041,12 +1041,24 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts, 
+   if(add_to_string_array(&(ctx->without_strings), ctx->n_withouts,
                           argv[current_arg] + 10, -1, 1))
    {
     return NULL;
    }
    ctx->n_withouts++;
+  }
+
+  if(strncmp(argv[current_arg], "--with-", 7) == 0)
+  {
+   handled = 1;
+
+   if(add_to_string_array(&(ctx->with_strings), ctx->n_withs,
+                          argv[current_arg] + 7, -1, 1))
+   {
+    return NULL;
+   }
+   ctx->n_withs++;
   }
 
   if(strcmp(argv[current_arg], "--disableall") == 0)
@@ -1175,12 +1187,25 @@ struct bca_context *setup(int argc, char **argv)
 
   if(handled == 0)
   {
-   fprintf(stderr, 
+   fprintf(stderr,
            "BCA: I don't know what to do with the parameter \"%s\".\n", argv[current_arg]);
    return NULL;
   }
 
   current_arg++;
+ }
+
+ for(i=0; i<ctx->n_withouts; i++)
+ {
+  for(j=0; j<ctx->n_withs; j++)
+  {
+   if(strcmp(ctx->without_strings[i], ctx->with_strings[j]) == 0)
+   {
+    fprintf(stderr, "BCA: --without-%s conflits with --with-%s\n",
+            ctx->without_strings[i], ctx->with_strings[j]);
+    return NULL;
+   }
+  }
  }
 
  return ctx;
@@ -1229,8 +1254,8 @@ int short_help_mode(struct bca_context *ctx)
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: short_test_mode()\n");
 
- if((ctx->project_configuration_contents = 
-     read_file("./buildconfiguration/projectconfiguration", 
+ if((ctx->project_configuration_contents =
+     read_file("./buildconfiguration/projectconfiguration",
                &(ctx->project_configuration_length), 0)) == NULL)
  {
   fprintf(stderr, "BCA: can't open project configuration file\n");

@@ -25,6 +25,16 @@ prepare_environment() {
     ./testing_environment/buildconfiguration/buildconfigurationadjust.c
 }
 
+prepare_environment2() {
+ ERROR=""
+ rm -rf testing_environment2
+ mkdir testing_environment2
+ cp configure testing_environment2/
+ mkdir testing_environment2/buildconfiguration
+ cp native/buildconfigurationadjust-single-file-distribution.c \
+    ./testing_environment2/buildconfiguration/buildconfigurationadjust.c
+}
+
 try_configure() {
  ERROR=""
  CFLAGS=$CFLAGS BCA=$BCA PKG_CONFIG_PATH=$PKG_CONFIG_PATH ./configure "$@" >> out 2>> out
@@ -388,23 +398,50 @@ examples_sharedlib() {
 }
 
 examples_extdepends() {
-#this function/test is ment to be run from inside examples_sharedlibandbin()
  echo -n "test: extdepends: " >> ../test.sh-results
+
+ prepare_environment
+ cd testing_environment
+ ln -sf ../native/bca-canadate ./bca
+ ./bca --newproject "Shared Library" &> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue LIB_HEADERS hello.h >> out 2>> out
+ ./bca --component greetings --type SHAREDLIBRARY --newvalue INCLUDE_DIRS ./ >> out 2>> out
+ echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
+         "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
+ echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
+         "int print_hello(void);\n#endif\n" > hello.h
+
+ try_configure
+ if [ "$ERROR" != "" ]
+ then
+  return 1
+ fi
+
+ try_make
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
+ created_files_check
+ if [ "$ERROR" != "" ]
+ then
+  return
+ fi
+
  cd ..
- rm -rf testing_environment2
- mkdir testing_environment2
- cp configure testing_environment2/
- mkdir testing_environment2/buildconfiguration
- cp native/buildconfigurationadjust-single-file-distribution.c \
-    ./testing_environment2/buildconfiguration/buildconfigurationadjust.c
+
+ prepare_environment2
  cd testing_environment2
+ ln -sf ../native/bca-canadate ./bca
  ../native/bca-canadate --newproject "Binary with External Dependency" &> out
  ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
  ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
  ../native/bca-canadate --component MAIN --type BINARY --newvalue EXT_DEPENDS greetings >> out 2>> out
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > main.c
- ln -sf ../native/bca-canadate ./bca
 
  PKG_CONFIG_PATH=../testing_environment/native
  try_configure
@@ -951,7 +988,7 @@ usage() {
 }
 
 examples=(helloworld multifilebin sharedlib sharedlibandbin concat macroexpand generateddeps \
-          customcommand inputtocustom effectivepaths customwithnativetool)
+          customcommand inputtocustom effectivepaths customwithnativetool extdepends )
 
 enablelogic_disableall() {
  prepare_environment

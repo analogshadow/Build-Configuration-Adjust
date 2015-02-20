@@ -313,7 +313,18 @@ int is_pkg_config_needed(struct bca_context *ctx,
    return 1;
   }
 
+  /* these two categories should really only count as a yes to needing pkg-config,
+     if they are not disabled or withouted */
   if(list_component_opt_external_dependencies(ctx, cd, &list, &n_elements))
+   return -1;
+
+  if(n_elements > 0)
+  {
+   free_string_array(list, n_elements);
+   return 1;
+  }
+
+  if(list_component_opt_internal_dependencies(ctx, cd, &list, &n_elements))
    return -1;
 
   if(n_elements > 0)
@@ -979,7 +990,95 @@ int process_dependencies(struct bca_context *ctx,
  int n_test_packages = 0, test_package_optional_flags_size = 0,
      n_elements = 0, n_depends, n_opt_deps, n_withouts, x, i, j, yes, code, handled, p_length,
      *test_package_optional_flags = NULL;
- char **test_package_list = NULL, **depends = NULL, **list = NULL, **opt_dep_list = NULL;
+ char **test_package_list = NULL, **depends = NULL, **list = NULL, **opt_dep_list = NULL,
+      *value, **withouts;
+
+ /* first dump the default list of withouts modified by the withs to the explicitly
+    specified withouts list. note that this only must be done at configure time,
+    as makefile generation is done from the build configuration file's withouts list */
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        "NONE", "NONE", "WITHOUTS")) != NULL)
+ {
+  withouts = NULL;
+  n_withouts = 0;
+  if(split_strings(ctx, value, -1, &n_withouts, &withouts))
+  {
+   fprintf(stderr, "BCA: split_string() on '%s' failed\n", value);
+   return 1;
+  }
+
+  for(i=0; i < n_withouts; i++)
+  {
+   yes = 0;
+   j=0;
+   while(j<cd->n_components)
+   {
+    cd->project_component = cd->project_components[j];
+    cd->project_component_type = cd->project_component_types[j];
+
+    list = NULL;
+    n_elements = 0;
+    if(list_component_opt_external_dependencies(ctx, cd, &list, &n_elements))
+     return 1;
+
+    x=0;
+    while(x<n_elements)
+    {
+     if(strcmp(list[x], withouts[i]) == 0)
+     {
+      yes = 1;
+      break;
+     }
+     x++;
+    }
+    if(yes == 1)
+     break;
+
+    free_string_array(list, n_elements);
+    list = NULL;
+    n_elements = 0;
+
+    j++;
+   }
+
+   if(yes == 0)
+   {
+    fprintf(stderr,
+            "BCA:%d default without \"%s\" is not a external dependency in the project\n",
+            i, withouts[i]);
+    return 1;
+   }
+  }
+
+  for(i=0; i < n_withouts; i++)
+  {
+   yes = 1;
+   for(j = 0; j < ctx->n_withs; j++)
+   {
+    if(strcmp(withouts[i], ctx->with_strings[j]) == 0)
+     yes = 0;
+   }
+
+   if(yes)
+   {
+    /* duplicates are handled by returning 1 here*/
+    if((code = add_to_string_array(&(ctx->without_strings),
+                                   ctx->n_withouts,
+                                   withouts[i], -1, 1)) == -1)
+    {
+     return 1;
+    }
+    ctx->n_withouts++;
+   }
+  }
+
+  free_string_array(withouts, n_withouts);
+  list = NULL;
+  n_elements = 0;
+  free(value);
+ }
 
  /* optional dependencies */
  for(i=0; i < cd->n_components; i++)
@@ -1021,7 +1120,7 @@ int process_dependencies(struct bca_context *ctx,
        list of packages to test for */
     if(yes)
     {
-     if((code = add_to_string_array(&test_package_list, 
+     if((code = add_to_string_array(&test_package_list,
                                     n_test_packages, list[j], -1, 1)) < 0)
      {
       return 1;
@@ -1142,6 +1241,9 @@ int process_dependencies(struct bca_context *ctx,
     persists from the configure phase to the makefile generation phase. */
  for(i=0; i < cd->n_components; i++)
  {
+  n_depends = 0;
+  depends = NULL;
+
   /* start with the internal deps */
   cd->project_component = cd->project_components[i];
   cd->project_component_type = cd->project_component_types[i];
@@ -1149,8 +1251,6 @@ int process_dependencies(struct bca_context *ctx,
   if(list_component_internal_dependencies(ctx, cd, &list, &n_elements))
    return 1;
 
-  n_depends = 0;
-  depends = NULL;
   for(j=0; j<n_elements; j++)
   {
    if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
@@ -1160,6 +1260,37 @@ int process_dependencies(struct bca_context *ctx,
    if(code == 0)
     n_depends++;
 
+  }
+  free_string_array(list, n_elements);
+
+  /* add the optional internal dependencies that have not been disabled to
+     the DEPENDS list */
+  if(list_component_opt_internal_dependencies(ctx, cd, &list, &n_elements))
+   return 1;
+
+  for(j=0; j<n_elements; j++)
+  {
+   yes = 1;
+   x = 0;
+   while(x<ctx->n_disables)
+   {
+    if(strcmp(ctx->disabled_components[x], list[j]) == 0)
+    {
+     yes = 0;
+     break;
+    }
+    x++;
+   }
+
+   if(yes == 1)
+   {
+    if((code = add_to_string_array(&depends, n_depends, list[j], -1, 1)) < 0)
+    {
+     return 1;
+    }
+    if(code == 0)
+     n_depends++;
+   }
   }
   free_string_array(list, n_elements);
 
@@ -1180,12 +1311,13 @@ int process_dependencies(struct bca_context *ctx,
   free_string_array(list, n_elements);
 
   /* the optional deps list still has to check with the without strings since again a package
-     being both optional and non-optionl for different componets of the same project is valid */
+     being both optional and non-optional for different componets of the same project is valid */
   if(list_component_opt_external_dependencies(ctx, cd, &list, &n_elements))
    return 1;
 
   for(j=0; j < n_elements; j++)
   {
+
    x = 0;
    yes = 1;
    while(x < ctx->n_withouts)

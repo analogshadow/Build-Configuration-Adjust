@@ -504,6 +504,42 @@ int list_component_internal_dependencies(struct bca_context *ctx,
  return 0;
 }
 
+int list_component_opt_internal_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd,
+                                             char ***list, int *n_elements)
+{
+ char *value = NULL;
+
+ if(ctx->verbose > 2)
+  fprintf(stderr, "BCA: list_component_opt_external_dependencies()\n");
+
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->project_component_type,
+                        cd->project_component,
+                        "OPT_INT_DEPENDS")) == NULL)
+ {
+  if(ctx->verbose)
+   printf("BCA: No optional internal dependencies found for component \"%s\".\n",
+          cd->project_component);
+
+  *list = NULL;
+  *n_elements = 0;
+  return 0;
+ }
+
+ if(split_strings(ctx, value, -1, n_elements, list))
+ {
+  fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+  return 1;
+ }
+
+ free(value);
+ return 0;
+}
+
+
 int list_component_external_dependencies(struct bca_context *ctx,
                                          struct component_details *cd,
                                          char ***list, int *n_elements)
@@ -751,10 +787,12 @@ int check_project_component_types(struct bca_context *ctx)
  char *component_types[10] = { "NONE", "BINARY", "SHAREDLIBRARY", "STATICLIBRARY", "CAT",
                               "MACROEXPAND", "PYTHONMODULE", "CUSTOM", "BEAM" };
 
- char *component_keys[20] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR", "AUTHOR", "EMAIL",
-                              "URL", "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS",
-                              "FILE_DEPENDS", "INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
-                              "LIB_HEADERS", "DISABLES", "DESCRIPTION", "PACKAGE_NAME" };
+ char *component_keys[22] = { "PROJECT_NAME", "NAME", "MAJOR", "MINOR",
+                              "AUTHOR", "EMAIL", "URL",
+                              "FILES", "INPUT", "DRIVER", "INCLUDE_DIRS", "FILE_DEPENDS",
+                              "INT_DEPENDS", "OPT_INT_DEPENDS", "EXT_DEPENDS", "OPT_EXT_DEPENDS",
+                              "LIB_HEADERS", "DESCRIPTION", "PACKAGE_NAME",
+                              "DISABLES", "WITHOUTS" };
 
  while(iterate_key_primitives(ctx, ctx->project_configuration_contents,
                               ctx->project_configuration_length, &offset,
@@ -780,7 +818,7 @@ int check_project_component_types(struct bca_context *ctx)
 
   handled = 0;
   i=0;
-  while(i<19)
+  while(i<21)
   {
    if(strcmp(key, component_keys[i]) == 0)
    {

@@ -80,13 +80,14 @@
 struct bca_context
 {
  int mode, extra_args_start, manipulation_type, verbose,
-     n_withouts, n_disables, n_enables, n_swaps;
+     n_withs, n_withouts, n_disables, n_enables, n_swaps;
  char *search_value_key, *new_value_string;
  char value_key[1024], value_string[1024];
  char *principle, *qualifier;
 
  char *install_prefix, *host_prefix, *build_prefix;
- char **without_strings, **disabled_components, **enabled_components,
+ char **without_strings, **with_strings,
+      **disabled_components, **enabled_components,
       **swapped_components, **swapped_component_hosts;
 
 #ifdef HAVE_CWD
@@ -304,6 +305,10 @@ int list_project_components(struct bca_context *ctx,
 int list_component_internal_dependencies(struct bca_context *ctx,
                                          struct component_details *cd,
                                          char ***list, int *n_elements);
+
+int list_component_opt_internal_dependencies(struct bca_context *ctx,
+                                             struct component_details *cd,
+                                             char ***list, int *n_elements);
 
 int list_component_external_dependencies(struct bca_context *ctx,
                                          struct component_details *cd,
