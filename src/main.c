@@ -1,9 +1,13 @@
 /* GPLv3
 
-    Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2012,2013,2014 Stover Enterprises, LLC
-    (an Alabama Limited Liability Corporation), All rights reserved.
-    See http://bca.stoverenterprises.com for more information.
+    Build Configuration Adjust, is a source configuration and Makefile
+    generation tool.
+    Copyright © 2015 C. Thomas Stover.
+    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
+    Limited Liability Corporation).
+    All rights reserved.
+    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    information.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -90,9 +94,13 @@ void help(void)
         " Some of the autoconf compatibility environment variables are:\n"
         " CC, and PKG_CONFIG_PATH\n"
 
-        "\n Copyright 2012,2013,2014 Stover Enterprises. All rights reserved. "
-        "Licensed under the terms of GNU GPLv3.\n"
-        "\tSee http://bca.stoverenterprises.com for more information.\n\n",
+        "\n Copyright © 2015 C. Thomas Stover.\n"
+        " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama\n"
+        " Limited Liability Corporation).\n"
+        " All rights reserved.\n"
+        "    See https://github.com/ctstover/Build-Configuration-Adjust for more\n"
+        "    information.\n",
+
         BCA_VERSION);
 
 }
@@ -104,9 +112,11 @@ int main(int argc, char **argv)
  int length, n_items = 0, i;
  char code;
  struct component_details cd;
+ struct project_details pd;
  FILE *output;
 
  memset(&cd, 0, sizeof(struct component_details));
+ memset(&pd, 0, sizeof(struct project_details));
 
  if((ctx = setup(argc, argv)) == NULL)
   return 1;
@@ -116,7 +126,7 @@ int main(int argc, char **argv)
 
  switch(ctx->manipulation_type)
  {
-  case MANIPULATE_PROJECT_CONFIGURATION:
+  case OPERATE_PROJECT_CONFIGURATION:
        file = "./buildconfiguration/projectconfiguration";
        if(ctx->principle == NULL)
         ctx->principle = "BINARY";
@@ -124,7 +134,7 @@ int main(int argc, char **argv)
         ctx->qualifier = "MAIN";
        break;
 
-  case MANIPULATE_BUILD_CONFIGURATION:
+  case OPERATE_BUILD_CONFIGURATION:
        file = "./buildconfiguration/buildconfiguration";
        if(ctx->principle == NULL)
         ctx->principle = "NATIVE";
@@ -200,7 +210,7 @@ int main(int argc, char **argv)
                               ctx->qualifier, ctx->search_value_key)) == NULL)
        {
 
-        if( (ctx->manipulation_type == MANIPULATE_PROJECT_CONFIGURATION) &&
+        if( (ctx->manipulation_type == OPERATE_PROJECT_CONFIGURATION) &&
             (strcmp(ctx->qualifier, "ALL") != 0) )
         {
          if(ctx->verbose)
@@ -233,7 +243,7 @@ int main(int argc, char **argv)
   case SET_VALUE_MODE:
        /* special case: if the new value is the same, then we don't want to update the
           build configuration file's modified time. */
-       if(ctx->manipulation_type == MANIPULATE_BUILD_CONFIGURATION)
+       if(ctx->manipulation_type == OPERATE_BUILD_CONFIGURATION)
        {
         if((contents = read_file(file, &length, 0)) == NULL)
          return 1;
@@ -326,22 +336,18 @@ int main(int argc, char **argv)
        break;
 
   case LIST_PROJECT_COMPONENTS_MODE:
-       if((ctx->project_configuration_contents =
-        read_file("./buildconfiguration/projectconfiguration",
-                  &(ctx->project_configuration_length), 0)) == NULL)
-       {
+       if(load_project_config(ctx, 0))
         return 1;
-       }
 
-       if(list_project_components(ctx, &cd))
+       if(list_project_components(ctx, &pd))
        {
         fprintf(stderr, "BCA: list_project_components() failed.\n");
         return 1;
        }
 
-       for(i=0; i<cd.n_components; i++)
+       for(i=0; i<pd.n_components; i++)
        {
-        printf("%s\n", cd.project_components[i]);
+        printf("%s\n", pd.component_names[i]);
        }
 
        if(ctx->verbose > 1)
@@ -417,12 +423,12 @@ int main(int argc, char **argv)
        break;
 
   case GENERATE_GMAKEFILE_MODE:
-       if((code = generate_gmakefile_mode(ctx)) == 0)
+       if((code = generate_makefile_mode(ctx)) == 0)
        {
         if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: generate_gmakefile_mode() finished\n");
+         fprintf(stderr, "BCA: generate_makefile_mode() finished\n");
        } else {
-        fprintf(stderr, "BCA: generate_gmakefile_mode() failed\n");
+        fprintf(stderr, "BCA: generate_makefile_mode() failed\n");
        }
        return code;
        break;
@@ -478,85 +484,80 @@ int main(int argc, char **argv)
        break;
 
   case LIST_COMPONENT_OUTPUT_NAMES_MODE:
-       if((n_items =
-        render_project_component_output_name(ctx, ctx->principle,
-                                             ctx->qualifier, 1, &list, NULL)) < 0)
-       {
-        fprintf(stderr,
-                "BCA: render_project_component_output_name(%s, %s, 1) failed\n",
-                ctx->principle, ctx->qualifier);
-        return 1;
-       }
-       for(i=0; i<n_items; i++)
-       {
-        if(list[i][0] != 0)
-         printf("%s\n", list[i]);
-       }
-       free_string_array(list, n_items);
-       if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
-       return 0;
-       break;
-
   case LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE:
-       if((n_items =
-           render_project_component_output_name(ctx, ctx->principle,
-                                                ctx->qualifier, 2, &list, NULL)) < 0)
-       {
-        fprintf(stderr,
-                "BCA: render_project_component_output_name(%s, %s, 2) failed\n",
-                ctx->principle, ctx->qualifier);
-        return 1;
-       }
-       for(i=0; i<n_items; i++)
-       {
-        if(list[i][0] != 0)
-         printf("%s\n", list[i]);
-       }
-       free_string_array(list, n_items);
-       if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
-       return 0;
-       break;
-
   case LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE:
-       if((n_items =
-           render_project_component_output_name(ctx, ctx->principle,
-                                                ctx->qualifier, 3, &list, NULL)) < 0)
-       {
-        fprintf(stderr,
-                "BCA: render_project_component_output_name(%s, %s, 3) failed\n",
-                ctx->principle, ctx->qualifier);
-        return 1;
-       }
-       for(i=0; i<n_items; i++)
-       {
-        if(list[i][0] != 0)
-         printf("%s\n", list[i]);
-       }
-       free_string_array(list, n_items);
-       if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
-       break;
-
   case LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE:
-       if((n_items =
-           render_project_component_output_name(ctx, ctx->principle,
-                                                ctx->qualifier, 4, &list, NULL)) < 0)
+       switch(ctx->mode)
        {
-        fprintf(stderr,
-                "BCA: render_project_component_output_name(%s, %s, 4) failed\n",
-                ctx->principle, ctx->qualifier);
+        case LIST_COMPONENT_OUTPUT_NAMES_MODE:
+             code = RENDER_OUTPUT_NAME;
+             break;
+
+        case LIST_COMPONENT_BUILD_OUTPUT_NAMES_MODE:
+             code = RENDER_BUILD_OUTPUT_NAME;
+             break;
+
+        case LIST_COMPONENT_INSTALL_OUTPUT_NAMES_MODE:
+             code = RENDER_INSTALL_OUTPUT_NAME;
+             break;
+
+        case LIST_COMPONENT_EFFECTIVE_OUTPUT_NAMES_MODE:
+             code = RENDER_EFFECTIVE_OUTPUT_NAME;
+             break;
+       }
+
+       cd.host = ctx->principle;
+       cd.component_name = ctx->qualifier;
+
+       if(load_project_config(ctx, 0))
+        return 1;
+
+       if(load_build_config(ctx, 0))
+        return 1;
+
+       if(list_project_components(ctx, &pd))
+       {
+        fprintf(stderr, "BCA: list_project_components() failed.\n");
         return 1;
        }
-       for(i=0; i<n_items; i++)
+
+       i = 0;
+       while(i < pd.n_components)
        {
-        if(list[i][0] != 0)
-         printf("%s\n", list[i]);
+        if(strcmp(cd.component_name, pd.component_names[i]) == 0)
+        {
+         cd.component_type = pd.component_types[i];
+         cd.component_output_name = pd.component_output_names[i];
+         break;
+        }
+        i++;
        }
-       free_string_array(list, n_items);
+       if(cd.component_type == NULL)
+       {
+        fprintf(stderr, "BCA: could not resolve type for component %s\n",
+                cd.component_name);
+        return 1;
+       }
+
+       if(render_project_component_output_names(ctx, &cd, code))
+       {
+        fprintf(stderr,
+                "BCA: render_project_component_output_names(%s, %s, %d) failed\n",
+                cd.host, cd.component_name, code);
+        return 1;
+       }
+       for(i=0; i < cd.n_rendered_names; i++)
+       {
+        if(cd.rendered_names[i][0] != 0)
+         printf("%s\n", cd.rendered_names[i]);
+       }
+
+       if(free_rendered_names(&cd))
+        return 1;
+
        if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: render_project_component_output_name() finished\n");
+        fprintf(stderr, "BCA: render_project_component_output_names() finished\n");
+       return 0;
        break;
 
   case SHORT_HELP_MODE:
@@ -607,6 +608,7 @@ struct bca_context *setup(int argc, char **argv)
 {
  struct bca_context *ctx;
  struct component_details cd;
+ struct project_details pd;
  int allocation_size, current_arg = 1, handled, i, j;
 #ifdef HAVE_CWD
  size_t cwd_size = 0;
@@ -619,7 +621,7 @@ struct bca_context *setup(int argc, char **argv)
  }
 
  memset(ctx, 0, allocation_size);
- ctx->manipulation_type = MANIPULATE_BUILD_CONFIGURATION;
+ ctx->manipulation_type = OPERATE_BUILD_CONFIGURATION;
 
  memset(&cd, 0, sizeof(struct component_details));
 
@@ -783,33 +785,33 @@ struct bca_context *setup(int argc, char **argv)
 
   if(strcmp(argv[current_arg], "--project") == 0)
   {
-   ctx->manipulation_type = MANIPULATE_PROJECT_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_PROJECT_CONFIGURATION;
    handled = 1;
   }
 
   if(strcmp(argv[current_arg], "--build") == 0)
   {
-   ctx->manipulation_type = MANIPULATE_BUILD_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_BUILD_CONFIGURATION;
    handled = 1;
   }
 
   if(strcmp(argv[current_arg], "--listbuildhosts") == 0)
   {
-   ctx->manipulation_type = MANIPULATE_BUILD_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_BUILD_CONFIGURATION;
    ctx->mode = LIST_HOSTS_MODE;
    handled = 1;
   }
 
   if(strcmp(argv[current_arg], "--listprojectcomponents") == 0)
   {
-   ctx->manipulation_type = MANIPULATE_PROJECT_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_PROJECT_CONFIGURATION;
    ctx->mode = LIST_PROJECT_COMPONENTS_MODE;
    handled = 1;
   }
 
   if(strcmp(argv[current_arg], "--listprojecttypes") == 0)
   {
-   ctx->manipulation_type = MANIPULATE_PROJECT_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_PROJECT_CONFIGURATION;
    ctx->mode = LIST_PROJECT_TYPES_MODE;
    handled = 1;
   }
@@ -824,11 +826,11 @@ struct bca_context *setup(int argc, char **argv)
 
    ctx->new_value_string = argv[++current_arg];
    ctx->mode = NEW_PROJECT_MODE;
-   ctx->manipulation_type = MANIPULATE_PROJECT_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_PROJECT_CONFIGURATION;
    handled = 1;
   }
 
-  if( (strcmp(argv[current_arg], "--type") == 0) || 
+  if( (strcmp(argv[current_arg], "--type") == 0) ||
       (strcmp(argv[current_arg], "-T") == 0) )
   {
    if(argc < current_arg + 1)
@@ -838,11 +840,11 @@ struct bca_context *setup(int argc, char **argv)
    }
 
    ctx->principle = argv[++current_arg];
-   ctx->manipulation_type = MANIPULATE_PROJECT_CONFIGURATION;
+   ctx->manipulation_type = OPERATE_PROJECT_CONFIGURATION;
    handled = 1;
   }
 
-  if( (strcmp(argv[current_arg], "--host") == 0) || 
+  if( (strcmp(argv[current_arg], "--host") == 0) ||
       (strcmp(argv[current_arg], "-H") == 0) )
   {
    if(argc < current_arg + 1)
@@ -862,7 +864,7 @@ struct bca_context *setup(int argc, char **argv)
   }
 
 
-  if( (strcmp(argv[current_arg], "--component") == 0) || 
+  if( (strcmp(argv[current_arg], "--component") == 0) ||
       (strcmp(argv[current_arg], "-C") == 0) )
   {
    if(argc < current_arg + 1)
@@ -1065,24 +1067,24 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if((ctx->project_configuration_contents = 
-       read_file("./buildconfiguration/projectconfiguration", 
+   if((ctx->project_configuration_contents =
+       read_file("./buildconfiguration/projectconfiguration",
                  &(ctx->project_configuration_length), 0)) == NULL)
    {
     fprintf(stderr, "BCA: can't open project configuration file\n");
     return NULL;
    }
 
-   if(list_project_components(ctx, &cd))
+   if(list_project_components(ctx, &pd))
    {
     return NULL;
    }
 
-   for(i=0; i<cd.n_components; i++)
+   for(i=0; i<pd.n_components; i++)
    {
     if(add_to_string_array(&(ctx->disabled_components),
-                           ctx->n_disables, 
-                           cd.project_components[i], -1, 1))
+                           ctx->n_disables,
+                           pd.component_names[i], -1, 1))
     {
      return NULL;
     }
@@ -1248,6 +1250,7 @@ int short_help_mode(struct bca_context *ctx)
  char **list = NULL, **package_list = NULL;
  int i, j, code, n_elements = 0, n_packages = 0;
  struct component_details cd;
+ struct project_details pd;
 
  memset(&cd, 0, sizeof(struct component_details));
 
@@ -1262,22 +1265,22 @@ int short_help_mode(struct bca_context *ctx)
   return 1;
  }
 
- if(list_project_components(ctx, &cd))
+ if(list_project_components(ctx, &pd))
   return 1;
 
  if(ctx->verbose)
  {
-  printf("BCA: found (%d) project components: ", cd.n_components);
-  for(i=0; i < cd.n_components; i++)
+  printf("BCA: found (%d) project components: ", pd.n_components);
+  for(i=0; i < pd.n_components; i++)
   {
-   printf("%s ", cd.project_components[i]);
+   printf("%s ", pd.component_names[i]);
   }
   printf("\n");
  }
 
- for(i=0; i < cd.n_components; i++)
+ for(i=0; i < pd.n_components; i++)
  {
-  cd.project_component = cd.project_components[i];
+  cd.component_name = pd.component_names[i];
 
   if(list_component_opt_external_dependencies(ctx, &cd, &list, &n_elements))
    return 1;

@@ -1,9 +1,13 @@
 /* GPLv3
 
-    Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
-    (an Alabama Limited Liability Corporation), All rights reserved.
-    See http://bca.stoverenterprises.com for more information.
+    Build Configuration Adjust, is a source configuration and Makefile
+    generation tool.
+    Copyright © 2015 C. Thomas Stover.
+    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
+    Limited Liability Corporation).
+    All rights reserved.
+    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    information.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -118,8 +122,8 @@ char *escape_value(struct bca_context *ctx, char *source, int length)
  int allocation_size, n_quotes = 0, n_spaces = 0, i, x;
  char *new_string;
 
- if(ctx->verbose > 2)
-  fprintf(stderr, "BCA: escape_value()\n");
+ if(ctx->verbose > 3)
+  fprintf(stderr, "BCA: escape_value(\"%s\")\n", source);
 
  if(source == NULL)
   return NULL;
@@ -222,7 +226,7 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
   index--;
  }
 
- if((extension_length = full_path_length - (index + 1)) > 0)
+ if((extension_length = full_path_length - index) > 0)
   period_position = index;
 
  if(period_position == -1)
@@ -240,7 +244,7 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
     fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
     return 1;
    }
-   memcpy(*extension, full_path + period_position + 1, extension_length);
+   memcpy(*extension, full_path + period_position, extension_length);
    (*extension)[extension_length] = 0;
   }
  }
@@ -258,7 +262,7 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
  }
 
  base_file_name_length = period_position - (slash_position + 1);
- 
+
  if(base_file_name != NULL)
  {
   allocation_size = base_file_name_length + 1;
@@ -266,7 +270,7 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
   {
    fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
    return 1;
-  } 
+  }
   memcpy(*base_file_name, full_path + slash_position + 1, base_file_name_length);
   (*base_file_name)[base_file_name_length] = 0;
  }
@@ -462,4 +466,96 @@ int free_string_array(char **array, int n_elements)
  return 0;
 }
 
+int append_array(char **source_array, int source_array_count,
+                 char ***manipulate_array, int *manipulate_array_count,
+                 int prevent_duplicates)
+{
+ int i, code;
 
+ for(i=0; i<source_array_count; i++)
+ {
+  if((code =
+      add_to_string_array(manipulate_array,
+                          *manipulate_array_count,
+                          source_array[i], -1,
+                          prevent_duplicates)) == -1)
+  {
+   return 1;
+  }
+  if(code == 0)
+   (*manipulate_array_count)++;
+ }
+
+ return 0;
+}
+
+int append_masked_array(char **source_array, int source_array_count,
+                        char **mask_array, int mask_array_count,
+                        char ***manipulate_array, int *manipulate_array_count,
+                        int prevent_duplicates)
+{
+ int i, j, code, yes;
+
+ for(i=0; i<source_array_count; i++)
+ {
+  yes = 1;
+  j = 0;
+  while(j < mask_array_count)
+  {
+   if(strcmp(source_array[i], mask_array[j]) == 0)
+   {
+    yes = 0;
+    break;
+   }
+   j++;
+  }
+
+  if(yes)
+  {
+   if((code =
+       add_to_string_array(manipulate_array,
+                           *manipulate_array_count,
+                           source_array[i], -1,
+                           prevent_duplicates)) == -1)
+   {
+    return 1;
+   }
+   if(code == 0)
+    (*manipulate_array_count)++;
+  }
+ }
+
+ return 0;
+}
+
+char *join_strings(char **list, int n_elements)
+{
+ char *value;
+ int allocation_size, i, length;
+
+ if(n_elements == 0)
+  return NULL;
+
+ allocation_size = 1;
+ for(i=0; i < n_elements; i++)
+ {
+  allocation_size += strlen(list[i]) + 1;
+ }
+
+ if((value = (char *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "malloc(%d) failed, %s\n",
+          allocation_size, strerror(errno));
+  return NULL;
+ }
+
+ length = 0;
+ for(i=0; i < n_elements; i++)
+ {
+  length +=
+  snprintf(value + length, allocation_size - length,
+           "%s ", list[i]);
+ }
+
+ return value;
+}

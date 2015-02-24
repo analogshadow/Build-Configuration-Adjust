@@ -1,9 +1,13 @@
 /* GPLv3
 
-    Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
-    (an Alabama Limited Liability Corporation), All rights reserved.
-    See http://bca.stoverenterprises.com for more information.
+    Build Configuration Adjust, is a source configuration and Makefile
+    generation tool.
+    Copyright © 2015 C. Thomas Stover.
+    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
+    Limited Liability Corporation).
+    All rights reserved.
+    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    information.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -136,33 +140,16 @@ char *check_function(struct bca_context *ctx, char *key)
  if(strcmp(parameters[1], "BUILD") == 0)
  {
 
-  if(ctx->build_configuration_contents == NULL)
-  {
-   if((ctx->build_configuration_contents =
-       read_file("./buildconfiguration/buildconfiguration",
-                 &(ctx->build_configuration_length), 0)) == NULL)
-   {
-    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
-    free_string_array(parameters, n_parameters);
-    return NULL;
-   }
-  }
+  if(load_build_config(ctx, 0))
+   return NULL;
 
   contents = ctx->build_configuration_contents;
   length = ctx->build_configuration_length;
 
  } else if(strcmp(parameters[1], "PROJECT") == 0) {
 
-  if(ctx->project_configuration_contents == NULL)
-  {
-   if((ctx->project_configuration_contents =
-        read_file("./buildconfiguration/projectconfiguration",
-                  &(ctx->project_configuration_length), 0)) == NULL)
-   {
-    free_string_array(parameters, n_parameters);
-    return NULL;
-   }
-  }
+  if(load_project_config(ctx, 0))
+   return NULL;
 
   contents = ctx->project_configuration_contents;
   length = ctx->project_configuration_length;
@@ -220,7 +207,7 @@ char *check_function(struct bca_context *ctx, char *key)
 char *lookupor_function(struct bca_context *ctx, char *key)
 {
  char **parameters, *contents, *p, *q, *k, *result;
- int n_parameters, code, length, i;
+ int n_parameters, length, i;
 
  if(parse_function_parameters(key, &parameters, &n_parameters))
  {
@@ -315,7 +302,7 @@ char *lookupor_function(struct bca_context *ctx, char *key)
 
 char *file_to_C_source_function(struct bca_context *ctx, char *key)
 {
- char **parameters, *contents;
+ char **parameters;
  int n_parameters, i;
 
  if(parse_function_parameters(key, &parameters, &n_parameters))
@@ -352,11 +339,171 @@ char *file_to_C_source_function(struct bca_context *ctx, char *key)
  return strdup("");
 }
 
-char *resolve_string_replace_key(struct bca_context *ctx, char *key)
+char *handle_bca_config_h_macros(struct bca_context *ctx)
 {
- char *value, a[256], b[256], c[256], **list = NULL, **withouts = NULL, *without_macro;
- int mode = 0, n_dots = 0, dots[2], length, i, n_items = 0, n_withouts = 0,
-     edition, allocation_size;
+ char *result, *value, *without_macro,
+      **opt_int_deps, **withouts, **disables, **macros;
+ int n_opt_int_deps, n_withouts, n_disables, n_macros, i, j, yes, code,
+     allocation_size, length;
+
+ /* we are going to need details from both project and build config files
+    so load them now if not already */
+
+ if(ctx->build_configuration_contents == NULL)
+ {
+  if((ctx->build_configuration_contents =
+      read_file("./buildconfiguration/buildconfiguration",
+                &(ctx->build_configuration_length), 0)) == NULL)
+  {
+   fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
+   return NULL;
+  }
+ }
+
+ if(ctx->project_configuration_contents == NULL)
+ {
+  if((ctx->project_configuration_contents =
+       read_file("./buildconfiguration/projectconfiguration",
+                 &(ctx->project_configuration_length), 0)) == NULL)
+  {
+   fprintf(stderr, "BCA: could not read ./buildconfiguration/projectconfiguration\n");
+   return NULL;
+  }
+ }
+
+ /* gather needed lists */
+ macros = NULL;
+ n_macros = 0;
+ if((value = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        ctx->principle, "ALL", "MACROS")) != NULL)
+ {
+  if(split_strings(ctx, value, -1, &n_macros, &macros))
+  {
+   fprintf(stderr, "BCA: split_strings() failed\n");
+   return NULL;
+  }
+
+  free(value);
+ }
+
+ withouts = NULL;
+ n_withouts = 0;
+ if((value = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        ctx->principle, "ALL", "WITHOUTS")) != NULL)
+ {
+  if(split_strings(ctx, value, -1, &n_withouts, &withouts))
+  {
+   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+   return NULL;
+  }
+  free(value);
+ }
+
+ disables = NULL;
+ n_disables = 0;
+ if((value = lookup_key(ctx, ctx->build_configuration_contents,
+                        ctx->build_configuration_length,
+                        ctx->principle, "ALL", "DISABLES")) != NULL)
+ {
+  if(split_strings(ctx, value, -1, &n_disables, &disables))
+  {
+   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+   return NULL;
+  }
+
+  free(value);
+ }
+
+ opt_int_deps = NULL;
+ n_opt_int_deps = 0;
+
+ if(list_unique_opt_int_depends(ctx, &opt_int_deps, &n_opt_int_deps, 0))
+  return NULL;
+
+ /* DISABLES that are also OPT_INT_DEPENDS in the project also get WITHOUT_x CPP macros */
+ for(j=0; j<n_disables; j++)
+ {
+  yes = 0;
+  i = 0;
+  while(i<n_opt_int_deps)
+  {
+   if(strcmp(disables[j], opt_int_deps[i]) == 0)
+   {
+    yes = 1;
+    break;
+   }
+   i++;
+  }
+
+  if(yes == 1)
+  {
+   if((code = add_to_string_array(&withouts, n_withouts, disables[j], -1, 1)) < 0)
+   {
+    return NULL;
+   }
+   if(code == 0)
+    n_withouts++;
+  }
+ }
+
+ /* allocate result buffer */
+ allocation_size = 1;
+ for(i=0; i<n_macros; i++)
+ {
+  allocation_size += strlen(macros[i]) + 12;
+ }
+
+ for(i=0; i < n_withouts; i++)
+ {
+  allocation_size += strlen(withouts[i]) + 20;
+ }
+
+ if((result = (char *) malloc(allocation_size)) == NULL)
+ {
+  fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
+  return NULL;
+ }
+ result[0] = 0;
+
+ /* render output */
+ length = 0;
+ for(i=0; i<n_macros; i++)
+ {
+  length += snprintf(result + length, allocation_size - length,
+                     "#define %s\n", macros[i]);
+ }
+
+ for(i=0; i < n_withouts; i++)
+ {
+  if((without_macro = without_string_to_without_macro(ctx, withouts[i])) != NULL)
+  {
+   length += snprintf(result + length, allocation_size - length,
+                      "#define WITHOUT_%s\n", without_macro);
+   free(without_macro);
+   without_macro = NULL;
+  } else {
+   fprintf(stderr, "BCA: without_string_to_without_macro(%s) failed\n", withouts[i]);
+  }
+ }
+
+ /* cleanup */
+ free_string_array(macros, n_macros);
+ free_string_array(withouts, n_withouts);
+ free_string_array(disables, n_disables);
+ free_string_array(opt_int_deps, n_opt_int_deps);
+
+ return result;
+}
+
+char *resolve_string_replace_key(struct bca_context *ctx,
+                                 char *key)
+{
+ char *value, a[256], b[256], c[256];
+ int mode = 0, n_dots = 0, dots[2], length, i, edition, x, component_i;
+ struct component_details cd;
+ struct project_details *pd = NULL;
 
 /*package config, project & build config, targets, withouts, disables, versions,
   paths, build name, date, tests?
@@ -413,127 +560,9 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
 #endif
  }
 
- if(strncmp(key, "BCA.MACROS.", 11) == 0)
+ if(strncmp(key, "BCA.MACROS.CONFIG_H", 19) == 0)
  {
-  length = strlen(key + 11);
-
-  memcpy(a, key + 11, length);
-  a[length] = 0;
-
-  if(ctx->build_configuration_contents == NULL)
-  {
-   if((ctx->build_configuration_contents =
-       read_file("./buildconfiguration/buildconfiguration",
-                 &(ctx->build_configuration_length), 0)) == NULL)
-   {
-    fprintf(stderr, "BCA: could not read ./buildconfiguration/buidconfiguration\n");
-    return NULL;
-   }
-  }
-
-  value = lookup_key(ctx, ctx->build_configuration_contents,
-                     ctx->build_configuration_length,
-                     ctx->principle, a, "MACROS");
-
-  if(value == NULL)
-  {
-   if(strcmp(b, "ALL") == 0)
-   {
-    if(ctx->verbose > 1)
-     fprintf(stderr, "BCA: no %s.%s.%s\n", ctx->principle, a, "MACROS");
-   }
-
-   value = lookup_key(ctx, ctx->build_configuration_contents,
-                      ctx->build_configuration_length,
-                      ctx->principle, "ALL", "MACROS");
-
-   if(value == NULL)
-   {
-    if(ctx->verbose > 1)
-     fprintf(stderr, "BCA: no %s.%s.%s\n", ctx->principle, "ALL", "MACROS");
-   }
-  }
-
-  if(value != NULL)
-  {
-   if(split_strings(ctx, value, -1, &n_items, &list))
-   {
-    fprintf(stderr, "BCA: split_strings() failed\n");
-    return NULL;
-   }
-   free(value);
-   value = NULL;
-  }
-
-  if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                         ctx->build_configuration_length,
-                         ctx->principle, a, "WITHOUTS")) == NULL)
-  {
-   if((value = lookup_key(ctx, ctx->build_configuration_contents,
-                          ctx->build_configuration_length,
-                          ctx->principle, "ALL", "WITHOUTS")) == NULL)
-   {
-    fprintf(stderr,
-            "BCA: WARNING: Could not find %s.[%s|ALL].WITHOUTS as needed for @%s@. Are you sure you mean component name \"%s\"?\n",
-            ctx->principle, a, key, a);
-   }
-  }
-
-  if(value != NULL)
-  {
-   if(split_strings(ctx, value, -1, &n_withouts, &withouts))
-   {
-    fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
-    return NULL;
-   }
-  } else {
-   withouts = NULL;
-   n_withouts = 0;
-  }
-
-  free(value);
-
-  allocation_size = 1;
-  for(i=0; i<n_items; i++)
-  {
-   allocation_size += strlen(list[i]) + 12;
-  }
-
-  for(i=0; i < n_withouts; i++)
-  {
-   allocation_size += strlen(withouts[i]) + 20;
-  }
-
-  if((value = (char *) malloc(allocation_size)) == NULL)
-  {
-   fprintf(stderr, "BCA: malloc(%d) failed\n", allocation_size);
-   return NULL;
-  }
-  value[0] = 0;
-
-  length = 0;
-  for(i=0; i<n_items; i++)
-  {
-   length += snprintf(value + length, allocation_size - length,
-                      "#define %s\n", list[i]);
-  }
-
-  for(i=0; i < n_withouts; i++)
-  {
-   if((without_macro = without_string_to_without_macro(ctx, withouts[i])) != NULL)
-   {
-    length += snprintf(value + length, allocation_size - length,
-                       "#define WITHOUT_%s\n", without_macro);
-    free(without_macro);
-    without_macro = NULL;
-   } else {
-    fprintf(stderr, "BCA: without_string_to_without_macro(%s) failed\n", withouts[i]);
-   }
-  }
-
-  free_string_array(withouts, n_withouts);
-  free_string_array(list, n_items);
-  return value;
+  return handle_bca_config_h_macros(ctx);
  }
 
  if(strncmp(key, "BCA.OUTPUTNAME.", 15) == 0)
@@ -613,18 +642,53 @@ char *resolve_string_replace_key(struct bca_context *ctx, char *key)
         break;
   }
 
-  n_items = render_project_component_output_name(ctx, ctx->principle, a, edition, &list, NULL);
-  if(n_items < 1)
+  if(load_build_config(ctx, 0))
+   return NULL;
+
+  if(load_project_config(ctx, 0))
+   return NULL;
+
+  if((pd = resolve_project_details(ctx)) == NULL)
+   return NULL;
+
+  component_i = -1;
+  x = 0;
+  while(x < pd->n_components)
   {
-   fprintf(stderr, "BCA: replace key note: render_project_component_output_name() yielded "
+   if(strcmp(a, pd->component_names[x]) == 0)
+   {
+    component_i = x;
+    break;
+   }
+   x++;
+  }
+
+  if(component_i < 0)
+  {
+   fprintf(stderr, "BCA: can't find component named '%s'\n", a);
+   return NULL;
+  }
+
+  memset(&cd, 0, sizeof(struct component_details));
+  cd.host = ctx->principle;
+  cd.component_type = pd->component_types[component_i];
+  cd.component_name = pd->component_names[component_i];
+  cd.component_output_name = pd->component_output_names[component_i];
+
+  if(render_project_component_output_names(ctx, &cd, edition))
+  {
+   fprintf(stderr, "BCA: replace key note: render_project_component_output_names() yielded "
            "no result for project component \"%s\" on host \"%s\".\n", a, ctx->principle);
    return strdup("");
   }
 
-  if(i < n_items)
+  if(free_project_details(pd))
+   return NULL;
+
+  if(i < cd.n_rendered_names)
   {
-   value = strdup(list[i]);
-   free_string_array(list, n_items);
+   value = strdup(cd.rendered_names[i]);
+   free_rendered_names(&cd);
    return value;
   } else {
    fprintf(stderr, "BCA: replace key error: index %d out of range in \"%s\".\n",

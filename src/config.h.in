@@ -11,6 +11,6 @@
 #define HAVE_CWD
 #endif
 
-@BCA.MACROS.main@
+@BCA.MACROS.CONFIG_H@
 
 #endif

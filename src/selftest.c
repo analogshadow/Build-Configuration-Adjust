@@ -1,9 +1,13 @@
 /* GPLv3
 
-    Build Configuration Adjust, a source configuration and Makefile
-    generation tool. Copyright © 2011,2012,2013,2014 Stover Enterprises, LLC
-    (an Alabama Limited Liability Corporation), All rights reserved.
-    See http://bca.stoverenterprises.com for more information.
+    Build Configuration Adjust, is a source configuration and Makefile
+    generation tool.
+    Copyright © 2015 C. Thomas Stover.
+    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
+    Limited Liability Corporation).
+    All rights reserved.
+    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    information.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -508,7 +512,7 @@ int setup_test(struct bca_context *real_ctx)
  if((test_ctx = setup(argc, argv)) == NULL)
  {
   printf("failed\n");
- } else if(test_ctx->manipulation_type != MANIPULATE_PROJECT_CONFIGURATION) {
+ } else if(test_ctx->manipulation_type != OPERATE_PROJECT_CONFIGURATION) {
   printf("failed: wrong manipulation type\n");
   shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
@@ -525,7 +529,7 @@ int setup_test(struct bca_context *real_ctx)
  if((test_ctx = setup(argc, argv)) == NULL)
  {
   printf("failed\n");
- } else if(test_ctx->manipulation_type != MANIPULATE_BUILD_CONFIGURATION) {
+ } else if(test_ctx->manipulation_type != OPERATE_BUILD_CONFIGURATION) {
   printf("failed: wrong manipulation type\n");
   shutdown(test_ctx);
  } else if(shutdown(test_ctx)) {
@@ -543,7 +547,7 @@ int setup_test(struct bca_context *real_ctx)
  if((test_ctx = setup(argc, argv)) == NULL)
  {
   printf("failed\n");
- } else if(test_ctx->manipulation_type != MANIPULATE_PROJECT_CONFIGURATION) {
+ } else if(test_ctx->manipulation_type != OPERATE_PROJECT_CONFIGURATION) {
   printf("failed: wrong manipulation type\n");
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->principle, "abcdefg") != 0) {
@@ -564,7 +568,7 @@ int setup_test(struct bca_context *real_ctx)
  if((test_ctx = setup(argc, argv)) == NULL)
  {
   printf("failed\n");
- } else if(test_ctx->manipulation_type != MANIPULATE_BUILD_CONFIGURATION) {
+ } else if(test_ctx->manipulation_type != OPERATE_BUILD_CONFIGURATION) {
   printf("failed: wrong manipulation type\n");
   shutdown(test_ctx);
  } else if(strcmp(test_ctx->principle, "abcdefg") != 0) {
@@ -1260,7 +1264,6 @@ int config_files_test(struct bca_context *real_ctx)
       **principle_modifications, **component_modifications, **key_modifications,
       **value_modifications, *in_file, *right_value;
  FILE *output;
- struct component_details cd;
 
  printf("suite: config_files\n");
 

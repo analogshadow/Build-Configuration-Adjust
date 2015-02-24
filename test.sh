@@ -1,6 +1,13 @@
-#    Build Configuration Adjust, a source configuration and Makefile
-#    generation tool. Copyright © 2013,2014 Stover Enterprises, LLC
-#    (an Alabama Limited Liability Corporation), All rights reserved.
+# GPLv3
+#
+#    Build Configuration Adjust, is a source configuration and Makefile
+#    generation tool.
+#    Copyright © 2015 C. Thomas Stover.
+#    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
+#    Limited Liability Corporation).
+#    All rights reserved.
+#    See https://github.com/ctstover/Build-Configuration-Adjust for more
+#    information.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -49,7 +56,7 @@ try_configure() {
 
 try_make() {
  ERROR=""
- $MAKE -f Makefile.bca >> out 2>> out
+ $MAKE -f Makefile >> out 2>> out
  if [ $? != 0 ]
  then
   ERROR="failed: make"
@@ -157,7 +164,7 @@ created_files_check() {
 makeclean_check() {
  ERROR=""
  echo -n "test: ${test}makeclean: " >> ../test.sh-results
- $MAKE -f Makefile.bca clean &> out
+ $MAKE -f Makefile clean &> out
 
  COMPONENTS=`./bca --listprojectcomponents`
  for COMPONENT in $COMPONENTS
@@ -365,7 +372,6 @@ examples_sharedlib() {
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
          "int print_hello(void);\n#endif\n" > hello.h
 
-
  try_configure
  if [ "$ERROR" != "" ]
  then
@@ -485,7 +491,6 @@ examples_extdepends() {
  makeclean_check extdepends
 
  cd ..
- cd testing_environment
 }
 
 examples_sharedlibandbin() {
@@ -751,7 +756,7 @@ examples_customcommand() {
   return 1
  fi 
 
- $MAKE -f Makefile.bca >> out 2>> out
+ $MAKE -f Makefile >> out 2>> out
  if [ $? = 0 ]
  then
   ERROR="failed: make should have errored out"

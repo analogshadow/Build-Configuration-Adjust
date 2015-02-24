@@ -1,11 +1,11 @@
 NONE.NONE.PROJECT_NAME = "Build Configuration Adjust"
 NONE.NONE.MAJOR = 0
-NONE.NONE.MINOR = 3
+NONE.NONE.MINOR = 4
 CAT.dist_c.NAME = buildconfigurationadjust-single-file-distribution.c
-CAT.dist_c.FILES = "./src/prototypes.h ./src/config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/gmakefile.c"
+CAT.dist_c.FILES = "./src/prototypes.h ./src/config_files.c ./src/project_config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/makefile_out.c src/config_files_low_level.c"
 CAT.dist_c.INPUT = sfdstub
 BINARY.main.NAME = bca-canadate
-BINARY.main.FILES = "./src/config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/gmakefile.c ./src/graphviz.c ./src/selftest.c ./src/newt.c ./src/gtk.c"
+BINARY.main.FILES = "./src/config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/makefile_out.c ./src/graphviz_out.c ./src/selftest.c ./src/newt.c ./src/config_files_low_level.c ./src/project_config_files.c ./src/gtk.c"
 BINARY.main.FILE_DEPENDS = ./src/prototypes.h
 BINARY.main.OPT_EXT_DEPENDS = "libnewt gtk+-2.0"
 BINARY.main.INPUT = "config_h embedded_files"
