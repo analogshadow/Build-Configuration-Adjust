@@ -1848,6 +1848,7 @@ int make_tarball_target(struct bca_context *ctx,
  int x, y, z, n_files, n_strings;
  char temp[512], subdir[512], **files, **strings, *tar_name;
  struct component_details cd;
+ FILE *f;
 
  memset(&cd, 0, sizeof(struct component_details));
 
@@ -1882,9 +1883,18 @@ int make_tarball_target(struct bca_context *ctx,
   if(resolve_component_source_files(ctx, &cd))
    return 1;
 
+  if(resolve_component_extra_file_dependencies(ctx, &cd))
+   return 1;
+
   for(y=0; y<cd.n_source_files; y++)
   {
    if(add_to_string_array(&files, n_files, cd.source_file_names[y], -1, 1) == 0)
+    n_files++;
+  }
+
+  for(y=0; y<cd.n_extra_file_deps; y++)
+  {
+   if(add_to_string_array(&files, n_files, cd.extra_file_deps[y], -1, 1) == 0)
     n_files++;
   }
 
@@ -1970,6 +1980,21 @@ int make_tarball_target(struct bca_context *ctx,
  fprintf(output,
          "\t./bca --output-buildconfigurationadjust.c > ./%s/buildconfiguration/buildconfigurationadjust.c\n",
          temp);
+
+ if((f = fopen("./configure-autoconf", "r")) != NULL)
+ {
+  fprintf(output, "\tcp configure-autoconf ./%s/\n", temp);
+  fprintf(output, "\tchmod +x ./%s/configure\n", temp);
+  fclose(f);
+ }
+
+ if((f = fopen("./configure-extra", "r")) != NULL)
+ {
+  fprintf(output, "\tcp configure-extra ./%s/\n", temp);
+  fprintf(output, "\tchmod +x ./%s/configure\n", temp);
+  fclose(f);
+ }
+
  fprintf(output, "\ttar -pczf %s.tar.gz ./%s\n", temp, temp);
 
  free_string_array(files, n_files);

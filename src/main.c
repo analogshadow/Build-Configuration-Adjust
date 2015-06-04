@@ -99,12 +99,9 @@ void help(void)
         " CC, and PKG_CONFIG_PATH\n"
 
         "\n Copyright © 2015 C. Thomas Stover.\n"
-        " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama\n"
-        " Limited Liability Corporation).\n"
+        " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama Limited Liability Corporation).\n"
         " All rights reserved.\n"
-        "    See https://github.com/ctstover/Build-Configuration-Adjust for more\n"
-        "    information.\n",
-
+        "    See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n",
         BCA_VERSION);
 
 }

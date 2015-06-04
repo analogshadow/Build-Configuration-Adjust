@@ -4,9 +4,9 @@
 #define WITHOUT_GTK__2_0
 
 #if 1
-#define BCA_VERSION "0.3-9-g1ad612a-dirty"
+#define BCA_VERSION "0.3-36-gbe47f71-dirty"
 #else
-#define BCA_VERSION "0.3"
+#define BCA_VERSION "0.4"
 #endif
 
 
@@ -85,17 +85,18 @@
 #define VERSION_MODE                               100
 #define OUTPUT_CONFIGURE_MODE                      110
 #define OUTPUT_BCASFD_MODE                         111
-
-#define OPERATE_PROJECT_CONFIGURATION   3
-#define OPERATE_BUILD_CONFIGURATION     4
-
-#define EFFECTIVE_PATHS_LOCAL   6
-#define EFFECTIVE_PATHS_INSTALL 7
-
-#define RENDER_OUTPUT_NAME           1
-#define RENDER_BUILD_OUTPUT_NAME     2
-#define RENDER_INSTALL_OUTPUT_NAME   3
-#define RENDER_EFFECTIVE_OUTPUT_NAME 4
+#define DOCUMENT_MODE                              200
+#define STUB_DOCUMENT_CONFIGURATION_MODE           201
+#define CONFIG_FILE_TO_LOCO_LISTING_MODE           202
+#define OPERATE_PROJECT_CONFIGURATION              301
+#define OPERATE_BUILD_CONFIGURATION                302
+#define OPERATE_DOCUMENT_CONFIGURATION             303
+#define EFFECTIVE_PATHS_LOCAL                      356
+#define EFFECTIVE_PATHS_INSTALL                    357
+#define RENDER_OUTPUT_NAME                         401
+#define RENDER_BUILD_OUTPUT_NAME                   402
+#define RENDER_INSTALL_OUTPUT_NAME                 403
+#define RENDER_EFFECTIVE_OUTPUT_NAME               404
 
 struct bca_context
 {
@@ -122,7 +123,15 @@ struct bca_context
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
  struct document_handling_context *dctx;
+ int loop_inputs, pass_number;
+ char *engine_name;
+ char *output_type;
 #endif
+
+ char **input_files;
+ int n_input_files, line_number, input_file_index;
+
+ char *output_file;
 };
 
 struct component_details
@@ -222,16 +231,18 @@ struct host_configuration
  char *install_locale_data_dir;
 };
 
+
 /* selftest.c ----------------------------------- */
 int self_test(struct bca_context *ctx);
 
 /* replace.c ------------------------------------ */
+char *resolve_string_replace_key(struct bca_context *ctx, char *key);
+
 int string_replace(struct bca_context *ctx);
 
 int parse_function_parameters(char *string, char ***array, int *array_length);
 
-/* documents.c ---------------------------------- */
-char * handle_document_functions(struct bca_context *ctx, char *key);
+char *current_file_name(struct bca_context *ctx);
 
 /* conversions.c -------------------------------- */
 char *lib_file_name_to_link_name(const char *file_name);
@@ -248,7 +259,8 @@ char *host_identifier_from_host_prefix(struct bca_context *ctx);
 
 char *build_prefix_from_host_prefix(struct bca_context *ctx);
 
-char *component_type_file_extension(struct bca_context *ctx, struct host_configuration *tc,
+char *component_type_file_extension(struct bca_context *ctx,
+                                    struct host_configuration *tc,
                                     char *project_component_type,
                                     char *project_component_output_name);
 
@@ -280,6 +292,10 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
 
 char *read_file(char *name, int *length, int silent_test);  // selftested
 
+int mmap_file(char *name, void **p, int *length, int *fd);
+
+int umap_file(void *p, int length, int fd);
+
 int find_line(char *buffer, int buffer_length, int *start, int *end, int *line_length); // selftested
 
 int split_strings(struct bca_context *ctx, char *source, int length,
@@ -297,6 +313,12 @@ int append_array(char **source_array, int source_array_count,
                  int prevent_duplicates);
 
 char *escape_value(struct bca_context *ctx, char *source, int length);  // selftested
+
+int count_characters(char *buffer, int length);
+
+int n_bytes_for_n_characters(char *buffer, int length, int n_characters);
+
+int next_character(char *buffer, int length);
 
 /* config_files_low_level.c ------------------------------- */
 int load_project_config(struct bca_context *ctx, int test);
@@ -479,10 +501,9 @@ char *resolve_build_host_variable(struct bca_context *ctx,
                                   char *key);
 
 struct host_configuration *
-resolve_host_build_configuration(struct bca_context *ctx, struct component_details *cd);
-
-struct host_configuration *
-resolve_host_configuration(struct bca_context *ctx, char *host, char *component);
+resolve_host_configuration(struct bca_context *ctx,
+                           char *host,
+                           char *component);
 
 int free_host_configuration(struct bca_context *ctx, struct host_configuration *tc);
 
@@ -504,6 +525,7 @@ int check_duplicate_output_names(struct bca_context *ctx, struct project_details
 int is_project_using_config_h(struct bca_context *ctx);
 
 int component_details_cleanup(struct component_details *cd);
+
 
 /* configure.c ---------------------------------- */
 int is_c_compiler_needed(struct bca_context *ctx,
@@ -535,7 +557,7 @@ int is_file_of_type_used(struct bca_context *ctx,
                          char **files, char **extensions, int count,
                          char *type_extension);
 
-/* gmakefile.c ---------------------------------- */
+/* makefile_out.c ---------------------------------- */
 int generate_makefile_mode(struct bca_context *ctx);
 
 int generate_gmake_host_components(struct bca_context *ctx, FILE *output,
@@ -561,7 +583,7 @@ int generate_create_tarball_rules(struct bca_context *ctx, FILE *output,
 int count_host_component_target_dependencies(struct bca_context *ctx,
                                              struct component_details *cd);
 
-/* graphviz.c ----------------------------------- */
+/* graphviz_out.c ----------------------------------- */
 int graphviz_edges(struct bca_context *ctx, FILE *output,
                    struct component_details *cd,
                    struct project_details *pd);
@@ -593,6 +615,173 @@ extern const char __configure[];
 
 extern const int bca_sfd_c_length;
 extern const char bca_sfd_c[];
+
+
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+/* documents.c ---------------------------------- */
+char *handle_document_functions(struct bca_context *ctx, char *key);
+
+int document_mode(struct bca_context *ctx);
+
+struct document_handling_context_stack_frame
+{
+ int (*close_function) (struct document_handling_context *, void *);
+ void *data;
+ int type, input_file_index, line_number;
+};
+
+#define DLEVEL_NONE     0
+#define DLEVEL_DOCUMENT 1
+#define DLEVEL_PART     2
+#define DLEVEL_CHAPTER  3
+#define DLEVEL_SECTION  4
+#define DLEVEL_SUB      5
+#define DLEVEL_INSET    6
+#define DLEVEL_LISTING  7
+
+#define DSTACK_TYPE_TAG   100
+#define DSTACK_TYPE_TABLE 101
+#define DSTACK_TYPE_TR    102
+#define DSTACK_TYPE_TC    103
+#define DSTACK_TYPE_LIST  104
+#define DSTACK_TYPE_POINT 105
+
+struct toc_element
+{
+ int type;
+ int count;
+ char *name;
+ char page[16];
+ struct toc_element *last, *next, *child, *parrent;
+};
+
+struct toc_element *new_toc_element(int type, char *name);
+
+char *type_to_string(int type);
+
+struct document_handling_context
+{
+ char *engine_name;
+ char *output_type;
+
+ struct bca_context *ctx;
+ int dmode_depth;
+
+ int table_depth, list_depth;
+
+ int stack_depth;
+ struct document_handling_context_stack_frame stack[64];
+
+ int current_level;
+ int implied_levels_mask[8];
+
+ int tag_depth, tag_buffer_length;
+ char *tags[32];
+ char tag_buffer[1024];
+ char *tag_datas[32];
+
+ char input_buffer[1024];
+ int input_buffer_length;
+
+ char *document_configuration_contents;
+ int document_configuration_length;
+
+ void *document_engine_context;
+ int (*start_document) (struct document_handling_context *dctx);
+ int (*finish_document) (struct document_handling_context *dctx);
+ int (*consume_text) (struct document_handling_context *dctx, char *text, int length);
+ int (*open_point) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_point) (struct document_handling_context *dctx);
+ int (*open_list) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_list) (struct document_handling_context *dctx);
+ int (*open_listing) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_listing) (struct document_handling_context *dctx);
+ int (*open_inset) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_inset) (struct document_handling_context *dctx);
+ int (*open_subsection) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_subsection) (struct document_handling_context *dctx);
+ int (*open_section) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_section) (struct document_handling_context *dctx);
+ int (*open_chapter) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_chapter) (struct document_handling_context *dctx);
+ int (*open_part) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_part) (struct document_handling_context *dctx);
+ int (*open_table) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_table) (struct document_handling_context *dctx);
+ int (*open_tr) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tr) (struct document_handling_context *dctx);
+ int (*open_tc) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tc) (struct document_handling_context *dctx);
+ int (*open_tag) (struct document_handling_context *dctx, char **parameters, int n_parameters);
+ int (*close_tag) (struct document_handling_context *dctx);
+};
+
+/* config_files.c */
+int config_file_to_loco_listing(struct bca_context *ctx,
+                                char *in_file_name,
+                                char *out_file_name);
+
+/* plaintext.c */
+int activate_document_engine_plaintext(struct document_handling_context *dctx);
+
+int activate_document_engine_passthrough(struct document_handling_context *dctx);
+
+int stub_document_configuration_file(struct bca_context *ctx);
+
+int conf_lookup_int(struct document_handling_context *dctx,
+                    char *key, int *value, int default_value);
+
+int conf_lookup_string(struct document_handling_context *dctx,
+                       char *key, char **value, char *default_value);
+
+/* utf8_word_engine.c ----------------------------- */
+
+#define UWC_WORD 1
+#define UWC_BROKEN_WORD 2
+
+struct unicode_word_context
+{
+ unsigned char character_buffer[7];
+ char word_buffer[256];
+ int buffer_size, buffer_length, n_characters;
+ int direction, character_buffer_length, expected_character_length;
+
+ void *data;
+ int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
+
+ char *suffix;
+ int suffix_buffer_length;
+};
+
+struct unicode_word_context *
+unicode_word_engine_initialize(void *data,
+                               int (*consume_word) (struct unicode_word_context *uwc,
+                                                    void *data, int flags));
+
+int unicode_word_engine_finalize(struct unicode_word_context *uwc);
+
+int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte);
+
+int is_white_space(char *utf8_character);
+
+int unicode_word_engine_suffix(struct unicode_word_context *uwc, char *buffer, int buffer_length);
+
+/* hyphenation_engine.c -------------------- */
+
+struct hyphenation_context;
+
+struct hyphenation_context *
+hyphenation_engine_initialize(char *language);
+
+int hyphenation_engine_finalize(struct hyphenation_context *hc);
+
+int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
+                               struct unicode_word_context *source,
+                               struct unicode_word_context *first,
+                               struct unicode_word_context *second);
+
+#endif
 
 #endif
 
@@ -2558,6 +2747,126 @@ int component_details_cleanup(struct component_details *cd)
  return 0;
 }
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+int config_file_to_loco_listing(struct bca_context *ctx,
+                                char *in_file_name,
+                                char *out_file_name)
+{
+ char principle[256], component[256], key[256];
+ char *contents, *value;
+ int contents_length, offset = -1, equals_pos, contains_spaces, i,
+     value_length, first;
+ FILE *output;
+
+ if(ctx->verbose > 1)
+   fprintf(stderr, "BCA: config_file_to_loco_listing()\n");
+
+ if((output = fopen(out_file_name, "w")) == NULL)
+ {
+  fprintf(stderr, "BCA: fopen(%s, w) failed, %s\n",
+          out_file_name, strerror(errno));
+  return 1;
+ }
+
+ if((contents = read_file(in_file_name, &contents_length, 0)) == NULL)
+ {
+  return 1;
+ }
+
+ fprintf(output, "listing:%s;\n", in_file_name);
+ fprintf(output, " attribute:listingtype,sourcecode;\n");
+ fprintf(output, " attribute:linenumbers,yes;\n");
+ first = 1;
+
+ while(iterate_key_primitives(ctx, contents, contents_length, &offset,
+                              NULL, NULL, NULL,
+                              principle, component, key, &equals_pos))
+ {
+  if((value = lookup_key(ctx, contents, contents_length,
+                         principle, component, key)) == NULL)
+  {
+   fprintf(stderr, "BCA: problem in file %s with %s.%s.%s\n",
+           in_file_name, principle, component, key);
+   fclose(output);
+   free(contents);
+   return 1;
+  }
+
+  value_length = 0;
+  i = 0;
+  contains_spaces = 0;
+  while(value[i] != 0)
+  {
+   if(value[i] == ' ')
+    contains_spaces = 1;
+
+   i++;
+   value_length = i;
+  }
+
+  if(first)
+  {
+   fprintf(output, " object:text,");
+   first = 0;
+  } else {
+   fprintf(output, " object:linebreak,");
+  }
+
+  fprintf(output, "\"%s\";\n", principle);
+  fprintf(output, "  attribute:syntaxhighlight,bca_principle;\n");
+
+  fprintf(output, " object:text,\".\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  fprintf(output, " object:text,\"%s\";\n", component);
+  fprintf(output, "  attribute:syntaxhighlight,bca_component;\n");
+
+  fprintf(output, " object:text,\".\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  fprintf(output, " object:text,\"%s\";\n", key);
+  fprintf(output, "  attribute:syntaxhighlight,bca_key;\n");
+
+  fprintf(output, " object:text,\" = \";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+
+  if(contains_spaces)
+  {
+   fprintf(output, " object:text,\"\\\"\";\n");
+   fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+  }
+
+  fprintf(output, " object:text,\"");
+  for(i=0; i<value_length; i++)
+  {
+   if(value[i] == '\"')
+   {
+    fprintf(output, "\"\";\n");
+    fprintf(output, "  attribute:syntaxhighlight,bca_value;\n");
+    fprintf(output, " object:text,\"\\\"\";\n");
+    fprintf(output, "  attribute:syntaxhighlight,bca_escape;\n");
+    fprintf(output, " object:text,\"");
+   } else {
+    fprintf(output, "%c", value[i]);
+   }
+  }
+  fprintf(output, "\";\n");
+  fprintf(output, "  attribute:syntaxhighlight,bca_value;\n");
+
+  if(contains_spaces)
+  {
+   fprintf(output, " object:text,\"\\\"\";\n");
+   fprintf(output, "  attribute:syntaxhighlight,bca_delimiter;\n");
+  }
+
+  free(value);
+ }
+
+ fclose(output);
+ free(contents);
+ return 0;
+}
+#endif
 
 /* GPLv3
 
@@ -2826,6 +3135,13 @@ int free_project_details(struct project_details *pd)
 #include "prototypes.h"
 #endif
 
+#ifdef HAVE_MMAP
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 int split_strings(struct bca_context *ctx, char *source, int length,
                   int *count, char ***strings)
 {
@@ -3077,6 +3393,94 @@ int path_extract(const char *full_path, char **base_file_name, char **extension)
  return 0;
 }
 
+int mmap_file(char *name, void **p_ptr, int *length_ptr, int *fd_ptr)
+{
+#ifdef HAVE_MMAP
+ int fd;
+ struct stat meta;
+ void *p;
+ size_t file_length;
+
+ if((fd = open(name, O_RDONLY)) < 0)
+ {
+  fprintf(stderr, "BCA: open(%s) failed, %s\n", name, strerror(errno));
+  return 1;
+ }
+
+ if(fstat(fd, &meta))
+ {
+  fprintf(stderr, "BCA: fstat() failed, %s\n", strerror(errno));
+  close(fd);
+  return 1;
+ }
+
+ if((file_length = meta.st_size) > (100 * 1024 * 1024))
+ {
+  fprintf(stderr,
+          "BCA: read_file(): %s is %llu bytes. Most likely something is wrong. "
+          "If you realy want to process a file greater than 100MB, please "
+          "edit %s line %d\n.",
+          name, (unsigned long long int) file_length, __FILE__, __LINE__);
+  close(fd);
+  return 1;
+ }
+
+ if(file_length == 0)
+ {
+  fprintf(stderr, "BCA: mmap_file(): %s is 0 bytes long.\n", name);
+  close(fd);
+  return 1;
+ }
+
+ if((p = mmap(NULL, file_length, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
+ {
+  fprintf(stderr,
+          "BCA: mmap(NULL, %d, PROT_READ, MAP_SHARED, %d, 0) failed, %s\n",
+          (int) file_length, fd, strerror(errno));
+  return 1;
+ }
+
+ *length_ptr = (int) file_length;
+ *fd_ptr = fd;
+ *p_ptr = p;
+ return 0;
+#else
+ char *c;
+ int length;
+ if((c = read_file(name, &length, 0)) == NULL)
+  return 1;
+
+ *p_ptr = c;
+ *length_ptr = length;
+ *fd_ptr = -1;
+ return 0;
+#endif
+}
+
+int umap_file(void *p, int length, int fd)
+{
+#ifdef HAVE_MMAP
+ if(munmap(p, length))
+ {
+  fprintf(stderr, "BCA: munmap() failed, %s\n", strerror(errno));
+  return 1;
+ }
+ close(fd);
+ return 0;
+#else
+ if(p == NULL)
+  return 1;
+
+ if(length < 1)
+  return 1;
+
+ if(fd != -1)
+  return 1;
+
+ free(p);
+ return 0;
+#endif
+}
 
 char *read_file(char *name, int *length, int silent_test)
 {
@@ -3359,6 +3763,103 @@ char *join_strings(char **list, int n_elements)
  return value;
 }
 
+int next_character(char *buffer, int length)
+{
+ int expected_character_length = 0, buffer_i = 0;
+ unsigned char byte;
+
+ while(buffer_i<length)
+ {
+  byte = (unsigned char) buffer[buffer_i];
+
+  if(expected_character_length == 0)
+  {
+   if( (byte & 128) == 0)
+   {
+    /* 1 byte UTF-8 character */
+    expected_character_length = 1;
+
+   } else if( (byte & 224) == 192) {
+    /* 2 byte UTF-8 character */
+    expected_character_length = 2;
+
+   } else if( (byte & 240) == 224) {
+    /* 3 byte UTF-8 character */
+    expected_character_length = 3;
+
+   } else if( (byte & 248) == 240) {
+    /* 4 byte UTF-8 character */
+    expected_character_length = 4;
+
+   } else if( (byte & 252) == 248) {
+    /* 5 byte UTF-8 character */
+    expected_character_length = 5;
+
+   } else if( (byte & 254) == 252) {
+    /* 6 byte UTF-8 character */
+    expected_character_length = 6;
+
+   } else {
+    fprintf(stderr,
+            "BCA: next_characters(\"%s\", %d): UTF-8 encoding error: "
+            "byte value out of sequence: %xh\n",
+            buffer, length, byte);
+    return -1;
+   }
+
+  } else {
+   if( (byte & 192) != 128)
+   {
+    fprintf(stderr,
+            "BCA: next_character(): UTF-8 encoding error:"
+            "byte value out of sequence: %xh (expected byte %d of a %d byte value)\n",
+             byte, buffer_i + 1, expected_character_length);
+    return -1;
+   }
+  }
+
+  buffer_i++;
+
+  if(buffer_i == expected_character_length)
+   return buffer_i;
+ }
+
+ return -1;
+}
+
+int count_characters(char *buffer, int length)
+{
+ int n_characters = 0, code, buffer_i = 0;
+
+ while(buffer_i < length)
+ {
+
+  if((code = next_character(buffer + buffer_i, length - buffer_i)) < 0)
+   return -1;
+
+  buffer_i += code;
+  n_characters++;
+ }
+
+ return n_characters;
+}
+
+int n_bytes_for_n_characters(char *buffer, int length, int n_characters)
+{
+ int i = 0, n_bytes = 0, c, code;
+
+ for(c=0; c<n_characters; c++)
+ {
+  if((code = next_character(buffer + i, length - i)) < 0)
+   return -1;
+
+  n_bytes += code;
+ }
+
+ return n_bytes;
+}
+
+
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
@@ -3429,7 +3930,11 @@ void help(void)
         " --concatenate file list\n"
         " --replacestrings\n"
         " --file-to-C-source input-file\n"
+        " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+        " --document engine output-type\n"
+        " --stubdocumentconfiguration\n"
+        " --configfiletolocolisting\n"
         " --generate-graphviz\n"
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
@@ -3456,12 +3961,9 @@ void help(void)
         " CC, and PKG_CONFIG_PATH\n"
 
         "\n Copyright © 2015 C. Thomas Stover.\n"
-        " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama\n"
-        " Limited Liability Corporation).\n"
+        " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama Limited Liability Corporation).\n"
         " All rights reserved.\n"
-        "    See https://github.com/ctstover/Build-Configuration-Adjust for more\n"
-        "    information.\n",
-
+        "    See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n",
         BCA_VERSION);
 
 }
@@ -3470,8 +3972,7 @@ int main(int argc, char **argv)
 {
  struct bca_context *ctx;
  char *value, *contents, *file, **list = NULL;
- int length, n_items = 0, i;
- char code;
+ int length, n_items = 0, i, code;
  struct component_details cd;
  struct project_details pd;
  FILE *output;
@@ -3502,6 +4003,15 @@ int main(int argc, char **argv)
        if(ctx->qualifier == NULL)
         ctx->qualifier = "ALL";
        break;
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  case OPERATE_DOCUMENT_CONFIGURATION:
+       file = "./buildconfiguration/documentconfiguration";
+       if(ctx->principle == NULL)
+        ctx->principle = ctx->engine_name;
+       if(ctx->qualifier == NULL)
+        ctx->qualifier = ctx->output_type;
+       break;
+#endif
  }
 
  switch(ctx->mode)
@@ -3528,6 +4038,15 @@ int main(int argc, char **argv)
        }
        if(ctx->verbose > 1)
         fprintf(stderr, "BCA: fwrite() wrote %d bytes\n", bca_sfd_c_length);
+       return 0;
+       break;
+
+  case CONFIG_FILE_TO_LOCO_LISTING_MODE:
+       if(config_file_to_loco_listing(ctx, ctx->input_files[0], ctx->output_file))
+       {
+        fprintf(stderr, "BCA: config_file_to_loco_listing() failed\n");
+        return 1;
+       }
        return 0;
        break;
 #endif
@@ -3809,6 +4328,29 @@ int main(int argc, char **argv)
   case SELF_TEST_MODE:
        return self_test(ctx);
        break;
+
+  case DOCUMENT_MODE:
+       if((code = document_mode(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: document_mode() finished\n");
+       } else {
+        if(ctx->verbose > 1)
+        fprintf(stderr, "BCA: document_mode() failed\n");
+       }
+       return code;
+       break;
+
+  case STUB_DOCUMENT_CONFIGURATION_MODE:
+       if((code = stub_document_configuration_file(ctx)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: stub_document_configuration_file() finished\n");
+       } else {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: stub_document_configuration_file() failed\n");
+       }
+       break;
 #endif
 
   case FILE_TO_C_SOURCE_MODE:
@@ -3985,6 +4527,7 @@ struct bca_context *setup(int argc, char **argv)
  ctx->manipulation_type = OPERATE_BUILD_CONFIGURATION;
 
  memset(&cd, 0, sizeof(struct component_details));
+ memset(&pd, 0, sizeof(struct project_details));
 
 #ifdef HAVE_CWD
  cwd_size = pathconf(".", _PC_PATH_MAX);
@@ -4028,6 +4571,30 @@ struct bca_context *setup(int argc, char **argv)
   }
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
+  if(strcmp(argv[current_arg], "--configfiletolocolisting") == 0)
+  {
+   handled = 1;
+
+   if(current_arg + 2 > argc)
+   {
+    fprintf(stderr, "BCA: --configfiletolocolisting config output.loco\n");
+    return NULL;
+   }
+
+   if((ctx->input_files = (char **) malloc(sizeof(char *) * 2)) == NULL)
+   {
+    fprintf(stderr, "BCA: malloc(%u) failed, %s\n",
+            (unsigned int) sizeof(char *) * 2, strerror(errno));
+    return NULL;
+   }
+   ctx->input_files[0] = argv[++current_arg];
+   ctx->input_files[1] = NULL;
+   ctx->output_file = argv[++current_arg];
+   ctx->mode = CONFIG_FILE_TO_LOCO_LISTING_MODE;
+  }
+#endif
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
   if(strcmp(argv[current_arg], "--selftest") == 0)
   {
    handled = 1;
@@ -4043,6 +4610,40 @@ struct bca_context *setup(int argc, char **argv)
 #else
    fprintf(stderr,
            "BCA: graphviz plots not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
+  }
+
+  if(strcmp(argv[current_arg], "--document") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+
+   if(current_arg + 2 > argc)
+   {
+    fprintf(stderr, "BCA: --document engine-name output-type\n");
+    return NULL;
+   }
+
+   ctx->engine_name = argv[++current_arg];
+   ctx->output_type = argv[++current_arg];
+   ctx->mode = DOCUMENT_MODE;
+   ctx->manipulation_type = OPERATE_DOCUMENT_CONFIGURATION;
+#else
+   fprintf(stderr,
+           "BCA: document mode not available in single file distribution, "
+           "please install bca on this system instead.\n");
+#endif
+  }
+
+  if(strcmp(argv[current_arg], "--stubdocumentconfiguration") == 0)
+  {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+   handled = 1;
+   ctx->mode = STUB_DOCUMENT_CONFIGURATION_MODE;
+#else
+   fprintf(stderr,
+           "BCA: document mode not available in single file distribution, "
            "please install bca on this system instead.\n");
 #endif
   }
@@ -4457,7 +5058,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables, 
+   if(add_to_string_array(&(ctx->disabled_components), ctx->n_disables,
                           argv[current_arg] + 10, -1, 1))
    {
     return NULL;
@@ -4469,7 +5070,7 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
 
-   if(add_to_string_array(&(ctx->enabled_components), ctx->n_enables, 
+   if(add_to_string_array(&(ctx->enabled_components), ctx->n_enables,
                           argv[current_arg] + 9, -1, 1))
    {
     return NULL;
@@ -4487,14 +5088,14 @@ struct bca_context *setup(int argc, char **argv)
     return NULL;
    }
 
-   if(add_to_string_array(&(ctx->swapped_components), ctx->n_swaps, 
+   if(add_to_string_array(&(ctx->swapped_components), ctx->n_swaps,
                           argv[current_arg] + 7, -1, 1))
    {
     fprintf(stderr, "BCA: add_to_string_array() failed\n");
     return NULL;
    }
 
-   if(add_to_string_array(&(ctx->swapped_component_hosts), ctx->n_swaps, 
+   if(add_to_string_array(&(ctx->swapped_component_hosts), ctx->n_swaps,
                           argv[++current_arg], -1, 1))
    {
     fprintf(stderr, "BCA: add_to_string_array() failed\n");
@@ -4544,6 +5145,25 @@ struct bca_context *setup(int argc, char **argv)
    if(ctx->qualifier == NULL)
    {
     printf("BCA: need to specify a component with --component\n");
+    return NULL;
+   }
+  }
+
+  if(strcmp(argv[current_arg], "--inputfiles") == 0)
+  {
+   handled = 1;
+   if(argc < current_arg + 1)
+   {
+    fprintf(stderr, "BCA: --input files expects a list as a single parameter\n");
+    return NULL;
+   }
+   current_arg++;
+
+   if(split_strings(ctx, argv[current_arg], -1,
+                    &(ctx->n_input_files),
+                    &(ctx->input_files)))
+   {
+    fprintf(stderr, "BCA: split_strings(%s) failed\n", argv[current_arg]);
     return NULL;
    }
   }
@@ -4844,7 +5464,7 @@ int render_project_component_output_names(struct bca_context *ctx,
                                           int edition) //this should take tc instead of looking it up again
 {
  char *extension, temp[1024], *component_install_path;
- int x, y, handled, code, prefix_length, import, effective_path_mode;
+ int prefix_length, import, effective_path_mode;
  struct host_configuration *tc;
 
  if(ctx->verbose > 1)
@@ -4915,7 +5535,7 @@ int render_project_component_output_names(struct bca_context *ctx,
        component_install_path = NULL;
        break;
 
-  case 4: /* effective output name */
+  case RENDER_EFFECTIVE_OUTPUT_NAME:
        if((effective_path_mode = resolve_effective_path_mode(ctx)) == -1)
         return 1;
 
@@ -7131,8 +7751,6 @@ int configure(struct bca_context *ctx)
 #include "prototypes.h"
 #endif
 
-int line_number = 1;
-
 int parse_function_parameters(char *string, char ***array, int *array_length)
 {
  int length, i, mark = -1;
@@ -7618,6 +8236,19 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   fprintf(stderr, "BCA: resolve_string_replace_key(%s)\n", key);
  }
 
+ if(key[0] == 'd')
+ {
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  return handle_document_functions(ctx, key);
+#else
+  fprintf(stderr,
+          "BCA: %s, line %d macro key starting with 'd' is likely a document handling function. "
+          "Document processing macros are not in the single file distribution.\n",
+          current_file_name(ctx), ctx->line_number);
+  return NULL;
+#endif
+ }
+
  if(strncmp(key, "ENV.", 4) == 0)
  {
   if((value = getenv(key + 4)) == NULL)
@@ -7625,18 +8256,6 @@ char *resolve_string_replace_key(struct bca_context *ctx,
    return NULL;
   }
   return strdup(value);
- }
-
- if(key[0] == 'd')
- {
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-  return NULL;
-#else
-  fprintf(stderr,
-          "BCA: macro key startint with 'd' is likely a document handling function. "
-          "Document processing macros are not in the single file distribution.\n");
-  return NULL;
-#endif
  }
 
  if(strncmp(key, "CHECK(", 6) == 0)
@@ -7654,7 +8273,7 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   return file_to_C_source_function(ctx, key);
  }
 
- if(strncmp(key, "BCA.BUILDIR", 11) == 0)
+ if(strncmp(key, "BCA.BUILDDIR", 12) == 0)
  {
 #ifdef HAVE_CWD
   return strdup(ctx->cwd);
@@ -7730,19 +8349,19 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   switch(mode)
   {
    case 15:
-        edition = 1;
+        edition = RENDER_OUTPUT_NAME;
         break;
 
    case 18:
-        edition = 3;
+        edition = RENDER_INSTALL_OUTPUT_NAME;
         break;
 
    case 20:
-        edition = 2;
+        edition = RENDER_BUILD_OUTPUT_NAME;
         break;
 
    case 24:
-        edition = 4;
+        edition = RENDER_EFFECTIVE_OUTPUT_NAME;
         break;
   }
 
@@ -7943,7 +8562,7 @@ int string_replace(struct bca_context *ctx)
     fscanf(stdin, "%c", &c);
 
     if(c == '\n')
-     line_number++;
+     ctx->line_number++;
 
     if(c != '@')
     {
@@ -7969,20 +8588,26 @@ int string_replace(struct bca_context *ctx)
     if((value = resolve_string_replace_key(ctx, key)) == NULL)
     {
      fprintf(stderr,
-             "BCA: string_replace(): could not resolve key \"%s\", line %d\n",
-             key, line_number);
+             "BCA: string_replace(): could not resolve key \"%s\": %s, line %d\n",
+             key, current_file_name(ctx), ctx->line_number);
      return 1;
     }
 
     fprintf(stdout, "%s", value);
     free(value);
    }
-
   }
-
  }
 
  return 0;
+}
+
+char *current_file_name(struct bca_context *ctx)
+{
+ if(ctx->n_input_files == 0)
+  return "stdin";
+
+ return ctx->input_files[ctx->input_file_index];
 }
 
 /* GPLv3
@@ -8015,18 +8640,18 @@ int string_replace(struct bca_context *ctx)
 #endif
 
 #define MAKE_PASS_ALL                0
-#define MAKE_PASS_HELP               1
-#define MAKE_PASS_CLEAN_RULES        2
-#define MAKE_PASS_CLEAN_RULES_2      3
-#define MAKE_PASS_INSTALL_RULES      4
-#define MAKE_PASS_INSTALL_RULES_2    5
-#define MAKE_PASS_INSTALL_RULES_3    6
-#define MAKE_PASS_UNINSTALL_RULES    7
-#define MAKE_PASS_UNINSTALL_RULES_2  8
-#define MAKE_PASS_UNINSTALL_RULES_3  9
-#define MAKE_PASS_TARBALL_RULES      10
-#define MAKE_PASS_BUILD_RULES        11
-#define MAKE_PASS_HOST_TARGETS       12
+#define MAKE_PASS_HOST_TARGETS       1
+#define MAKE_PASS_HELP               2
+#define MAKE_PASS_CLEAN_RULES        3
+#define MAKE_PASS_CLEAN_RULES_2      4
+#define MAKE_PASS_INSTALL_RULES      5
+#define MAKE_PASS_INSTALL_RULES_2    6
+#define MAKE_PASS_INSTALL_RULES_3    7
+#define MAKE_PASS_UNINSTALL_RULES    8
+#define MAKE_PASS_UNINSTALL_RULES_2  9
+#define MAKE_PASS_UNINSTALL_RULES_3  10
+#define MAKE_PASS_TARBALL_RULES      11
+#define MAKE_PASS_BUILD_RULES        12
 #define N_MAKE_PASSES                13
 
 int build_host_component_file_rule_cflags(struct bca_context *ctx, FILE *output,
@@ -9422,8 +10047,8 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
  if(strcmp(cd->component_type, "SHAREDLIBRARY") == 0)
  {
 
-  fprintf(output, "%s : %s Makefile\n",
-          cd->rendered_names[1], cd->rendered_names[0]);
+  fprintf(output, "%s : Makefile\n",
+          cd->rendered_names[1]);
 
   if(generate_host_component_pkg_config_file(ctx, cd, pd, tc,
                                              cd->rendered_names[1],
@@ -9835,6 +10460,7 @@ int make_tarball_target(struct bca_context *ctx,
  int x, y, z, n_files, n_strings;
  char temp[512], subdir[512], **files, **strings, *tar_name;
  struct component_details cd;
+ FILE *f;
 
  memset(&cd, 0, sizeof(struct component_details));
 
@@ -9869,9 +10495,18 @@ int make_tarball_target(struct bca_context *ctx,
   if(resolve_component_source_files(ctx, &cd))
    return 1;
 
+  if(resolve_component_extra_file_dependencies(ctx, &cd))
+   return 1;
+
   for(y=0; y<cd.n_source_files; y++)
   {
    if(add_to_string_array(&files, n_files, cd.source_file_names[y], -1, 1) == 0)
+    n_files++;
+  }
+
+  for(y=0; y<cd.n_extra_file_deps; y++)
+  {
+   if(add_to_string_array(&files, n_files, cd.extra_file_deps[y], -1, 1) == 0)
     n_files++;
   }
 
@@ -9957,6 +10592,21 @@ int make_tarball_target(struct bca_context *ctx,
  fprintf(output,
          "\t./bca --output-buildconfigurationadjust.c > ./%s/buildconfiguration/buildconfigurationadjust.c\n",
          temp);
+
+ if((f = fopen("./configure-autoconf", "r")) != NULL)
+ {
+  fprintf(output, "\tcp configure-autoconf ./%s/\n", temp);
+  fprintf(output, "\tchmod +x ./%s/configure\n", temp);
+  fclose(f);
+ }
+
+ if((f = fopen("./configure-extra", "r")) != NULL)
+ {
+  fprintf(output, "\tcp configure-extra ./%s/\n", temp);
+  fprintf(output, "\tchmod +x ./%s/configure\n", temp);
+  fclose(f);
+ }
+
  fprintf(output, "\ttar -pczf %s.tar.gz ./%s\n", temp, temp);
 
  free_string_array(files, n_files);
@@ -10284,9 +10934,6 @@ int makefile_component_pass(struct bca_context *ctx,
 
   case MAKE_PASS_HOST_TARGETS:
        fprintf(output, "%s ", cd.rendered_names[0]);
-
-       if(strcmp(cd.component_type, "SHAREDLIBRARY") == 0)
-        fprintf(output, "%s ", cd.rendered_names[1]);
        break;
  }
 
@@ -10322,6 +10969,10 @@ int makefile_mode_pass(struct bca_context *ctx,
        fprintf(output, "all : ");
        break;
 
+  case MAKE_PASS_HOST_TARGETS:
+       fprintf(output, "# top level host definitions\n");
+       break;
+
   case MAKE_PASS_HELP:
        fprintf(output, "# output for \"Make help\"\n");
        fprintf(output, "help :\n");
@@ -10338,12 +10989,24 @@ int makefile_mode_pass(struct bca_context *ctx,
        fprintf(output, "\t@echo \" all - default target (builds all of the below)\"\n");
        break;
 
+  case MAKE_PASS_CLEAN_RULES:
+       fprintf(output, "# clean host and top level definitions\n");
+       break;
+
   case MAKE_PASS_CLEAN_RULES_2:
        fprintf(output, "clean :\n\trm -f ");
        break;
 
+  case MAKE_PASS_INSTALL_RULES_2:
+       fprintf(output, "# install host and top level definitions\n");
+       break;
+
   case MAKE_PASS_INSTALL_RULES_3:
        fprintf(output, "install : ");
+       break;
+
+  case MAKE_PASS_UNINSTALL_RULES_2:
+       fprintf(output, "# uninstall host and top level definitions\n");
        break;
 
   case MAKE_PASS_UNINSTALL_RULES_3:
@@ -10363,6 +11026,7 @@ int makefile_mode_pass(struct bca_context *ctx,
  switch(pass)
  {
   case MAKE_PASS_ALL:
+  case MAKE_PASS_HOST_TARGETS:
   case MAKE_PASS_HELP:
   case MAKE_PASS_CLEAN_RULES:
   case MAKE_PASS_CLEAN_RULES_2:
@@ -10373,7 +11037,6 @@ int makefile_mode_pass(struct bca_context *ctx,
   case MAKE_PASS_UNINSTALL_RULES_2:
   case MAKE_PASS_UNINSTALL_RULES_3:
   case MAKE_PASS_BUILD_RULES:
-  case MAKE_PASS_HOST_TARGETS:
        /* pre-looping over components */
        for(host_i = 0; host_i < bd->n_hosts; host_i++)
        {
@@ -10412,31 +11075,35 @@ int makefile_mode_pass(struct bca_context *ctx,
          case MAKE_PASS_UNINSTALL_RULES_3:
               fprintf(output, "$(%s-uninstall-targets) ", bd->hosts[host_i]);
               break;
-
-         case MAKE_PASS_HOST_TARGETS:
-              fprintf(output, "%s : ", bd->hosts[host_i]);
-              break;
         }
        }
 
        /* looping over components */
        switch(pass)
        {
+        case MAKE_PASS_HOST_TARGETS:
         case MAKE_PASS_CLEAN_RULES:
         case MAKE_PASS_INSTALL_RULES:
         case MAKE_PASS_INSTALL_RULES_2:
         case MAKE_PASS_UNINSTALL_RULES:
         case MAKE_PASS_UNINSTALL_RULES_2:
         case MAKE_PASS_BUILD_RULES:
-        case MAKE_PASS_HOST_TARGETS:
              for(host_i = 0; host_i < bd->n_hosts; host_i++)
              {
+
+              if(pass == MAKE_PASS_HOST_TARGETS)
+               fprintf(output, "%s : ", bd->hosts[host_i]);
+
               for(component_i = 0; component_i < pd->n_components; component_i++)
               {
                if(makefile_component_pass(ctx, pd, bd, output, pass, host_i, component_i,
                                           &unique_list_length, &unique_list))
                 return 1;
               }
+
+              if(pass == MAKE_PASS_HOST_TARGETS)
+               fprintf(output, "\n\n");
+
              }
              break;
        }
@@ -10452,7 +11119,6 @@ int makefile_mode_pass(struct bca_context *ctx,
         case MAKE_PASS_CLEAN_RULES:
         case MAKE_PASS_INSTALL_RULES_2:
         case MAKE_PASS_UNINSTALL_RULES_2:
-        case MAKE_PASS_HOST_TARGETS:
              fprintf(output, "\n\n");
              break;
 

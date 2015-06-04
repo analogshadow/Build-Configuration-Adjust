@@ -1,6 +1,6 @@
 NONE.NONE.PROJECT_NAME = "Build Configuration Adjust"
 NONE.NONE.MAJOR = 0
-NONE.NONE.MINOR = 4
+NONE.NONE.MINOR = 5
 CAT.dist_c.NAME = buildconfigurationadjust-single-file-distribution.c
 CAT.dist_c.FILES = "./src/prototypes.h ./src/config_files.c ./src/project_config_files.c ./src/strings.c ./src/main.c ./src/conversions.c ./src/configure.c ./src/replace.c ./src/makefile_out.c src/config_files_low_level.c"
 CAT.dist_c.INPUT = sfdstub
@@ -23,4 +23,4 @@ CUSTOM.embedded_files.INPUT = "sfdb dist_c"
 CUSTOM.embedded_files.FILES = ./configure
 BINARY.listing.NAME = locolisting
 BINARY.listing.FILES = "./src/convert.c ./src/convert_screenlog.c ./src/convert_csource.c"
-BINARY.listing.FILE_DEPENDS = ./src/locodoc.h
+BINARY.listing.FILE_DEPENDS = "./src/locodoc.h ./src/convert.h"

@@ -1,5 +1,9 @@
 #!/bin/bash
 
-./bca --host ALL --component ALL --setvalue VERSION "`git describe --long --tags --dirty --always`"
+VERSION=`git describe --long --tags --dirty --always`
+if [ $? = 0 ]
+then
+./bca --host ALL --component ALL --setvalue VERSION "$VERSION"
+fi
 
 exit 0
