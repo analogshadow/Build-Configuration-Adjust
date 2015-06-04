@@ -35,8 +35,12 @@
 
 void help(void)
 {
- printf("\n                         Build Configuration Adjust\n"
-        "                            Version: %s\n"
+ printf("\n Build Configuration Adjust, version: %s\n"
+#ifdef IN_SINGLE_FILE_DISTRIBUTION
+        " [single source file distribution edition]\n"
+#endif
+        " Licensed under the terms of GNU GPLv3.\n"
+        " See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n"
         "\nusage:\n"
         " --version\n"
         " --showvalue key\n"
@@ -95,13 +99,12 @@ void help(void)
         " --without-*\n"
         " --disable-*\n"
         " --enable-*\n"
-        " Some of the autoconf compatibility environment variables are:\n"
+        " Some of the autoconf compatibility environment variables are:"
         " CC, and PKG_CONFIG_PATH\n"
-
         "\n Copyright © 2015 C. Thomas Stover.\n"
         " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama Limited Liability Corporation).\n"
         " All rights reserved.\n"
-        "    See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n",
+        "\n",
         BCA_VERSION);
 
 }

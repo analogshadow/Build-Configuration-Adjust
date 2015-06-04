@@ -36,12 +36,12 @@ if [ "$1" = "--help=short" ]; then
 fi
 
 if [ "$1" = "--help" ]; then
-	echo "===================================================================================="
+	echo "==============================================================================="
 	echo "BCA configure is a wrapper / helper / compatibility script arround the binary executable \"./bca\"."
 	echo "If this directory has no ./bca, it will be found or built, and then linked to by this script."
 	echo "The one optional agrument configure has is --clean, which will attempt to start with a blank slate."
 	echo "See the source of configure for more information. Invoking \"./bca --help\"..."
-	echo "===================================================================================="
+	echo "==============================================================================="
 	./bca --help
 	exit $?
 fi
@@ -139,7 +139,7 @@ then
 			then
 				echo "configure: Building local bca failed. To change compilers set BUILD_CC."
 				echo "configure: If $BUILD_CC actually works on this system, consider reporting this."
-				echo "configure: http://bca.stoverenterprises.com"
+				echo "configure: https://github.com/ctstover/Build-Configuration-Adjust"
 				exit 1
 			fi
 		else
@@ -215,7 +215,7 @@ then
 		export LDFLAGS
 
 		echo "configure: Calling external ./configure-autoconf for host identifier $HOST_IDENTIFIER..."
-		echo "==========================================================="
+		echo "==============================================================================="
 
 		if [ $HOST_IDENTIFIER != "NATIVE" ]
 		then
@@ -231,7 +231,7 @@ then
 
 		fi
 
-		echo "==========================================================="
+		echo "==============================================================================="
 		echo "configure: Finished with external ./configure-autoconf for host identifier $HOST_IDENTIFIER."
 
 	done
