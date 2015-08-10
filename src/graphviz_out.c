@@ -282,7 +282,7 @@ int edge_from_internal_dependency(struct bca_context *ctx,
  if(resolve_component_version(ctx, cd))
   return 1;
 
- if(render_project_component_output_names(ctx, &dep_cd, RENDER_BUILD_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &dep_cd, tc, RENDER_BUILD_OUTPUT_NAME))
   return 1;
 
  if(dep_cd.n_rendered_names > 2)
@@ -480,7 +480,7 @@ int graphviz_mode_pass(struct bca_context *ctx,
      if((tc = resolve_host_configuration(ctx, cd.host, cd.component_name)) == NULL)
       return 1;
 
-     if(render_project_component_output_names(ctx, &cd, RENDER_BUILD_OUTPUT_NAME))
+     if(render_project_component_output_names(ctx, &cd, tc, RENDER_BUILD_OUTPUT_NAME))
      {
       fprintf(stderr, "BCA: render_project_componet_output_names() failed\n");
       return 1;

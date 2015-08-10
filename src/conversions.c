@@ -167,11 +167,11 @@ int free_rendered_names(struct component_details *cd)
 
 int render_project_component_output_names(struct bca_context *ctx,
                                           struct component_details *cd,
-                                          int edition) //this should take tc instead of looking it up again
+                                          struct host_configuration *tc,
+                                          int edition)
 {
  char *extension, temp[1024], *component_install_path;
  int prefix_length, import, effective_path_mode;
- struct host_configuration *tc;
 
  if(ctx->verbose > 1)
   fprintf(stderr, "BCA: render_project_component_output_names(%s, %s)\n",
@@ -193,8 +193,9 @@ int render_project_component_output_names(struct bca_context *ctx,
   return 1;
  }
 
- if((tc = resolve_host_configuration(ctx, cd->host, cd->component_name)) == NULL)
-  return 1;
+ if(tc == NULL)
+  if((tc = resolve_host_configuration(ctx, cd->host, cd->component_name)) == NULL)
+   return 1;
 
  if((extension = component_type_file_extension(ctx, tc,
                                                cd->component_type,
@@ -248,11 +249,11 @@ int render_project_component_output_names(struct bca_context *ctx,
        switch(effective_path_mode)
        {
         case EFFECTIVE_PATHS_LOCAL:
-             return render_project_component_output_names(ctx, cd, RENDER_BUILD_OUTPUT_NAME);
+             return render_project_component_output_names(ctx, cd, tc, RENDER_BUILD_OUTPUT_NAME);
              break;
 
         case EFFECTIVE_PATHS_INSTALL:
-             return render_project_component_output_names(ctx, cd, RENDER_INSTALL_OUTPUT_NAME);
+             return render_project_component_output_names(ctx, cd, tc, RENDER_INSTALL_OUTPUT_NAME);
              break;
 
         default:

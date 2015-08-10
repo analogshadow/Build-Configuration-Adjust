@@ -81,6 +81,7 @@ void help(void)
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
         " --selftest (help debug buildconfigurationadjust itself)\n"
+        " --colorize make-command [make argumenets] (colorize make output)\n"
 #endif
 
 #ifndef WITHOUT_LIBNEWT
@@ -492,6 +493,18 @@ int main(int argc, char **argv)
          fprintf(stderr, "BCA: stub_document_configuration_file() failed\n");
        }
        break;
+
+  case COLORIZE_MAKE_OUTPUT_MODE:
+       if((code = make_colorize_mode(ctx, ctx->argc, ctx->argv)) == 0)
+       {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: make_colorize_mode() finished\n");
+       } else {
+        if(ctx->verbose > 1)
+         fprintf(stderr, "BCA: make_colorize_mode() failed\n");
+       }
+       return code;
+       break;
 #endif
 
   case FILE_TO_C_SOURCE_MODE:
@@ -583,7 +596,7 @@ int main(int argc, char **argv)
         return 1;
        }
 
-       if(render_project_component_output_names(ctx, &cd, code))
+       if(render_project_component_output_names(ctx, &cd, NULL, code))
        {
         fprintf(stderr,
                 "BCA: render_project_component_output_names(%s, %s, %d) failed\n",
@@ -740,6 +753,16 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
    ctx->mode = SELF_TEST_MODE;
+  }
+#endif
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  if(strcmp(argv[current_arg], "--colorize") == 0)
+  {
+   ctx->argc = argc - (current_arg + 1);
+   ctx->argv = argv + (current_arg + 1);
+   ctx->mode = COLORIZE_MAKE_OUTPUT_MODE;
+   break;
   }
 #endif
 
