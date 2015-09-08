@@ -213,7 +213,7 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", pkg_file_name);
  }
 
- for(i=0; i<cd->n_include_dirs > 0; i++)
+ for(i=0; i<cd->n_include_dirs; i++)
  {
   if(strncmp(cd->include_dirs[i], "./", 2) == 0)
   {
@@ -567,9 +567,9 @@ int decide_cxx_runtime_requirement(struct bca_context *ctx,
 
  for(i=0; i < cd->n_source_files; i++)
  {
-  if( (strcmp(cd->source_file_extensions[i], "cc") == 0) ||
-      (strcmp(cd->source_file_extensions[i], "cxx") == 0) ||
-      (strcmp(cd->source_file_extensions[i], "cpp") == 0) )
+  if( (strcmp(cd->source_file_extensions[i], ".cc") == 0) ||
+      (strcmp(cd->source_file_extensions[i], ".cxx") == 0) ||
+      (strcmp(cd->source_file_extensions[i], ".cpp") == 0) )
   {
    return 1;
   }
@@ -723,7 +723,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     output_names_cd.component_output_name = pd->component_output_names[x];
 
     if(render_project_component_output_names(ctx,
-                                             &output_names_cd,
+                                             &output_names_cd, tc,
                                              RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_output_names() failed 1\n");
@@ -1183,7 +1183,7 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
  output_names.component_name = cd->component_name;
  output_names.component_output_name = cd->component_output_name;
 
- if(render_project_component_output_names(ctx, &output_names, RENDER_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &output_names, tc, RENDER_OUTPUT_NAME))
  {
   fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
   return 1;
@@ -1286,7 +1286,7 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
     cd_d.component_name = pd->component_names[x];
     cd_d.component_output_name = pd->component_output_names[x];
 
-    if(render_project_component_output_names(ctx, &cd_d, RENDER_BUILD_OUTPUT_NAME))
+    if(render_project_component_output_names(ctx, &cd_d, NULL, RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
       return 1;
@@ -1533,7 +1533,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
     cd_d.component_name = pd->component_names[x];
     cd_d.component_output_name = pd->component_output_names[x];
 
-    if(render_project_component_output_names(ctx, &cd_d, RENDER_BUILD_OUTPUT_NAME))
+    if(render_project_component_output_names(ctx, &cd_d, NULL, RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_ouput_names() failed on internal dep\n");
      return 1;
@@ -1944,6 +1944,12 @@ int make_tarball_target(struct bca_context *ctx,
     n_files++;
   }
 
+  for(y=0; y<cd.n_lib_headers; y++)
+  {
+   if(add_to_string_array(&files, n_files, cd.lib_headers[y], -1, 1) == 0)
+    n_files++;
+  }
+
   if(component_details_cleanup(&cd))
    return 1;
  }
@@ -2099,7 +2105,7 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
  output_names.component_name = cd->component_name;
  output_names.component_output_name = cd->component_output_name;
 
- if(render_project_component_output_names(ctx, &output_names, RENDER_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &output_names, tc, RENDER_OUTPUT_NAME))
  {
   fprintf(stderr, "BCA: generate_host_component_install_rules(): "
           "render_project_component_ouput_names() failed\n");
@@ -2112,7 +2118,7 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
  installed_names.component_name = cd->component_name;
  installed_names.component_output_name = cd->component_output_name;
 
- if(render_project_component_output_names(ctx, &installed_names, RENDER_INSTALL_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &installed_names, tc, RENDER_INSTALL_OUTPUT_NAME))
  {
   fprintf(stderr, "BCA: generate_host_component_install_rules(): "
           "render_project_component_ouput_names() failed\n");
@@ -2242,6 +2248,7 @@ int makefile_component_pass(struct bca_context *ctx,
   {
    case MAKE_PASS_INSTALL_RULES:
    case MAKE_PASS_UNINSTALL_RULES:
+   case MAKE_PASS_BUILD_RULES:
         return 0;
         break;
   }
@@ -2259,7 +2266,7 @@ int makefile_component_pass(struct bca_context *ctx,
  cd.component_name = pd->component_names[component_i];
  cd.component_output_name = pd->component_output_names[component_i];
 
- if(render_project_component_output_names(ctx, &cd, RENDER_BUILD_OUTPUT_NAME)) //needs to pass tc
+ if(render_project_component_output_names(ctx, &cd, tc, RENDER_BUILD_OUTPUT_NAME)) //needs to pass tc
  {
   fprintf(stderr, "BCA: render_project_component_ouput_names() failed\n");
    return 1;
@@ -2274,7 +2281,7 @@ int makefile_component_pass(struct bca_context *ctx,
        install_cd.component_type = cd.component_type;
        install_cd.component_name = cd.component_name;
        install_cd.component_output_name = cd.component_output_name;
-       if(render_project_component_output_names(ctx, &install_cd, RENDER_INSTALL_OUTPUT_NAME)) //needs to pass tc
+       if(render_project_component_output_names(ctx, &install_cd, tc, RENDER_INSTALL_OUTPUT_NAME)) //needs to pass tc
        {
         fprintf(stderr, "BCA: render_project_component_ouput_names() failed\n");
         return 1;
@@ -2296,14 +2303,27 @@ int makefile_component_pass(struct bca_context *ctx,
        {
         /* the .pc rendered by render_project_component_output_names() will be the versioned one,
           this covers the unversioned symlink */
-        fprintf(output, "%s/%s.pc ", tc->build_prefix,
-                pd->component_output_names[component_i]);
+        snprintf(temp, 512, "%s/%s.pc", tc->build_prefix,
+                 pd->component_output_names[component_i]);
+
+        if(add_to_string_array(unique_list, *unique_list_length, temp, -1, 1) == 0)
+        {
+         fprintf(output, "%s ", temp);
+         (*unique_list_length)++;
+        }
        }
 
        for(i=0; i < cd.n_rendered_names; i++)
        {
         if(cd.rendered_names[i][0] != 0)
-         fprintf(output, "%s ", cd.rendered_names[i]);
+        {
+         snprintf(temp, 512, "%s", cd.rendered_names[i]);
+         if(add_to_string_array(unique_list, *unique_list_length, temp, -1, 1) == 0)
+         {
+          fprintf(output, "%s ", temp);
+          (*unique_list_length)++;
+         }
+        }
        }
        break;
 
@@ -2506,12 +2526,6 @@ int makefile_mode_pass(struct bca_context *ctx,
               fprintf(output, "\t@echo \" %s\"\n", bd->hosts[host_i]);
               break;
 
-         case MAKE_PASS_CLEAN_RULES:
-              fprintf(output, "%s-clean-targets = ", bd->hosts[host_i]);
-              unique_list_length = 0;
-              unique_list = NULL;
-              break;
-
          case MAKE_PASS_CLEAN_RULES_2:
               fprintf(output, "$(%s-clean-targets) ", bd->hosts[host_i]);
               break;
@@ -2532,9 +2546,6 @@ int makefile_mode_pass(struct bca_context *ctx,
               fprintf(output, "$(%s-uninstall-targets) ", bd->hosts[host_i]);
               break;
 
-         case MAKE_PASS_HOST_TARGETS:
-              fprintf(output, "%s : ", bd->hosts[host_i]);
-              break;
         }
        }
 
@@ -2542,7 +2553,37 @@ int makefile_mode_pass(struct bca_context *ctx,
        switch(pass)
        {
         case MAKE_PASS_HOST_TARGETS:
+             for(host_i = 0; host_i < bd->n_hosts; host_i++)
+             {
+              fprintf(output, "%s : ", bd->hosts[host_i]);
+              for(component_i = 0; component_i < pd->n_components; component_i++)
+              {
+               if(makefile_component_pass(ctx, pd, bd, output, pass, host_i, component_i,
+                                          &unique_list_length, &unique_list))
+                return 1;
+              }
+              fprintf(output, "\n\n");
+             }
+             break;
+
         case MAKE_PASS_CLEAN_RULES:
+             unique_list_length = 0;
+             unique_list = NULL;
+
+             for(host_i = 0; host_i < bd->n_hosts; host_i++)
+             {
+              fprintf(output, "%s-clean-targets = ", bd->hosts[host_i]);
+
+              for(component_i = 0; component_i < pd->n_components; component_i++)
+              {
+               if(makefile_component_pass(ctx, pd, bd, output, pass, host_i, component_i,
+                                          &unique_list_length, &unique_list))
+                return 1;
+              }
+              fprintf(output, "\n\n");
+             }
+             break;
+
         case MAKE_PASS_INSTALL_RULES:
         case MAKE_PASS_INSTALL_RULES_2:
         case MAKE_PASS_UNINSTALL_RULES:
@@ -2563,10 +2604,8 @@ int makefile_mode_pass(struct bca_context *ctx,
        /* post-looping over components */
        switch(pass)
        {
-        case MAKE_PASS_CLEAN_RULES:
         case MAKE_PASS_INSTALL_RULES_2:
         case MAKE_PASS_UNINSTALL_RULES_2:
-        case MAKE_PASS_HOST_TARGETS:
              fprintf(output, "\n\n");
              break;
 

@@ -674,7 +674,7 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   cd.component_name = pd->component_names[component_i];
   cd.component_output_name = pd->component_output_names[component_i];
 
-  if(render_project_component_output_names(ctx, &cd, edition))
+  if(render_project_component_output_names(ctx, &cd, NULL, edition))
   {
    fprintf(stderr, "BCA: replace key note: render_project_component_output_names() yielded "
            "no result for project component \"%s\" on host \"%s\".\n", a, ctx->principle);

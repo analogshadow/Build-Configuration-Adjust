@@ -1198,11 +1198,132 @@ int derive_file_suffixes(struct bca_context *ctx,
 
  return 0;
 }
+
+int find_multiarch_libpath(struct bca_context *ctx,
+                           struct host_configuration *tc,
+                           char **path)
+{
+ char command[1024], *results;
+ int length, code;
+
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: find_multiarch_libpath()\n");
+
+ *path = NULL;
+
+ snprintf(command, 1024, "dpkg-architecture");
+
+ if(test_runnable(ctx, command) != 0)
+  return 0;
+
+ snprintf(command, 1024, "dpkg-architecture -qDEB_HOST_MULTIARCH > configuretestoutput");
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ code = system(command);
+ if(WEXITSTATUS(code) != 0)
+ {
+  unlink("configuretestoutput");
+  return 0;
+ }
+
+ if((results = read_file("configuretestoutput", &length, 0)) == NULL)
+ {
+  fprintf(stderr, "BCA: read_file(\"configuretestoutput\") failed\n");
+  return 0;
+ }
+
+ unlink("configuretestoutput");
+
+ if(results[length - 1] == '\n')
+  results[--length] = 0;
+
+ *path = results;
+ return 0;
+}
+
+/* Attempts to find if library paths are in the form of "lib32"
+   or "lib64", instead of just "lib" as can be found on Linux
+   multi-arch distros for instance. This is done by compiling a
+   hello world, running ldd on the output, then simple looking
+   through the output. 
+   Returns:
+
+   -1 error
+   0  inconclusive
+   1  lib64
+   2  lib32
+*/
+int find_multilib_suffix(struct bca_context *ctx,
+                         struct host_configuration *tc)
+{
+ int code, length;
+ FILE *f;
+ char command[1024], *results;
+
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: find_multilib_suffix()\n");
+
+ if((f = fopen("./configuretestfile.c", "w")) == NULL)
+ {
+  fprintf(stderr, "BCA: fopen(./configuretestfile.c) failed\n");
+  return -1;
+ }
+
+ fprintf(f,
+         "#include <stdio.h>\n"
+         "int main(void)\n"
+         "{\n"
+         " printf(\"hello world\");\n"
+         " return 0;\n"
+         " }\n\n");
+ fclose(f);
+
+ snprintf(command, 1024,
+          "%s configuretestfile.c %s configuretestfile 1> configuretestoutput "
+          "2> configuretestoutput",
+          tc->cc, tc->cc_output_flag);
+
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ system(command);
+
+ unlink("configuretestoutput");
+
+ snprintf(command, 1024, "ldd configuretestfile > configuretestoutput");
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ system(command);
+
+ if((results = read_file("configuretestoutput", &length, 0)) == NULL)
+ {
+  fprintf(stderr, "BCA: read_file(\"configuretestoutput\") failed\n");
+  code = 0;
+ } else if(contains_string(results, length, "lib64", 5)) {
+  code = 1;
+ } else if(contains_string(results, length, "lib32", 5)) {
+  code = 2;
+ }
+
+ free(results);
+ unlink("configuretestoutput");
+ unlink("configuretestfile.c");
+ unlink("configuretestfile.o");
+ unlink("configuretestfile");
+ return code;
+}
+
 int derive_install_paths(struct bca_context *ctx,
                          struct host_configuration *tc,
-                         char *platform)
+                         char *platform,
+                         char *host_root)
 {
- char install_prefix[512];
+ char install_prefix[512], *arch;
 
  if(ctx->install_prefix == NULL)
  {
@@ -1250,7 +1371,33 @@ int derive_install_paths(struct bca_context *ctx,
  /* INSTALL_LIB_DIR */
  if(tc->install_lib_dir == NULL)
  {
-  snprintf(temp, 512, "%s/lib", install_prefix);
+  if(host_root == NULL)
+  {
+   if(find_multiarch_libpath(ctx, tc, &arch))
+    return 1;
+
+   if(arch != NULL)
+   {
+    snprintf(temp, 512, "%s/lib/%s", install_prefix, arch);
+    free(arch);
+   } else {
+    switch(find_multilib_suffix(ctx, tc))
+    {
+     case 1:
+          snprintf(temp, 512, "%s/lib64", install_prefix);
+          break;
+
+     case 2:
+          snprintf(temp, 512, "%s/lib32", install_prefix);
+          break;
+
+     default:
+          snprintf(temp, 512, "%s/lib", install_prefix);
+    }
+   }
+  } else {
+   snprintf(temp, 512, "%s/lib", install_prefix);
+  }
   tc->install_lib_dir = strdup(temp);
  }
 
@@ -1264,7 +1411,7 @@ int derive_install_paths(struct bca_context *ctx,
  /* INSTALL_PKG_CONFIG_DIR */
  if(tc->install_pkg_config_dir == NULL)
  {
-  snprintf(temp, 512, "%s/lib/pkgconfig", install_prefix);
+  snprintf(temp, 512, "%s/pkgconfig", tc->install_lib_dir);
   tc->install_pkg_config_dir = strdup(temp);
  }
 
@@ -1731,8 +1878,6 @@ int configure(struct bca_context *ctx)
  if(derive_file_suffixes(ctx, tc, platform))
   return 1;
 
- if(derive_install_paths(ctx, tc, platform))
-  return 1;
 
  /* we need to find out what is enabled next so as to be able
     to skip configure logic for parts not enabled */
@@ -1777,6 +1922,9 @@ int configure(struct bca_context *ctx)
   return 1;
 
  if(persist_host_swap_configuration(ctx, fms, host))
+  return 1;
+
+ if(derive_install_paths(ctx, tc, platform, host_root))
   return 1;
 
  if(append_host_configuration(ctx, host, tc, fms))

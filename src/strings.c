@@ -209,6 +209,23 @@ int contains_string(char *source, int source_length, char *search, int search_le
  return 0;
 }
 
+int in_string(char *string, char *substring, int substring_length)
+{
+ int string_i = 0;
+ if(substring_length < 0)
+  substring_length = strlen(substring);
+
+ while(string[string_i] != 0)
+ {
+  if(strncmp(string + string_i, substring, substring_length) == 0)
+   return string_i;
+
+  string_i++;
+ }
+
+ return -1;
+}
+
 int path_extract(const char *full_path, char **base_file_name, char **extension)
 {
  int allocation_size, full_path_length, base_file_name_length, extension_length,

@@ -85,6 +85,7 @@
 #define RENDER_BUILD_OUTPUT_NAME                   402
 #define RENDER_INSTALL_OUTPUT_NAME                 403
 #define RENDER_EFFECTIVE_OUTPUT_NAME               404
+#define COLORIZE_MAKE_OUTPUT_MODE                  500
 
 struct bca_context
 {
@@ -114,6 +115,9 @@ struct bca_context
  int loop_inputs, pass_number;
  char *engine_name;
  char *output_type;
+
+ int argc;
+ char **argv;
 #endif
 
  char **input_files;
@@ -239,6 +243,7 @@ char *without_string_to_without_macro(struct bca_context *ctx, char *in);
 
 int render_project_component_output_names(struct bca_context *ctx,
                                           struct component_details *cd,
+                                          struct host_configuration *tc,
                                           int edition);
 
 int free_rendered_names(struct component_details *cd);
@@ -269,6 +274,8 @@ int concatenate(struct bca_context *ctx, int argc, char **argv);
 
 /* strings.c ------------------------------------ */
 int contains_string(char *source, int source_length, char *search, int search_length);  // selftested
+
+int in_string(char *string, char *substring, int substring_length);
 
 int add_to_string_array(char ***array, int array_size,
                         char *string, int string_length,
@@ -773,3 +780,18 @@ int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
 
 #endif
 
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+/* spawn.c ----------------- */
+
+struct spawn_context;
+
+int spawn(const char *path, int argc, char **argv, void *data,
+          int (*handle_stdout) (struct spawn_context *, void *data, char *buffer, int n_bytes),
+          int (*handle_stderr) (struct spawn_context *, void *data, char *buffer, int n_bytes),
+          int (*handle_exit) (struct spawn_context *, void *data, int condition, int exit_code));
+
+
+/* make_colorize.c */
+int make_colorize_mode(struct bca_context *bctx, int argc, char **argv);
+
+#endif

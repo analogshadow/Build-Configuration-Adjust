@@ -1043,7 +1043,7 @@ int resolve_component_dependencies(struct bca_context *ctx,
   return 1;
  }
 
- if(ctx->verbose)
+ if(ctx->verbose > 1)
  {
   printf("BCA: Found the following dependencies for component \"%s\" on host \"%s\" (%d): ",
          cd->component_name, cd->host, cd->n_dependencies);
@@ -1081,12 +1081,41 @@ int resolve_component_extra_file_dependencies(struct bca_context *ctx,
 
   cd->extra_file_deps = NULL;
   cd->n_extra_file_deps = 0;
+ } else {
+
+  if(split_strings(ctx, value, -1,
+                   &(cd->n_extra_file_deps),
+                   &(cd->extra_file_deps) ))
+  {
+   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+   return 1;
+  }
+ }
+
+ free(value);
+
+ if(strcmp(cd->component_type, "SHAREDLIBRARY") != 0)
+  return 0;
+
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->component_type,
+                        cd->component_name,
+                        "LIB_HEADERS")) == NULL)
+ {
+  if(ctx->verbose > 1)
+   printf("BCA: No Library headers found for library component \"%s\".\n",
+          cd->component_name);
+
+  cd->lib_headers = NULL;
+  cd->n_lib_headers = 0;
   return 0;
  }
 
  if(split_strings(ctx, value, -1,
-                  &(cd->n_extra_file_deps),
-                  &(cd->extra_file_deps) ))
+                  &(cd->n_lib_headers),
+                  &(cd->lib_headers) ))
  {
   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
   return 1;
@@ -1133,7 +1162,6 @@ int resolve_component_include_directories(struct bca_context *ctx,
  return 0;
 }
 
-
 int resolve_component_source_files(struct bca_context *ctx,
                                    struct component_details *cd)
 {
@@ -1152,7 +1180,7 @@ int resolve_component_source_files(struct bca_context *ctx,
                          &(cd->n_source_files)))
   return 1;
 
- if(ctx->verbose)
+ if(ctx->verbose > 1)
  {
   printf("BCA: Found the following source files for component \"%s\" (%d): ",
          cd->component_name, cd->n_source_files);
@@ -1954,7 +1982,6 @@ int component_details_cleanup(struct component_details *cd)
   free(cd->minor);
   cd->minor = NULL;
  }
-
 
  return 0;
 }

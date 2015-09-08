@@ -189,7 +189,7 @@ makeclean_check() {
 configurewrapper_buildsinglefiledist() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "test" &> out
+ ../native/bca --newproject "test" &> out
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -209,8 +209,8 @@ configurewrapper_buildsinglefiledist() {
 configurewrapper_useexistingbca() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "test" &> out
- ln -s ../native/bca-canadate ./bca
+ ../native/bca --newproject "test" &> out
+ ln -s ../native/bca ./bca
  rm ./buildconfiguration/buildconfigurationadjust.c
 
  try_configure
@@ -227,10 +227,10 @@ configurewrapper_useexistingbca() {
 configurewrapper_userbcafrompath() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "test" &> out
+ ../native/bca --newproject "test" &> out
  rm ./buildconfiguration/buildconfigurationadjust.c
  mkdir bin
- cp ../native/bca-canadate ./bin/bca
+ cp ../native/bca ./bin/bca
  PATH=./bin:$PATH
 
  try_configure
@@ -251,9 +251,9 @@ configurewrapper_userbcafrompath() {
 configurewrapper_userbcafromenv() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "test" &> out
+ ../native/bca --newproject "test" &> out
  rm ./buildconfiguration/buildconfigurationadjust.c
- BCA=../native/bca-canadate
+ BCA=../native/bca
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -275,7 +275,7 @@ configurewrapper=(buildsinglefiledist useexistingbca userbcafrompath userbcafrom
 examples_helloworld() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Hello World" &> out
  ./bca --type BINARY --newvalue NAME hello >> out 2>> out
  ./bca --type BINARY --newvalue FILES hello.c >> out 2>> out
@@ -316,16 +316,16 @@ examples_helloworld() {
 examples_multifilebin() {
  prepare_environment
  cd testing_environment
- ../native/bca-canadate --newproject "Multi File Binary" &> out
- ../native/bca-canadate --type BINARY --newvalue NAME hello >> out 2>> out
- ../native/bca-canadate --type BINARY --newvalue FILES "hello.c main.c" >> out 2>> out
- ../native/bca-canadate --type BINARY --newvalue FILE_DEPENDS "hello.h" >> out 2>> out
+ ../native/bca --newproject "Multi File Binary" &> out
+ ../native/bca --type BINARY --newvalue NAME hello >> out 2>> out
+ ../native/bca --type BINARY --newvalue FILES "hello.c main.c" >> out 2>> out
+ ../native/bca --type BINARY --newvalue FILE_DEPENDS "hello.h" >> out 2>> out
  echo -e "#include <stdio.h>\n\nint print_hello(void)\n"\
          "{\n printf(\"hello world\\\n\");\n return 0;\n}\n" > hello.c
  echo -e "#ifndef _hello_h_\n#define _hello_h_\n"\
          "int print_hello(void);\n#endif\n" > hello.h
  echo -e "#include \"hello.h\"\nint main(void)\n{\n print_hello();\n return 0;\n}\n" > main.c
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
 
  try_configure
  if [ "$ERROR" != "" ]
@@ -361,7 +361,7 @@ examples_multifilebin() {
 examples_sharedlib() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Shared Library" &> out
  ./bca --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -408,7 +408,7 @@ examples_extdepends() {
 
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Shared Library" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -441,11 +441,11 @@ examples_extdepends() {
 
  prepare_environment2
  cd testing_environment2
- ln -sf ../native/bca-canadate ./bca
- ../native/bca-canadate --newproject "Binary with External Dependency" &> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
- ../native/bca-canadate --component MAIN --type BINARY --newvalue EXT_DEPENDS greetings >> out 2>> out
+ ln -sf ../native/bca ./bca
+ ../native/bca --newproject "Binary with External Dependency" &> out
+ ../native/bca --component MAIN --type BINARY --newvalue NAME main >> out 2>> out
+ ../native/bca --component MAIN --type BINARY --newvalue FILES main.c >> out 2>> out
+ ../native/bca --component MAIN --type BINARY --newvalue EXT_DEPENDS greetings >> out 2>> out
  echo -e "#include \"hello.h\"\n\nint main(void)\n"\
          "{\n print_hello();\n return 0;\n}\n" > main.c
 
@@ -496,7 +496,7 @@ examples_extdepends() {
 examples_sharedlibandbin() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Shared Library and Binary" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -557,7 +557,7 @@ examples_sharedlibandbin() {
 examples_concat() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Concatenate" &> out
  ./bca --component textfile --type CAT --newvalue NAME textfile >> out 2>> out
  ./bca --component textfile --type CAT --newvalue FILES "one two three" >> out 2>> out
@@ -609,7 +609,7 @@ examples_concat() {
 examples_macroexpand() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Macro Expansion" &> out
  ./bca --component textfile --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
  ./bca --component textfile --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
@@ -664,7 +664,7 @@ examples_macroexpand() {
 examples_generateddeps() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Generated Dependencies" &> out
  ./bca --component configure --type MACROEXPAND --newvalue NAME configure.h >> out 2>> out
  ./bca --component configure --type MACROEXPAND --newvalue FILES "./configure.h.in" >> out 2>> out
@@ -734,7 +734,7 @@ examples_generateddeps() {
 examples_customcommand() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Custom Command" &> out
  ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh >> out 2>&1
  ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" >> out 2>&1
@@ -799,7 +799,7 @@ examples_customcommand() {
 examples_inputtocustom() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Input to Custom" &> out
  ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue NAME aspell_script.sh >> out 2>&1
  ./bca --component ASPELL_WRAPPER --type MACROEXPAND --newvalue FILES "aspell_script.sh.in" >> out 2>&1
@@ -857,7 +857,7 @@ examples_inputtocustom() {
 examples_effectivepaths() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Hello World" &> out
  ./bca --type BINARY --newvalue NAME hello >> out 2>> out
  ./bca --type BINARY --newvalue FILES hello.c >> out 2>> out
@@ -913,7 +913,7 @@ examples_customwithnativetool() {
  #start from scratch
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
 
  #start a new bca project by giving it a name
  ./bca --newproject "Custom with Native Tool" &> out
@@ -998,7 +998,7 @@ examples=(helloworld multifilebin sharedlib sharedlibandbin concat macroexpand g
 enablelogic_disableall() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1062,7 +1062,7 @@ enablelogic_disableall() {
 enablelogic_disableone() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1140,7 +1140,7 @@ enablelogic_disableone() {
 enablelogic_enableone() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1218,7 +1218,7 @@ enablelogic_enableone() {
 enablelogic_defaultdisabled() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1298,7 +1298,7 @@ enablelogic_defaultdisabled() {
 enablelogic_enabledefaultdisabled() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1363,7 +1363,7 @@ enablelogic_enabledefaultdisabled() {
 enablelogic_disableinternaldep() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Enable Disable Test" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1405,7 +1405,7 @@ enablelogic=(disableall disableone enableone defaultdisabled enabledefaultdisabl
 swaps_configureerrors() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Swap Tests" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1513,7 +1513,7 @@ swaps_configureerrors() {
 swaps_simple() {
  prepare_environment
  cd testing_environment
- ln -sf ../native/bca-canadate ./bca
+ ln -sf ../native/bca ./bca
  ./bca --newproject "Component Swap Tests" &> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue NAME greetings >> out 2>> out
  ./bca --component greetings --type SHAREDLIBRARY --newvalue FILES hello.c >> out 2>> out
@@ -1690,7 +1690,7 @@ then
  exit 0
 fi
 
-./native/bca-canadate --selftest >> ./test.sh-results
+./native/bca --selftest >> ./test.sh-results
 grep failed ./test.sh-results > /dev/null
 if [ $? == 0 ]
 then
