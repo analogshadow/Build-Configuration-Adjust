@@ -27,6 +27,8 @@
 #include "prototypes.h"
 #endif
 
+#include <glob.h>
+
 int list_component_internal_dependencies(struct bca_context *ctx,
                                          struct component_details *cd,
                                          char ***list, int *n_elements)
@@ -1167,6 +1169,9 @@ int resolve_component_source_files(struct bca_context *ctx,
 {
  char *base_file_name, *extension;
  int z, allocation_size;
+ glob_t glob_data;
+ int n_entries = 0;
+ char **list = NULL;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: resolve_component_source_files(%s)\n",
@@ -1176,9 +1181,32 @@ int resolve_component_source_files(struct bca_context *ctx,
                          cd->component_type,
                          cd->component_name,
                          "FILES",
-                         &(cd->source_file_names),
-                         &(cd->n_source_files)))
+                         &(list), &(n_entries)))
   return 1;
+
+ /* attempt globbing */
+ memset(&glob_data, 0, sizeof(glob_t));
+ for(z=0; z < n_entries; z++)
+ {
+  if(glob(list[z], GLOB_APPEND, NULL, &glob_data))
+  {
+   fprintf(stderr, "BCA: glob(%s) failed\n", list[z]);
+   return 1;
+  }
+ }
+ for(z=0; z < glob_data.gl_pathc; z++)
+ {
+  if(add_to_string_array(&(cd->source_file_names),
+                         cd->n_source_files,
+                         glob_data.gl_pathv[z], -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+  cd->n_source_files++;
+ }
+ globfree(&glob_data);
+ free_string_array(list, n_entries);
 
  if(ctx->verbose > 1)
  {
