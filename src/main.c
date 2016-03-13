@@ -27,12 +27,6 @@
 #include "prototypes.h"
 #endif
 
-#ifndef WITHOUT_GTK__2_0
-#include <gtk/gtk.h>
-#define HAVE_GTK
-#endif
-
-
 void help(void)
 {
  printf("\n Build Configuration Adjust, version: %s\n"
@@ -74,8 +68,6 @@ void help(void)
         " --file-to-C-source input-file\n"
         " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --document engine output-type\n"
-        " --stubdocumentconfiguration\n"
         " --configfiletolocolisting\n"
         " --generate-graphviz\n"
         " --output-configure\n"
@@ -83,15 +75,6 @@ void help(void)
         " --selftest (help debug buildconfigurationadjust itself)\n"
         " --colorize make-command [make argumenets] (colorize make output)\n"
 #endif
-
-#ifndef WITHOUT_LIBNEWT
-        " --newt-interface\n"
-#endif
-
-#ifdef HAVE_GTK
-        " --gtk-interface\n"
-#endif
-
         "\n If you are just trying to run ./configure and have no idea what is going on,\n"
         " some of the autoconf compatibility options are:\n"
         " --prefix=INSTALL_PREFIX\n"
@@ -471,29 +454,6 @@ int main(int argc, char **argv)
        return self_test(ctx);
        break;
 
-  case DOCUMENT_MODE:
-       if((code = document_mode(ctx)) == 0)
-       {
-        if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: document_mode() finished\n");
-       } else {
-        if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: document_mode() failed\n");
-       }
-       return code;
-       break;
-
-  case STUB_DOCUMENT_CONFIGURATION_MODE:
-       if((code = stub_document_configuration_file(ctx)) == 0)
-       {
-        if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: stub_document_configuration_file() finished\n");
-       } else {
-        if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: stub_document_configuration_file() failed\n");
-       }
-       break;
-
   case COLORIZE_MAKE_OUTPUT_MODE:
        if((code = make_colorize_mode(ctx, ctx->argc, ctx->argv)) == 0)
        {
@@ -620,25 +580,6 @@ int main(int argc, char **argv)
   case SHORT_HELP_MODE:
        return short_help_mode(ctx);
        break;
-
-
-#ifndef WITHOUT_LIBNEWT
-  case NEWT_INTERFACE_MODE:
-       if( ((code = newt_interface(ctx)) == 0) &&
-           (ctx->verbose > 1))
-        fprintf(stderr, "BCA: newt_interface() finished\n");
-       return code;
-       break;
-#endif
-
-#ifdef HAVE_GTK
-  case GTK_INTERFACE_MODE:
-       if( ((code = gtk_interface(ctx)) == 0) &&
-           (ctx->verbose > 1))
-        fprintf(stderr, "BCA: gtk_interfaace() finished\n");
-       return code;
-       break;
-#endif
 
   default:
        help();

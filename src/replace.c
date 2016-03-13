@@ -512,19 +512,6 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   fprintf(stderr, "BCA: resolve_string_replace_key(%s)\n", key);
  }
 
- if(key[0] == 'd')
- {
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-  return handle_document_functions(ctx, key);
-#else
-  fprintf(stderr,
-          "BCA: %s, line %d macro key starting with 'd' is likely a document handling function. "
-          "Document processing macros are not in the single file distribution.\n",
-          current_file_name(ctx), ctx->line_number);
-  return NULL;
-#endif
- }
-
  if(strncmp(key, "ENV.", 4) == 0)
  {
   if((value = getenv(key + 4)) == NULL)
