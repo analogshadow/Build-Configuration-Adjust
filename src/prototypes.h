@@ -1,12 +1,12 @@
+/* Begin prototypes.h ---------------------------------------- (sfd organizer) */
+
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -594,16 +594,6 @@ int graphviz_string_clean(struct bca_context *ctx,
                           char *input, int length,
                           char *output, int size);
 
-/* newt.c --------------------------------------- */
-#ifndef WITHOUT_LIBNEWT
-int newt_interface(struct bca_context *ctx);
-#endif
-
-/* gtk.c ---------------------------------------- */
-#ifdef HAVE_GTK
-int gtk_interface(struct bca_context *ctx);
-#endif
-
 /* embedded_files.c ----------------------------- */
 extern const int __configure_length;
 extern const char __configure[];
@@ -629,3 +619,5 @@ int spawn(const char *path, int argc, char **argv, void *data,
 int make_colorize_mode(struct bca_context *bctx, int argc, char **argv);
 
 #endif
+/* End prototypes.h ------------------------------------------ (sfd organizer) */
+

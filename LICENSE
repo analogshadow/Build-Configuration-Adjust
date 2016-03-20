@@ -1,3 +1,18 @@
+    These source files are part of "Build Configuration Adjust", a source
+    configuration and Makefile generation tool, released under the terms
+    of GNU GPL listed below. The copyrights for the oldest parts of the
+    work were originally listed and held by Stover Enterprises, LLC (an
+    Alabama Limited Liability Corporation). Along with separating some
+    code to other source trees, in 2015 came a copyright transfer for the
+    work released during the years 2012 - 2014 to C. Thomas Stover. Not
+    all files date back to the start of the project. Contributions to the
+    project do not require a copyright transfer, but do require a verifiable
+    copyright declaration.
+
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved.
+
+
 GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

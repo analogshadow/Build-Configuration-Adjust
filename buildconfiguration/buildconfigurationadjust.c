@@ -1,24 +1,34 @@
+/* This is the "single file distribution" (sfd) version of Build Configuration
+   Adjust (BCA). It is contracted by a Makefile target in the standard source
+   tree, by concatenating a subset of the source files together. The purpose is
+   to have a single file that can be placed in source tarballs so that an end
+   user does not need to have the full BCA installed. Generally this version is
+   able to be compiled with a single invocation of cc (gcc/clang) via
+   configure.sh. There are many reasons this may not work such as limited RAM
+   available to the compiler on older or embedded systems.
+
+   In such cases, the best chance of success is to build BCA from source on a
+   different computer, copy the Makefile to the one unable to build this file
+   along with the rest of the source tree, and try "make native/bca".
+*/
 #define IN_SINGLE_FILE_DISTRIBUTION
-#define WITHOUT_LIBNEWT
-#define WITHOUT_MONGOOSE
-#define WITHOUT_GTK__2_0
 
 #if 1
-#define BCA_VERSION "0.3-36-gbe47f71-dirty"
+#define BCA_VERSION "0.5-6-gc985cb7-dirty"
 #else
-#define BCA_VERSION "0.4"
+#define BCA_VERSION "0.6.0"
 #endif
 
+
+/* Begin prototypes.h ---------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -97,6 +107,7 @@
 #define RENDER_BUILD_OUTPUT_NAME                   402
 #define RENDER_INSTALL_OUTPUT_NAME                 403
 #define RENDER_EFFECTIVE_OUTPUT_NAME               404
+#define COLORIZE_MAKE_OUTPUT_MODE                  500
 
 struct bca_context
 {
@@ -126,6 +137,9 @@ struct bca_context
  int loop_inputs, pass_number;
  char *engine_name;
  char *output_type;
+
+ int argc;
+ char **argv;
 #endif
 
  char **input_files;
@@ -251,6 +265,7 @@ char *without_string_to_without_macro(struct bca_context *ctx, char *in);
 
 int render_project_component_output_names(struct bca_context *ctx,
                                           struct component_details *cd,
+                                          struct host_configuration *tc,
                                           int edition);
 
 int free_rendered_names(struct component_details *cd);
@@ -281,6 +296,8 @@ int concatenate(struct bca_context *ctx, int argc, char **argv);
 
 /* strings.c ------------------------------------ */
 int contains_string(char *source, int source_length, char *search, int search_length);  // selftested
+
+int in_string(char *string, char *substring, int substring_length);
 
 int add_to_string_array(char ***array, int array_size,
                         char *string, int string_length,
@@ -599,16 +616,6 @@ int graphviz_string_clean(struct bca_context *ctx,
                           char *input, int length,
                           char *output, int size);
 
-/* newt.c --------------------------------------- */
-#ifndef WITHOUT_LIBNEWT
-int newt_interface(struct bca_context *ctx);
-#endif
-
-/* gtk.c ---------------------------------------- */
-#ifdef HAVE_GTK
-int gtk_interface(struct bca_context *ctx);
-#endif
-
 /* embedded_files.c ----------------------------- */
 extern const int __configure_length;
 extern const char __configure[];
@@ -617,184 +624,35 @@ extern const int bca_sfd_c_length;
 extern const char bca_sfd_c[];
 
 
+#endif
 
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-/* documents.c ---------------------------------- */
-char *handle_document_functions(struct bca_context *ctx, char *key);
+/* spawn.c ----------------- */
 
-int document_mode(struct bca_context *ctx);
+struct spawn_context;
 
-struct document_handling_context_stack_frame
-{
- int (*close_function) (struct document_handling_context *, void *);
- void *data;
- int type, input_file_index, line_number;
-};
+int spawn(const char *path, int argc, char **argv, void *data,
+          int (*handle_stdout) (struct spawn_context *, void *data, char *buffer, int n_bytes),
+          int (*handle_stderr) (struct spawn_context *, void *data, char *buffer, int n_bytes),
+          int (*handle_exit) (struct spawn_context *, void *data, int condition, int exit_code));
 
-#define DLEVEL_NONE     0
-#define DLEVEL_DOCUMENT 1
-#define DLEVEL_PART     2
-#define DLEVEL_CHAPTER  3
-#define DLEVEL_SECTION  4
-#define DLEVEL_SUB      5
-#define DLEVEL_INSET    6
-#define DLEVEL_LISTING  7
 
-#define DSTACK_TYPE_TAG   100
-#define DSTACK_TYPE_TABLE 101
-#define DSTACK_TYPE_TR    102
-#define DSTACK_TYPE_TC    103
-#define DSTACK_TYPE_LIST  104
-#define DSTACK_TYPE_POINT 105
-
-struct toc_element
-{
- int type;
- int count;
- char *name;
- char page[16];
- struct toc_element *last, *next, *child, *parrent;
-};
-
-struct toc_element *new_toc_element(int type, char *name);
-
-char *type_to_string(int type);
-
-struct document_handling_context
-{
- char *engine_name;
- char *output_type;
-
- struct bca_context *ctx;
- int dmode_depth;
-
- int table_depth, list_depth;
-
- int stack_depth;
- struct document_handling_context_stack_frame stack[64];
-
- int current_level;
- int implied_levels_mask[8];
-
- int tag_depth, tag_buffer_length;
- char *tags[32];
- char tag_buffer[1024];
- char *tag_datas[32];
-
- char input_buffer[1024];
- int input_buffer_length;
-
- char *document_configuration_contents;
- int document_configuration_length;
-
- void *document_engine_context;
- int (*start_document) (struct document_handling_context *dctx);
- int (*finish_document) (struct document_handling_context *dctx);
- int (*consume_text) (struct document_handling_context *dctx, char *text, int length);
- int (*open_point) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_point) (struct document_handling_context *dctx);
- int (*open_list) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_list) (struct document_handling_context *dctx);
- int (*open_listing) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_listing) (struct document_handling_context *dctx);
- int (*open_inset) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_inset) (struct document_handling_context *dctx);
- int (*open_subsection) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_subsection) (struct document_handling_context *dctx);
- int (*open_section) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_section) (struct document_handling_context *dctx);
- int (*open_chapter) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_chapter) (struct document_handling_context *dctx);
- int (*open_part) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_part) (struct document_handling_context *dctx);
- int (*open_table) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_table) (struct document_handling_context *dctx);
- int (*open_tr) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_tr) (struct document_handling_context *dctx);
- int (*open_tc) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_tc) (struct document_handling_context *dctx);
- int (*open_tag) (struct document_handling_context *dctx, char **parameters, int n_parameters);
- int (*close_tag) (struct document_handling_context *dctx);
-};
-
-/* config_files.c */
-int config_file_to_loco_listing(struct bca_context *ctx,
-                                char *in_file_name,
-                                char *out_file_name);
-
-/* plaintext.c */
-int activate_document_engine_plaintext(struct document_handling_context *dctx);
-
-int activate_document_engine_passthrough(struct document_handling_context *dctx);
-
-int stub_document_configuration_file(struct bca_context *ctx);
-
-int conf_lookup_int(struct document_handling_context *dctx,
-                    char *key, int *value, int default_value);
-
-int conf_lookup_string(struct document_handling_context *dctx,
-                       char *key, char **value, char *default_value);
-
-/* utf8_word_engine.c ----------------------------- */
-
-#define UWC_WORD 1
-#define UWC_BROKEN_WORD 2
-
-struct unicode_word_context
-{
- unsigned char character_buffer[7];
- char word_buffer[256];
- int buffer_size, buffer_length, n_characters;
- int direction, character_buffer_length, expected_character_length;
-
- void *data;
- int (*consume_word) (struct unicode_word_context *uwc, void *data, int flags);
-
- char *suffix;
- int suffix_buffer_length;
-};
-
-struct unicode_word_context *
-unicode_word_engine_initialize(void *data,
-                               int (*consume_word) (struct unicode_word_context *uwc,
-                                                    void *data, int flags));
-
-int unicode_word_engine_finalize(struct unicode_word_context *uwc);
-
-int unicode_word_engine_consume_byte(struct unicode_word_context *uwc, unsigned char byte);
-
-int is_white_space(char *utf8_character);
-
-int unicode_word_engine_suffix(struct unicode_word_context *uwc, char *buffer, int buffer_length);
-
-/* hyphenation_engine.c -------------------- */
-
-struct hyphenation_context;
-
-struct hyphenation_context *
-hyphenation_engine_initialize(char *language);
-
-int hyphenation_engine_finalize(struct hyphenation_context *hc);
-
-int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
-                               struct unicode_word_context *source,
-                               struct unicode_word_context *first,
-                               struct unicode_word_context *second);
+/* make_colorize.c */
+int make_colorize_mode(struct bca_context *bctx, int argc, char **argv);
 
 #endif
+/* End prototypes.h ------------------------------------------ (sfd organizer) */
 
-#endif
 
+/* Begin config_files.c -------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -814,6 +672,8 @@ int hyphenation_engine_attempt(struct hyphenation_context *hc, int fit_size,
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
 #include "prototypes.h"
 #endif
+
+#include <glob.h>
 
 int list_component_internal_dependencies(struct bca_context *ctx,
                                          struct component_details *cd,
@@ -1831,7 +1691,7 @@ int resolve_component_dependencies(struct bca_context *ctx,
   return 1;
  }
 
- if(ctx->verbose)
+ if(ctx->verbose > 1)
  {
   printf("BCA: Found the following dependencies for component \"%s\" on host \"%s\" (%d): ",
          cd->component_name, cd->host, cd->n_dependencies);
@@ -1869,12 +1729,41 @@ int resolve_component_extra_file_dependencies(struct bca_context *ctx,
 
   cd->extra_file_deps = NULL;
   cd->n_extra_file_deps = 0;
+ } else {
+
+  if(split_strings(ctx, value, -1,
+                   &(cd->n_extra_file_deps),
+                   &(cd->extra_file_deps) ))
+  {
+   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
+   return 1;
+  }
+ }
+
+ free(value);
+
+ if(strcmp(cd->component_type, "SHAREDLIBRARY") != 0)
+  return 0;
+
+ if((value = lookup_key(ctx,
+                        ctx->project_configuration_contents,
+                        ctx->project_configuration_length,
+                        cd->component_type,
+                        cd->component_name,
+                        "LIB_HEADERS")) == NULL)
+ {
+  if(ctx->verbose > 1)
+   printf("BCA: No Library headers found for library component \"%s\".\n",
+          cd->component_name);
+
+  cd->lib_headers = NULL;
+  cd->n_lib_headers = 0;
   return 0;
  }
 
  if(split_strings(ctx, value, -1,
-                  &(cd->n_extra_file_deps),
-                  &(cd->extra_file_deps) ))
+                  &(cd->n_lib_headers),
+                  &(cd->lib_headers) ))
  {
   fprintf(stderr, "BCA: split_strings() failed on '%s'\n", value);
   return 1;
@@ -1921,12 +1810,14 @@ int resolve_component_include_directories(struct bca_context *ctx,
  return 0;
 }
 
-
 int resolve_component_source_files(struct bca_context *ctx,
                                    struct component_details *cd)
 {
  char *base_file_name, *extension;
  int z, allocation_size;
+ glob_t glob_data;
+ int n_entries = 0;
+ char **list = NULL;
 
  if(ctx->verbose > 2)
   fprintf(stderr, "BCA: resolve_component_source_files(%s)\n",
@@ -1936,11 +1827,34 @@ int resolve_component_source_files(struct bca_context *ctx,
                          cd->component_type,
                          cd->component_name,
                          "FILES",
-                         &(cd->source_file_names),
-                         &(cd->n_source_files)))
+                         &(list), &(n_entries)))
   return 1;
 
- if(ctx->verbose)
+ /* attempt globbing */
+ memset(&glob_data, 0, sizeof(glob_t));
+ for(z=0; z < n_entries; z++)
+ {
+  if(glob(list[z], GLOB_APPEND, NULL, &glob_data))
+  {
+   fprintf(stderr, "BCA: glob(%s) failed\n", list[z]);
+   return 1;
+  }
+ }
+ for(z=0; z < glob_data.gl_pathc; z++)
+ {
+  if(add_to_string_array(&(cd->source_file_names),
+                         cd->n_source_files,
+                         glob_data.gl_pathv[z], -1, 0))
+  {
+   fprintf(stderr, "BCA: add_to_string_array() failed\n");
+   return 1;
+  }
+  cd->n_source_files++;
+ }
+ globfree(&glob_data);
+ free_string_array(list, n_entries);
+
+ if(ctx->verbose > 1)
  {
   printf("BCA: Found the following source files for component \"%s\" (%d): ",
          cd->component_name, cd->n_source_files);
@@ -2743,7 +2657,6 @@ int component_details_cleanup(struct component_details *cd)
   cd->minor = NULL;
  }
 
-
  return 0;
 }
 
@@ -2867,16 +2780,17 @@ int config_file_to_loco_listing(struct bca_context *ctx,
  return 0;
 }
 #endif
+/* End config_files.c ---------------------------------------- (sfd organizer) */
+
+/* Begin project_config_files.c ------------------------------ (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -3105,16 +3019,18 @@ int free_project_details(struct project_details *pd)
 
  return 0;
 }
+/* End project_config_files.c -------------------------------- (sfd organizer) */
+
+
+/* Begin strings.c ------------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -3315,6 +3231,23 @@ int contains_string(char *source, int source_length, char *search, int search_le
  }
 
  return 0;
+}
+
+int in_string(char *string, char *substring, int substring_length)
+{
+ int string_i = 0;
+ if(substring_length < 0)
+  substring_length = strlen(substring);
+
+ while(string[string_i] != 0)
+ {
+  if(strncmp(string + string_i, substring, substring_length) == 0)
+   return string_i;
+
+  string_i++;
+ }
+
+ return -1;
 }
 
 int path_extract(const char *full_path, char **base_file_name, char **extension)
@@ -3859,16 +3792,17 @@ int n_bytes_for_n_characters(char *buffer, int length, int n_characters)
  return n_bytes;
 }
 
+/* End strings.c --------------------------------------------- (sfd organizer) */
+
+/* Begin main.c ---------------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -3889,16 +3823,14 @@ int n_bytes_for_n_characters(char *buffer, int length, int n_characters)
 #include "prototypes.h"
 #endif
 
-#ifndef WITHOUT_GTK__2_0
-#include <gtk/gtk.h>
-#define HAVE_GTK
-#endif
-
-
 void help(void)
 {
- printf("\n                         Build Configuration Adjust\n"
-        "                            Version: %s\n"
+ printf("\n Build Configuration Adjust, version: %s\n"
+#ifdef IN_SINGLE_FILE_DISTRIBUTION
+        " [single source file distribution edition]\n"
+#endif
+        " Licensed under the terms of GNU GPLv3.\n"
+        " See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n"
         "\nusage:\n"
         " --version\n"
         " --showvalue key\n"
@@ -3932,23 +3864,13 @@ void help(void)
         " --file-to-C-source input-file\n"
         " --inputfiles \"file list\"\n"
 #ifndef IN_SINGLE_FILE_DISTRIBUTION
-        " --document engine output-type\n"
-        " --stubdocumentconfiguration\n"
         " --configfiletolocolisting\n"
         " --generate-graphviz\n"
         " --output-configure\n"
         " --output-buildconfigurationadjust.c\n"
         " --selftest (help debug buildconfigurationadjust itself)\n"
+        " --colorize make-command [make argumenets] (colorize make output)\n"
 #endif
-
-#ifndef WITHOUT_LIBNEWT
-        " --newt-interface\n"
-#endif
-
-#ifdef HAVE_GTK
-        " --gtk-interface\n"
-#endif
-
         "\n If you are just trying to run ./configure and have no idea what is going on,\n"
         " some of the autoconf compatibility options are:\n"
         " --prefix=INSTALL_PREFIX\n"
@@ -3957,13 +3879,12 @@ void help(void)
         " --without-*\n"
         " --disable-*\n"
         " --enable-*\n"
-        " Some of the autoconf compatibility environment variables are:\n"
+        " Some of the autoconf compatibility environment variables are:"
         " CC, and PKG_CONFIG_PATH\n"
-
         "\n Copyright © 2015 C. Thomas Stover.\n"
         " Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama Limited Liability Corporation).\n"
         " All rights reserved.\n"
-        "    See https://github.com/ctstover/Build-Configuration-Adjust for more information.\n",
+        "\n",
         BCA_VERSION);
 
 }
@@ -4329,27 +4250,16 @@ int main(int argc, char **argv)
        return self_test(ctx);
        break;
 
-  case DOCUMENT_MODE:
-       if((code = document_mode(ctx)) == 0)
+  case COLORIZE_MAKE_OUTPUT_MODE:
+       if((code = make_colorize_mode(ctx, ctx->argc, ctx->argv)) == 0)
        {
         if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: document_mode() finished\n");
+         fprintf(stderr, "BCA: make_colorize_mode() finished\n");
        } else {
         if(ctx->verbose > 1)
-        fprintf(stderr, "BCA: document_mode() failed\n");
+         fprintf(stderr, "BCA: make_colorize_mode() failed\n");
        }
        return code;
-       break;
-
-  case STUB_DOCUMENT_CONFIGURATION_MODE:
-       if((code = stub_document_configuration_file(ctx)) == 0)
-       {
-        if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: stub_document_configuration_file() finished\n");
-       } else {
-        if(ctx->verbose > 1)
-         fprintf(stderr, "BCA: stub_document_configuration_file() failed\n");
-       }
        break;
 #endif
 
@@ -4442,7 +4352,7 @@ int main(int argc, char **argv)
         return 1;
        }
 
-       if(render_project_component_output_names(ctx, &cd, code))
+       if(render_project_component_output_names(ctx, &cd, NULL, code))
        {
         fprintf(stderr,
                 "BCA: render_project_component_output_names(%s, %s, %d) failed\n",
@@ -4466,25 +4376,6 @@ int main(int argc, char **argv)
   case SHORT_HELP_MODE:
        return short_help_mode(ctx);
        break;
-
-
-#ifndef WITHOUT_LIBNEWT
-  case NEWT_INTERFACE_MODE:
-       if( ((code = newt_interface(ctx)) == 0) &&
-           (ctx->verbose > 1))
-        fprintf(stderr, "BCA: newt_interface() finished\n");
-       return code;
-       break;
-#endif
-
-#ifdef HAVE_GTK
-  case GTK_INTERFACE_MODE:
-       if( ((code = gtk_interface(ctx)) == 0) &&
-           (ctx->verbose > 1))
-        fprintf(stderr, "BCA: gtk_interfaace() finished\n");
-       return code;
-       break;
-#endif
 
   default:
        help();
@@ -4599,6 +4490,16 @@ struct bca_context *setup(int argc, char **argv)
   {
    handled = 1;
    ctx->mode = SELF_TEST_MODE;
+  }
+#endif
+
+#ifndef IN_SINGLE_FILE_DISTRIBUTION
+  if(strcmp(argv[current_arg], "--colorize") == 0)
+  {
+   ctx->argc = argc - (current_arg + 1);
+   ctx->argv = argv + (current_arg + 1);
+   ctx->mode = COLORIZE_MAKE_OUTPUT_MODE;
+   break;
   }
 #endif
 
@@ -5287,20 +5188,17 @@ int short_help_mode(struct bca_context *ctx)
 
  return 0;
 }
+/* End main.c ------------------------------------------------ (sfd organizer) */
 
-
-
-
+/* Begin conversions.c --------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -5461,11 +5359,11 @@ int free_rendered_names(struct component_details *cd)
 
 int render_project_component_output_names(struct bca_context *ctx,
                                           struct component_details *cd,
-                                          int edition) //this should take tc instead of looking it up again
+                                          struct host_configuration *tc,
+                                          int edition)
 {
  char *extension, temp[1024], *component_install_path;
  int prefix_length, import, effective_path_mode;
- struct host_configuration *tc;
 
  if(ctx->verbose > 1)
   fprintf(stderr, "BCA: render_project_component_output_names(%s, %s)\n",
@@ -5487,8 +5385,9 @@ int render_project_component_output_names(struct bca_context *ctx,
   return 1;
  }
 
- if((tc = resolve_host_configuration(ctx, cd->host, cd->component_name)) == NULL)
-  return 1;
+ if(tc == NULL)
+  if((tc = resolve_host_configuration(ctx, cd->host, cd->component_name)) == NULL)
+   return 1;
 
  if((extension = component_type_file_extension(ctx, tc,
                                                cd->component_type,
@@ -5542,11 +5441,11 @@ int render_project_component_output_names(struct bca_context *ctx,
        switch(effective_path_mode)
        {
         case EFFECTIVE_PATHS_LOCAL:
-             return render_project_component_output_names(ctx, cd, RENDER_BUILD_OUTPUT_NAME);
+             return render_project_component_output_names(ctx, cd, tc, RENDER_BUILD_OUTPUT_NAME);
              break;
 
         case EFFECTIVE_PATHS_INSTALL:
-             return render_project_component_output_names(ctx, cd, RENDER_INSTALL_OUTPUT_NAME);
+             return render_project_component_output_names(ctx, cd, tc, RENDER_INSTALL_OUTPUT_NAME);
              break;
 
         default:
@@ -5931,16 +5830,18 @@ int file_to_C_source(struct bca_context *ctx, char *file_name)
  free(contents);
  return 0;
 }
+/* End conversions.c ----------------------------------------- (sfd organizer) */
+
+
+/* Begin configure.c ----------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -7132,11 +7033,132 @@ int derive_file_suffixes(struct bca_context *ctx,
 
  return 0;
 }
+
+int find_multiarch_libpath(struct bca_context *ctx,
+                           struct host_configuration *tc,
+                           char **path)
+{
+ char command[1024], *results;
+ int length, code;
+
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: find_multiarch_libpath()\n");
+
+ *path = NULL;
+
+ snprintf(command, 1024, "dpkg-architecture");
+
+ if(test_runnable(ctx, command) != 0)
+  return 0;
+
+ snprintf(command, 1024, "dpkg-architecture -qDEB_HOST_MULTIARCH > configuretestoutput");
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ code = system(command);
+ if(WEXITSTATUS(code) != 0)
+ {
+  unlink("configuretestoutput");
+  return 0;
+ }
+
+ if((results = read_file("configuretestoutput", &length, 0)) == NULL)
+ {
+  fprintf(stderr, "BCA: read_file(\"configuretestoutput\") failed\n");
+  return 0;
+ }
+
+ unlink("configuretestoutput");
+
+ if(results[length - 1] == '\n')
+  results[--length] = 0;
+
+ *path = results;
+ return 0;
+}
+
+/* Attempts to find if library paths are in the form of "lib32"
+   or "lib64", instead of just "lib" as can be found on Linux
+   multi-arch distros for instance. This is done by compiling a
+   hello world, running ldd on the output, then simple looking
+   through the output. 
+   Returns:
+
+   -1 error
+   0  inconclusive
+   1  lib64
+   2  lib32
+*/
+int find_multilib_suffix(struct bca_context *ctx,
+                         struct host_configuration *tc)
+{
+ int code, length;
+ FILE *f;
+ char command[1024], *results;
+
+ if(ctx->verbose > 1)
+  fprintf(stderr, "BCA: find_multilib_suffix()\n");
+
+ if((f = fopen("./configuretestfile.c", "w")) == NULL)
+ {
+  fprintf(stderr, "BCA: fopen(./configuretestfile.c) failed\n");
+  return -1;
+ }
+
+ fprintf(f,
+         "#include <stdio.h>\n"
+         "int main(void)\n"
+         "{\n"
+         " printf(\"hello world\");\n"
+         " return 0;\n"
+         " }\n\n");
+ fclose(f);
+
+ snprintf(command, 1024,
+          "%s configuretestfile.c %s configuretestfile 1> configuretestoutput "
+          "2> configuretestoutput",
+          tc->cc, tc->cc_output_flag);
+
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ system(command);
+
+ unlink("configuretestoutput");
+
+ snprintf(command, 1024, "ldd configuretestfile > configuretestoutput");
+
+ if(ctx->verbose)
+  printf("BCA: about to run \"%s\"\n", command);
+
+ system(command);
+
+ if((results = read_file("configuretestoutput", &length, 0)) == NULL)
+ {
+  fprintf(stderr, "BCA: read_file(\"configuretestoutput\") failed\n");
+  code = 0;
+ } else if(contains_string(results, length, "lib64", 5)) {
+  code = 1;
+ } else if(contains_string(results, length, "lib32", 5)) {
+  code = 2;
+ }
+
+ free(results);
+ unlink("configuretestoutput");
+ unlink("configuretestfile.c");
+ unlink("configuretestfile.o");
+ unlink("configuretestfile");
+ return code;
+}
+
 int derive_install_paths(struct bca_context *ctx,
                          struct host_configuration *tc,
-                         char *platform)
+                         char *platform,
+                         char *host_root)
 {
- char install_prefix[512];
+ char install_prefix[512], *arch;
 
  if(ctx->install_prefix == NULL)
  {
@@ -7184,7 +7206,33 @@ int derive_install_paths(struct bca_context *ctx,
  /* INSTALL_LIB_DIR */
  if(tc->install_lib_dir == NULL)
  {
-  snprintf(temp, 512, "%s/lib", install_prefix);
+  if(host_root == NULL)
+  {
+   if(find_multiarch_libpath(ctx, tc, &arch))
+    return 1;
+
+   if(arch != NULL)
+   {
+    snprintf(temp, 512, "%s/lib/%s", install_prefix, arch);
+    free(arch);
+   } else {
+    switch(find_multilib_suffix(ctx, tc))
+    {
+     case 1:
+          snprintf(temp, 512, "%s/lib64", install_prefix);
+          break;
+
+     case 2:
+          snprintf(temp, 512, "%s/lib32", install_prefix);
+          break;
+
+     default:
+          snprintf(temp, 512, "%s/lib", install_prefix);
+    }
+   }
+  } else {
+   snprintf(temp, 512, "%s/lib", install_prefix);
+  }
   tc->install_lib_dir = strdup(temp);
  }
 
@@ -7198,7 +7246,7 @@ int derive_install_paths(struct bca_context *ctx,
  /* INSTALL_PKG_CONFIG_DIR */
  if(tc->install_pkg_config_dir == NULL)
  {
-  snprintf(temp, 512, "%s/lib/pkgconfig", install_prefix);
+  snprintf(temp, 512, "%s/pkgconfig", tc->install_lib_dir);
   tc->install_pkg_config_dir = strdup(temp);
  }
 
@@ -7665,8 +7713,6 @@ int configure(struct bca_context *ctx)
  if(derive_file_suffixes(ctx, tc, platform))
   return 1;
 
- if(derive_install_paths(ctx, tc, platform))
-  return 1;
 
  /* we need to find out what is enabled next so as to be able
     to skip configure logic for parts not enabled */
@@ -7713,6 +7759,9 @@ int configure(struct bca_context *ctx)
  if(persist_host_swap_configuration(ctx, fms, host))
   return 1;
 
+ if(derive_install_paths(ctx, tc, platform, host_root))
+  return 1;
+
  if(append_host_configuration(ctx, host, tc, fms))
   return 1;
 
@@ -7721,16 +7770,17 @@ int configure(struct bca_context *ctx)
 
  return 0;
 }
+/* End configure.c ------------------------------------------- (sfd organizer) */
+
+/* Begin replace.c ------------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -8236,19 +8286,6 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   fprintf(stderr, "BCA: resolve_string_replace_key(%s)\n", key);
  }
 
- if(key[0] == 'd')
- {
-#ifndef IN_SINGLE_FILE_DISTRIBUTION
-  return handle_document_functions(ctx, key);
-#else
-  fprintf(stderr,
-          "BCA: %s, line %d macro key starting with 'd' is likely a document handling function. "
-          "Document processing macros are not in the single file distribution.\n",
-          current_file_name(ctx), ctx->line_number);
-  return NULL;
-#endif
- }
-
  if(strncmp(key, "ENV.", 4) == 0)
  {
   if((value = getenv(key + 4)) == NULL)
@@ -8398,7 +8435,7 @@ char *resolve_string_replace_key(struct bca_context *ctx,
   cd.component_name = pd->component_names[component_i];
   cd.component_output_name = pd->component_output_names[component_i];
 
-  if(render_project_component_output_names(ctx, &cd, edition))
+  if(render_project_component_output_names(ctx, &cd, NULL, edition))
   {
    fprintf(stderr, "BCA: replace key note: render_project_component_output_names() yielded "
            "no result for project component \"%s\" on host \"%s\".\n", a, ctx->principle);
@@ -8609,16 +8646,17 @@ char *current_file_name(struct bca_context *ctx)
 
  return ctx->input_files[ctx->input_file_index];
 }
+/* End replace.c --------------------------------------------- (sfd organizer) */
+
+/* Begin makefile_out.c -------------------------------------- (sfd organizer) */
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -8825,23 +8863,29 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   fprintf(output, "\techo 'libdir=$${exec_prefix}' >> %s\n", pkg_file_name);
  }
 
- if(cd->n_include_dirs > 0)
+ for(i=0; i<cd->n_include_dirs; i++)
  {
-  if(strncmp(cd->include_dirs[0], "./", 2) == 0)
+  if(strncmp(cd->include_dirs[i], "./", 2) == 0)
   {
-   fprintf(output, "\techo \"includedir=%s/%s\" >> %s\n",
+   if(installed_version)
+   {
+    fprintf(output, "\techo \"includedir=%s/%s-%s\" >> %s\n",
+            tc->install_include_dir, package_name, cd->major, pkg_file_name);
+   } else {
+    fprintf(output, "\techo \"includedir=%s/%s\" >> %s\n",
 #ifdef HAVE_CWD
-           ctx->cwd,
+            ctx->cwd,
 #else
-           "`pwd`",
+            "`pwd`",
 #endif
-           cd->include_dirs[0] + 2, pkg_file_name);
+            cd->include_dirs[i] + 2, pkg_file_name);
+   }
   } else {
-   fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[0], pkg_file_name);
+    fprintf(output, "\techo 'includedir=%s' >> %s\n", cd->include_dirs[i], pkg_file_name);
   }
  }
- fprintf(output, "\techo 'Name: %s' >> %s\n",
-         package_name, pkg_file_name);
+
+ fprintf(output, "\techo 'Name: %s' >> %s\n", package_name, pkg_file_name);
 
  if(package_description == NULL)
   fprintf(output, "\techo 'Description: (set me with SHAREDLIBRARY.%s.DESCRIPTION)' >> %s\n",
@@ -8934,10 +8978,8 @@ int generate_host_component_pkg_config_file(struct bca_context *ctx,
   if(package_name != cd->component_output_name)
    free(package_name);
 
- fprintf(output, "\n");
  return 0;
 }
-
 
 /* both source files that first go to object files before linking (ie .c),
    and sources that compile and link in one step (ie .cs) will us these
@@ -9175,9 +9217,9 @@ int decide_cxx_runtime_requirement(struct bca_context *ctx,
 
  for(i=0; i < cd->n_source_files; i++)
  {
-  if( (strcmp(cd->source_file_extensions[i], "cc") == 0) ||
-      (strcmp(cd->source_file_extensions[i], "cxx") == 0) ||
-      (strcmp(cd->source_file_extensions[i], "cpp") == 0) )
+  if( (strcmp(cd->source_file_extensions[i], ".cc") == 0) ||
+      (strcmp(cd->source_file_extensions[i], ".cxx") == 0) ||
+      (strcmp(cd->source_file_extensions[i], ".cpp") == 0) )
   {
    return 1;
   }
@@ -9331,7 +9373,7 @@ int derive_file_dependencies_from_inputs(struct bca_context *ctx,
     output_names_cd.component_output_name = pd->component_output_names[x];
 
     if(render_project_component_output_names(ctx,
-                                             &output_names_cd,
+                                             &output_names_cd, tc,
                                              RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_output_names() failed 1\n");
@@ -9791,7 +9833,7 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
  output_names.component_name = cd->component_name;
  output_names.component_output_name = cd->component_output_name;
 
- if(render_project_component_output_names(ctx, &output_names, RENDER_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &output_names, tc, RENDER_OUTPUT_NAME))
  {
   fprintf(stderr, "BCA: render_project_component_ouput_name() failed\n");
   return 1;
@@ -9894,7 +9936,7 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
     cd_d.component_name = pd->component_names[x];
     cd_d.component_output_name = pd->component_output_names[x];
 
-    if(render_project_component_output_names(ctx, &cd_d, RENDER_BUILD_OUTPUT_NAME))
+    if(render_project_component_output_names(ctx, &cd_d, NULL, RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_ouput_name() failed on internal dep\n");
       return 1;
@@ -10061,6 +10103,7 @@ int build_rule_component_bins_and_libs(struct bca_context *ctx,
            cd->component_type, cd->host, cd->component_name);
    return 1;
   }
+  fprintf(output, "\n");
  }
 
  if(free_rendered_names(&output_names))
@@ -10140,7 +10183,7 @@ int generate_host_component_target_dependencies(struct bca_context *ctx,
     cd_d.component_name = pd->component_names[x];
     cd_d.component_output_name = pd->component_output_names[x];
 
-    if(render_project_component_output_names(ctx, &cd_d, RENDER_BUILD_OUTPUT_NAME))
+    if(render_project_component_output_names(ctx, &cd_d, NULL, RENDER_BUILD_OUTPUT_NAME))
     {
      fprintf(stderr, "BCA: render_project_component_ouput_names() failed on internal dep\n");
      return 1;
@@ -10452,6 +10495,47 @@ char *generate_tar_name(struct bca_context *ctx, struct project_details *pd)
  return t;
 }
 
+int array_of_directories_from_array_of_file_names(char **files,
+                                                  unsigned int n_files,
+                                                  char ***directories,
+                                                  unsigned int *n_directories)
+{
+ char **strings = NULL, subdir[512];
+ unsigned int n_strings = 0, x, z;
+
+ for(x=0; x<n_files; x++)
+ {
+  z = strlen(files[x]);
+  if(z > 512)
+  {
+   fprintf(stderr, "BCA: file name %s too long\n", files[x]);
+   return 1;
+  }
+
+  while(z > 0)
+  {
+   if(files[x][z] == '/')
+   {
+    z++;
+    break;
+   }
+   z--;
+  }
+  if(z > 2)
+  {
+   memcpy(subdir, files[x] + 1, z - 1);
+   subdir[z - 1] = 0;
+
+   if(add_to_string_array(&strings, n_strings, subdir, z, 1) == 0)
+    n_strings++;
+  }
+ }
+
+ *n_directories = n_strings;
+ *directories = strings;
+ return 0;
+}
+
 int make_tarball_target(struct bca_context *ctx,
                         struct project_details *pd,
                         FILE *output)
@@ -10473,7 +10557,7 @@ int make_tarball_target(struct bca_context *ctx,
   return 1;
  }
 
- fprintf(output, "#source distribution tarball creation\n");
+ fprintf(output, "# source distribution tarball creation\n");
 
  files = NULL;
  n_files = 0;
@@ -10510,6 +10594,12 @@ int make_tarball_target(struct bca_context *ctx,
     n_files++;
   }
 
+  for(y=0; y<cd.n_lib_headers; y++)
+  {
+   if(add_to_string_array(&files, n_files, cd.lib_headers[y], -1, 1) == 0)
+    n_files++;
+  }
+
   if(component_details_cleanup(&cd))
    return 1;
  }
@@ -10524,34 +10614,9 @@ int make_tarball_target(struct bca_context *ctx,
  snprintf(temp, 512, "%s.%s", tar_name, pd->version_string);
 
  /* mkdir lines */
- strings = NULL;
- n_strings = 0;
- for(x=0; x<n_files; x++)
+ if(array_of_directories_from_array_of_file_names(files, n_files, &strings, &n_strings))
  {
-  z = strlen(files[x]);
-  if(z > 512)
-  {
-   fprintf(stderr, "BCA: file name %s too long\n", files[x]);
-   return 1;
-  }
-
-  while(z > 0)
-  {
-   if(files[x][z] == '/')
-   {
-    z++;
-    break;
-   }
-   z--;
-  }
-  if(z > 2)
-  {
-   memcpy(subdir, files[x] + 1, z - 1);
-   subdir[z - 1] = 0;
-
-   if(add_to_string_array(&strings, n_strings, subdir, z, 1) == 0)
-    n_strings++;
-  }
+  return 1;
  }
 
  for(x=0; x<n_strings; x++)
@@ -10615,7 +10680,10 @@ int make_tarball_target(struct bca_context *ctx,
  free(tar_name);
 
 #else
- fprintf(output, "#source distribution tarball creation support is not in single file distribution\n\n\n");
+ fprintf(output, "# source distribution tarball creation\n");
+ fprintf(output, "tar : \n");
+ fprintf(output, "\t@echo \"Source distribution tarball creation not supported in single file distribution.\"\n");
+ fprintf(output, "\t@false\n");
 #endif
  return 0;
 }
@@ -10628,8 +10696,8 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
                                             struct project_details *pd)
 {
  int n_lib_headers, i, j;
- char **lib_headers;
- struct component_details output_names;
+ char **lib_headers, *package_name;
+ struct component_details output_names, installed_names;
  char temp[1024];
 
  if(tc->install_include_dir == NULL)
@@ -10682,12 +10750,25 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
  }
 
  memset(&output_names, 0, sizeof(struct component_details));
-
  output_names.host = cd->host;
  output_names.component_type = cd->component_type;
  output_names.component_name = cd->component_name;
+ output_names.component_output_name = cd->component_output_name;
 
- if(render_project_component_output_names(ctx, &output_names, RENDER_OUTPUT_NAME))
+ if(render_project_component_output_names(ctx, &output_names, tc, RENDER_OUTPUT_NAME))
+ {
+  fprintf(stderr, "BCA: generate_host_component_install_rules(): "
+          "render_project_component_ouput_names() failed\n");
+  return 1;
+ }
+
+ memset(&installed_names, 0, sizeof(struct component_details));
+ installed_names.host = cd->host;
+ installed_names.component_type = cd->component_type;
+ installed_names.component_name = cd->component_name;
+ installed_names.component_output_name = cd->component_output_name;
+
+ if(render_project_component_output_names(ctx, &installed_names, tc, RENDER_INSTALL_OUTPUT_NAME))
  {
   fprintf(stderr, "BCA: generate_host_component_install_rules(): "
           "render_project_component_ouput_names() failed\n");
@@ -10696,7 +10777,9 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
 
  if(cd->n_rendered_names > 3)
  {
-  fprintf(output, "\tinstall %s %s\n",
+  fprintf(output, "\tmkdir -p %s\n", tc->install_lib_dir);
+
+  fprintf(output, "\tinstall %s %s/\n",
           build_names->rendered_names[3],
           tc->install_lib_dir);
 
@@ -10709,8 +10792,10 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
   }
  }
 
+ fprintf(output, "\tmkdir -p %s/pkgconfig\n", tc->install_lib_dir);
+
  if(generate_host_component_pkg_config_file(ctx, cd, pd, tc,
-                                            cd->rendered_names[1],
+                                            installed_names.rendered_names[1],
                                             output_names.rendered_names,
                                             output_names.n_rendered_names,
                                             output, 1))
@@ -10719,12 +10804,29 @@ int generate_library_component_install_rule(struct bca_context *ctx, FILE *outpu
   return 1;
  }
 
- for(i=0; i<n_lib_headers; i++)
+ if((package_name = lookup_key(ctx,
+                               ctx->project_configuration_contents,
+                               ctx->project_configuration_length,
+                               cd->component_type,
+                               cd->component_name,
+                               "PACKAGE_NAME")) == NULL)
  {
-  fprintf(output, "\tinstall %s %s\n", lib_headers[i], tc->install_include_dir);
+  package_name = cd->component_output_name;
  }
 
- if(free_rendered_names(&output_names))
+ fprintf(output, "\tmkdir -p %s/%s-%s\n",
+         tc->install_include_dir, package_name, cd->major);
+
+ for(i=0; i<n_lib_headers; i++)
+ {
+  fprintf(output, "\tinstall %s %s/%s-%s/\n", lib_headers[i],
+          tc->install_include_dir, package_name, cd->major);
+ }
+
+ if(component_details_cleanup(&output_names))
+  return 1;
+
+ if(component_details_cleanup(&installed_names))
   return 1;
 
  if(free_string_array(lib_headers, n_lib_headers))
@@ -10796,6 +10898,7 @@ int makefile_component_pass(struct bca_context *ctx,
   {
    case MAKE_PASS_INSTALL_RULES:
    case MAKE_PASS_UNINSTALL_RULES:
+   case MAKE_PASS_BUILD_RULES:
         return 0;
         break;
   }
@@ -10813,7 +10916,7 @@ int makefile_component_pass(struct bca_context *ctx,
  cd.component_name = pd->component_names[component_i];
  cd.component_output_name = pd->component_output_names[component_i];
 
- if(render_project_component_output_names(ctx, &cd, RENDER_BUILD_OUTPUT_NAME)) //needs to pass tc
+ if(render_project_component_output_names(ctx, &cd, tc, RENDER_BUILD_OUTPUT_NAME)) //needs to pass tc
  {
   fprintf(stderr, "BCA: render_project_component_ouput_names() failed\n");
    return 1;
@@ -10828,7 +10931,7 @@ int makefile_component_pass(struct bca_context *ctx,
        install_cd.component_type = cd.component_type;
        install_cd.component_name = cd.component_name;
        install_cd.component_output_name = cd.component_output_name;
-       if(render_project_component_output_names(ctx, &install_cd, RENDER_INSTALL_OUTPUT_NAME)) //needs to pass tc
+       if(render_project_component_output_names(ctx, &install_cd, tc, RENDER_INSTALL_OUTPUT_NAME)) //needs to pass tc
        {
         fprintf(stderr, "BCA: render_project_component_ouput_names() failed\n");
         return 1;
@@ -10850,18 +10953,32 @@ int makefile_component_pass(struct bca_context *ctx,
        {
         /* the .pc rendered by render_project_component_output_names() will be the versioned one,
           this covers the unversioned symlink */
-        fprintf(output, "%s/%s.pc ", tc->build_prefix,
-                pd->component_output_names[component_i]);
+        snprintf(temp, 512, "%s/%s.pc", tc->build_prefix,
+                 pd->component_output_names[component_i]);
+
+        if(add_to_string_array(unique_list, *unique_list_length, temp, -1, 1) == 0)
+        {
+         fprintf(output, "%s ", temp);
+         (*unique_list_length)++;
+        }
        }
 
        for(i=0; i < cd.n_rendered_names; i++)
        {
         if(cd.rendered_names[i][0] != 0)
-         fprintf(output, "%s ", cd.rendered_names[i]);
+        {
+         snprintf(temp, 512, "%s", cd.rendered_names[i]);
+         if(add_to_string_array(unique_list, *unique_list_length, temp, -1, 1) == 0)
+         {
+          fprintf(output, "%s ", temp);
+          (*unique_list_length)++;
+         }
+        }
        }
        break;
 
   case MAKE_PASS_INSTALL_RULES:
+  case MAKE_PASS_UNINSTALL_RULES:
        if(resolve_component_installation_path(ctx, cd.host,
                                               cd.component_type,
                                               cd.component_name,
@@ -10873,49 +10990,58 @@ int makefile_component_pass(struct bca_context *ctx,
         return 1;
        }
 
-       fprintf(output, "%s-%s-install : %s\n",
-               cd.host, cd.component_name, cd.rendered_names[0]);
-       if( (strcmp(cd.component_type, "BINARY") == 0)      ||
-           (strcmp(cd.component_type, "CAT") == 0)         ||
-           (strcmp(cd.component_type, "MACROEXPAND") == 0) ||
-           (strcmp(cd.component_type, "CUSTOM") == 0) )
+       if(install_directory != NULL)
        {
-        fprintf(output, "\tinstall %s %s\n",
-                cd.rendered_names[0], install_directory);
-       } else if(strcmp(cd.component_type, "SHAREDLIBRARY") == 0) {
-        if(generate_library_component_install_rule(ctx, output, 0,
-                                                   tc, &cd, &cd, pd))
-         return 1;
+        fprintf(output, "%s-%s-", cd.host, cd.component_name);
+
+        if(pass == MAKE_PASS_INSTALL_RULES)
+         fprintf(output, "install : %s\n", cd.rendered_names[0]);
+        else
+         fprintf(output, "uninstall :\n");
+
+        if(strcmp(cd.component_type, "SHAREDLIBRARY") == 0)
+        {
+         if(component_details_resolve_all(ctx, &cd, pd))
+          return 1;
+
+         if(generate_library_component_install_rule(ctx, output,
+                                                    (pass == MAKE_PASS_UNINSTALL_RULES),
+                                                    tc, &cd, &cd, pd))
+          return 1;
+        } else {
+
+         if(pass == MAKE_PASS_INSTALL_RULES)
+         {
+          fprintf(output, "\tmkdir -p %s\n", install_directory);
+          fprintf(output, "\tinstall %s %s/\n",
+                  cd.rendered_names[0], install_directory);
+         } else {
+          fprintf(output, "\trm %s\n",
+                  install_cd.rendered_names[0]);
+         }
+        }
+        fprintf(output, "\n");
        }
        break;
 
   case MAKE_PASS_INSTALL_RULES_2:
-       fprintf(output, "%s-%s-install ",
-               cd.host, cd.component_name);
-       break;
-
-  case MAKE_PASS_UNINSTALL_RULES:
-       fprintf(output, "%s-%s-uninstall :\n", cd.host, cd.component_name);
-       if( (strcmp(cd.component_type, "BINARY") == 0)      ||
-           (strcmp(cd.component_type, "CAT") == 0)         ||
-           (strcmp(cd.component_type, "MACROEXPAND") == 0) ||
-           (strcmp(cd.component_type, "CUSTOM") == 0) )
-       {
-        for(i=0; i < install_cd.n_rendered_names; i++)
-        {
-         if(install_cd.rendered_names[i][0] != 0)
-          fprintf(output, "\trm %s\n", install_cd.rendered_names[0]);
-        }
-       } else if(strcmp(cd.component_type, "SHAREDLIBRARY") == 0) {
-        if(generate_library_component_install_rule(ctx, output, 1,
-                                                   tc, &cd, &cd, pd))
-         return 1;
-       }
-       break;
-
   case MAKE_PASS_UNINSTALL_RULES_2:
-       fprintf(output, "%s-%s-uninstall ",
-               cd.host, cd.component_name);
+       if(resolve_component_installation_path(ctx, cd.host,
+                                              cd.component_type,
+                                              cd.component_name,
+                                              &install_directory))
+        return 1;
+
+       if(install_directory != NULL)
+       {
+        fprintf(output, "%s-%s-", cd.host, cd.component_name);
+
+        if(pass == MAKE_PASS_INSTALL_RULES_2)
+         fprintf(output, "install ");
+        else
+         fprintf(output, "uninstall ");
+
+       }
        break;
 
   case MAKE_PASS_BUILD_RULES:
@@ -10970,7 +11096,7 @@ int makefile_mode_pass(struct bca_context *ctx,
        break;
 
   case MAKE_PASS_HOST_TARGETS:
-       fprintf(output, "# top level host definitions\n");
+       fprintf(output, "# what to build for each host\n");
        break;
 
   case MAKE_PASS_HELP:
@@ -10990,23 +11116,23 @@ int makefile_mode_pass(struct bca_context *ctx,
        break;
 
   case MAKE_PASS_CLEAN_RULES:
-       fprintf(output, "# clean host and top level definitions\n");
+       fprintf(output, "# clean rules\n");
        break;
 
   case MAKE_PASS_CLEAN_RULES_2:
        fprintf(output, "clean :\n\trm -f ");
        break;
 
-  case MAKE_PASS_INSTALL_RULES_2:
-       fprintf(output, "# install host and top level definitions\n");
+  case MAKE_PASS_INSTALL_RULES:
+       fprintf(output, "# install rules\n");
        break;
 
   case MAKE_PASS_INSTALL_RULES_3:
        fprintf(output, "install : ");
        break;
 
-  case MAKE_PASS_UNINSTALL_RULES_2:
-       fprintf(output, "# uninstall host and top level definitions\n");
+  case MAKE_PASS_UNINSTALL_RULES:
+       fprintf(output, "# uninstall rules\n");
        break;
 
   case MAKE_PASS_UNINSTALL_RULES_3:
@@ -11037,7 +11163,7 @@ int makefile_mode_pass(struct bca_context *ctx,
   case MAKE_PASS_UNINSTALL_RULES_2:
   case MAKE_PASS_UNINSTALL_RULES_3:
   case MAKE_PASS_BUILD_RULES:
-       /* pre-looping over components */
+       /* looping over hosts; pre-looping over components */
        for(host_i = 0; host_i < bd->n_hosts; host_i++)
        {
         switch(pass)
@@ -11048,12 +11174,6 @@ int makefile_mode_pass(struct bca_context *ctx,
 
          case MAKE_PASS_HELP:
               fprintf(output, "\t@echo \" %s\"\n", bd->hosts[host_i]);
-              break;
-
-         case MAKE_PASS_CLEAN_RULES:
-              fprintf(output, "%s-clean-targets = ", bd->hosts[host_i]);
-              unique_list_length = 0;
-              unique_list = NULL;
               break;
 
          case MAKE_PASS_CLEAN_RULES_2:
@@ -11075,6 +11195,7 @@ int makefile_mode_pass(struct bca_context *ctx,
          case MAKE_PASS_UNINSTALL_RULES_3:
               fprintf(output, "$(%s-uninstall-targets) ", bd->hosts[host_i]);
               break;
+
         }
        }
 
@@ -11082,17 +11203,26 @@ int makefile_mode_pass(struct bca_context *ctx,
        switch(pass)
        {
         case MAKE_PASS_HOST_TARGETS:
-        case MAKE_PASS_CLEAN_RULES:
-        case MAKE_PASS_INSTALL_RULES:
-        case MAKE_PASS_INSTALL_RULES_2:
-        case MAKE_PASS_UNINSTALL_RULES:
-        case MAKE_PASS_UNINSTALL_RULES_2:
-        case MAKE_PASS_BUILD_RULES:
              for(host_i = 0; host_i < bd->n_hosts; host_i++)
              {
+              fprintf(output, "%s : ", bd->hosts[host_i]);
+              for(component_i = 0; component_i < pd->n_components; component_i++)
+              {
+               if(makefile_component_pass(ctx, pd, bd, output, pass, host_i, component_i,
+                                          &unique_list_length, &unique_list))
+                return 1;
+              }
+              fprintf(output, "\n\n");
+             }
+             break;
 
-              if(pass == MAKE_PASS_HOST_TARGETS)
-               fprintf(output, "%s : ", bd->hosts[host_i]);
+        case MAKE_PASS_CLEAN_RULES:
+             unique_list_length = 0;
+             unique_list = NULL;
+
+             for(host_i = 0; host_i < bd->n_hosts; host_i++)
+             {
+              fprintf(output, "%s-clean-targets = ", bd->hosts[host_i]);
 
               for(component_i = 0; component_i < pd->n_components; component_i++)
               {
@@ -11100,10 +11230,23 @@ int makefile_mode_pass(struct bca_context *ctx,
                                           &unique_list_length, &unique_list))
                 return 1;
               }
+              fprintf(output, "\n\n");
+             }
+             break;
 
-              if(pass == MAKE_PASS_HOST_TARGETS)
-               fprintf(output, "\n\n");
-
+        case MAKE_PASS_INSTALL_RULES:
+        case MAKE_PASS_INSTALL_RULES_2:
+        case MAKE_PASS_UNINSTALL_RULES:
+        case MAKE_PASS_UNINSTALL_RULES_2:
+        case MAKE_PASS_BUILD_RULES:
+             for(host_i = 0; host_i < bd->n_hosts; host_i++)
+             {
+              for(component_i = 0; component_i < pd->n_components; component_i++)
+              {
+               if(makefile_component_pass(ctx, pd, bd, output, pass, host_i, component_i,
+                                          &unique_list_length, &unique_list))
+                return 1;
+              }
              }
              break;
        }
@@ -11111,12 +11254,6 @@ int makefile_mode_pass(struct bca_context *ctx,
        /* post-looping over components */
        switch(pass)
        {
-        case MAKE_PASS_UNINSTALL_RULES:
-        case MAKE_PASS_INSTALL_RULES:
-             fprintf(output, "\n");
-             break;
-
-        case MAKE_PASS_CLEAN_RULES:
         case MAKE_PASS_INSTALL_RULES_2:
         case MAKE_PASS_UNINSTALL_RULES_2:
              fprintf(output, "\n\n");
@@ -11190,7 +11327,7 @@ int generate_makefile_mode(struct bca_context *ctx)
 
  fprintf(output,
          "# This Makefile for GNU Make was generated by Build Configuration Adjust\n"
-         "# See http://bca.stoverenterprises.com for more information\n\n");
+         "# See https://github.com/ctstover/Build-Configuration-Adjust for more information\n\n");
 
  for(pass=0; pass<N_MAKE_PASSES; pass++)
  {
@@ -11204,16 +11341,19 @@ int generate_makefile_mode(struct bca_context *ctx)
 
  return 0;
 }
+/* End makefile_out.c ---------------------------------------- (sfd organizer) */
+
+
+/* Begin config_files_low_level.c ---------------------------- (sfd organizer) */
+
 
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -12507,5 +12647,7 @@ int load_build_config(struct bca_context *ctx, int test)
 
  return 0;
 }
+
+/* End config_files_low_level.c ------------------------------ (sfd organizer) */
 
 

@@ -1,7 +1,17 @@
+/* This is the "single file distribution" (sfd) version of Build Configuration
+   Adjust (BCA). It is contracted by a Makefile target in the standard source
+   tree, by concatenating a subset of the source files together. The purpose is
+   to have a single file that can be placed in source tarballs so that an end
+   user does not need to have the full BCA installed. Generally this version is
+   able to be compiled with a single invocation of cc (gcc/clang) via
+   configure.sh. There are many reasons this may not work such as limited RAM
+   available to the compiler on older or embedded systems.
+
+   In such cases, the best chance of success is to build BCA from source on a
+   different computer, copy the Makefile to the one unable to build this file
+   along with the rest of the source tree, and try "make native/bca".
+*/
 #define IN_SINGLE_FILE_DISTRIBUTION
-#define WITHOUT_LIBNEWT
-#define WITHOUT_MONGOOSE
-#define WITHOUT_GTK__2_0
 
 #if @CHECK(BUILD,ALL,ALL,VERSION)@
 #define BCA_VERSION "@LKUPOR(BUILD,ALL,ALL,VERSION,error)@"

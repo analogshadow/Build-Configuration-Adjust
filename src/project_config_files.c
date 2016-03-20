@@ -1,12 +1,12 @@
+/* Begin project_config_files.c ------------------------------ (sfd organizer) */
+
 /* GPLv3
 
     Build Configuration Adjust, is a source configuration and Makefile
     generation tool.
-    Copyright © 2015 C. Thomas Stover.
-    Copyright © 2012,2013,2014 Stover Enterprises, LLC (an Alabama
-    Limited Liability Corporation).
-    All rights reserved.
-    See https://github.com/ctstover/Build-Configuration-Adjust for more
+    Copyright © 2012,2013,2014,2015,2016 C. Thomas Stover.
+    All rights reserved. See
+    https://github.com/analogshadow/Build-Configuration-Adjust for more
     information.
 
     This program is free software: you can redistribute it and/or modify
@@ -235,3 +235,5 @@ int free_project_details(struct project_details *pd)
 
  return 0;
 }
+/* End project_config_files.c -------------------------------- (sfd organizer) */
+
